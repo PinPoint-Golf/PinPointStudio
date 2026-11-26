@@ -6,7 +6,7 @@
 - **A test registered for one platform only counts on every platform, except where a platform's gate list says otherwise** (`rtm_platform_tests/<platform>.txt`, `test_strategy.md` §8.3). Gate lists: macos. No gate list: linux, windows.
 - **The matrix never overrides requirements.md.** Where the evidence supports another status, flag 11 says so; requirements.md's owner changes the status.
 - **Kinds of evidence** (`test_strategy.md` §2): an automated test of the logic (E1); a frozen record of old behaviour (E2); a run over real swings (E3); an automated screen test (E4); a run on Windows (E5); seen at the rig or in a corpus swing (E6); the installer checked (E7). A labelled test is an automated screen test (E4) when it carries the `qml_ui` label, a frozen record of old behaviour (E2) when it carries `golden`, and an automated test of the logic (E1) otherwise. An observation is the kind its line in `rtm_observations.csv` names, and counts only when what was seen is a pass; a corpus swing (an E3 line whose Record begins `corpus:`) also counts as seen in a corpus swing (E6), with no build or age limit (`test_strategy.md` §3, §4). The kinds a row needs are its Needs column, or its area's default in `rtm_kind_defaults.csv`.
-- **The words beside an id.** A requirement id carries its row's Requirement sentence, shortened to about 12 words; a control id its control's first sentence; an issue number its title, from the issue snapshot (`rtm_issues.json`) as of its last refresh. The snapshot holds no titles yet, so an issue shows by its number until `make_rtm.py --refresh-issues --library <the library folder>` adds them.
+- **The words beside an id.** A requirement id carries its row's Requirement sentence, shortened to about 12 words; a control id its control's first sentence; an issue number its title, from the issue snapshot (`rtm_issues.json`) as of its last refresh.
 
 ## Summary
 
@@ -22,7 +22,7 @@
 | every kind it needs present | 0 |
 | withdrawn ids | 8 |
 
-953 gaps: 2 accepted, 951 in the baseline, 0 new (a new gap fails the check); 43 warnings. "The flags" says what each kind of gap means; every gap is listed last.
+891 gaps: 2 accepted, 889 in the baseline, 0 new (a new gap fails the check); 72 warnings. "The flags" says what each kind of gap means; every gap is listed last.
 
 ## Requirements, area by area
 
@@ -34,32 +34,32 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Status: partial; release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-2**: The app shall be ready for the next swing as soon as the golfer can hit it, without waiting for the previous shot's analysis or replay.
-  - Status: planned (#281, #79); release v1; Could; use cases UC-12.
+  - Status: planned (#281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End), #79 (Phone capture: pairing, notifications, host work and transport)); release v1; Could; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #79; #281.
+  - Open issues: #79 (Phone capture: pairing, notifications, host work and transport); #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End).
 - **REQ-CAP-3**: The app shall detect a swing by itself, without the golfer touching anything, from every detector it has (sound, motion sensors, camera pose, the ball, a phone).
-  - Status: partial · open bug #281; release v1; Must; use cases UC-12.
+  - Status: partial · open bug #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End); release v1; Must; use cases UC-12.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
-  - Open issues: #281.
+  - Open issues: #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End).
   - 130 corpus swings in 2026: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-CAP-4**: The app shall let the golfer or coach record a shot by hand when detection misses one.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-5**: The app shall not treat a sound or movement that is not a swing as a shot, and shall save and mark one it is unsure of, never hide it.
-  - Status: partial · open bug #282; release v1; Must; use cases UC-12.
+  - Status: partial · open bug #282 (Capture: keyboard typing, glove noise and a sneeze are each detected as a shot and saved); release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #282.
+  - Open issues: #282 (Capture: keyboard typing, glove noise and a sneeze are each detected as a shot and saved).
 - **REQ-CAP-6**: The app shall tell the golfer, by a short sound, that a swing was accepted, and by a different sound that one was refused.
-  - Status: partial · open bug #281; release v1; Should; use cases UC-12 ; UC-13.
+  - Status: partial · open bug #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End); release v1; Should; use cases UC-12 ; UC-13.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #281.
+  - Open issues: #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End).
 - **REQ-CAP-7**: The app shall save each accepted shot, or tell the golfer that it did not and why.
   - Status: planned (platform refactor, Stage D) · ruling change approved: changes LC-SHOT once its wording is approved (GU-3); release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-8**: The app shall pair each launch-monitor reading with the swing it belongs to, by time, and keep a reading no swing matched as a shot of its own.
-  - Status: partial · open bug #281; release v1; Must; use cases UC-12.
+  - Status: partial · open bug #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End); release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #281.
+  - Open issues: #281 (Capture: a swing hit while the previous one is analysing is never detected, and a short-captured swing is dropped at End).
 - **REQ-CAP-9**: The app shall add everything a device reports for a shot (a launch-monitor reading, its later club data, a phone clip) to that shot within 5 s of it arriving, never holding it until the session ends; Premier's club data, which Premier sends only with the next shot, is the one exception.
   - Status: partial; release v1; Should; use cases UC-12 ; UC-16.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
@@ -70,9 +70,9 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Status: built, not verified; release v1; Must; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-12**: The app shall trim stored video to the swing plus a margin, and keep a two-camera shot within a storage budget the Product Owner sets once today's sizes are measured.
-  - Status: planned (#75); release v1; Should; use cases UC-12 ; UC-40.
+  - Status: planned (#75 (Cameras and capture: finish off and test on the real hardware)); release v1; Should; use cases UC-12 ; UC-40.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware).
 - **REQ-CAP-13**: The app shall record a short clip from the impact camera, trimmed around impact.
   - Status: built, not verified; release v2; Could; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
@@ -82,63 +82,63 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-CAP-15**: Readings from every device shall line up in time to within a frame.
   - Status: partial; release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75; #87.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware); #87 (Sensor fusion proposals).
 - **REQ-CAP-16**: The app shall time impact on every shot to within a frame of the video.
-  - Status: planned (#70, #67); release v1; Must; use cases UC-12.
+  - Status: planned (#70 (Swing phases and timeline fusion: finish off), #67 (Readings at impact: low point, shaft lean and clubhead speed)); release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #67; #70.
+  - Open issues: #67 (Readings at impact: low point, shaft lean and clubhead speed); #70 (Swing phases and timeline fusion: finish off).
 - **REQ-CAP-17**: The app shall record on every shot the club the golfer declared, or 'not declared', and let the golfer set the club for the session and change it between shots.
   - Status: partial; release v1; Must; use cases UC-11 ; UC-14.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #81; #238.
+  - Open issues: #81 (Session types and screens that are still placeholders); #238 (Club: read a legacy "DRIVER" stub as undeclared everywhere (R-CLUB-4)).
 - **REQ-CAP-18**: The app shall let the golfer correct a saved shot's club, and carry the correction into every per-club number.
-  - Status: planned (#169); release v1; Must; use cases UC-14.
+  - Status: planned (#169 (Gui: change a saved shot's club from the app)); release v1; Must; use cases UC-14.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #169.
+  - Open issues: #169 (Gui: change a saved shot's club from the app).
 - **REQ-CAP-33**: The app shall take a shot's club from the simulator software when the golfer chooses that.
   - Status: built, not verified; release v1; Could; use cases UC-11 ; UC-14.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-20**: The app shall let the golfer say, at the start of a session, what they are working on and their usual miss, and keep it with the session.
   - Status: partial; release v1; Could; use cases UC-11 ; UC-29.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #328.
+  - Open issues: #328 (Start a session by saying your usual miss and coaching style, going straight to Ready, and getting a guided first session).
 - **REQ-CAP-21**: The app shall start every session in Capture, on every start path.
   - Status: built, not verified; release v1; Must; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Closed issues: #283.
+  - Closed issues: #283 (Session: starting a session left the app on the Replay view of the previously browsed session).
 - **REQ-CAP-22**: The app shall end a session only after any shot still being saved is saved, unless the golfer chooses to end anyway.
-  - Status: partial · open bug #280; release v1; Must; use cases UC-16.
+  - Status: partial · open bug #280 (Capture: quitting while a shot analyses loses the shot and its session: the golfer's choice, but the close dialog should say so); release v1; Must; use cases UC-16.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #280.
+  - Open issues: #280 (Capture: quitting while a shot analyses loses the shot and its session: the golfer's choice, but the close dialog should say so).
 - **REQ-CAP-23**: The app shall let the golfer continue today's session for the same golfer instead of starting a new one; once sessions carry a coaching modality, only under the same modality.
   - Status: built, not verified; release v1; Could; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-24**: The app shall capture from two phones at once, face-on and down-the-line, as one shot per ball with both clips.
-  - Status: planned (#78); release v2; Should; use cases UC-5 ; UC-13.
+  - Status: planned (#78 (Phone capture: several phones, late clips and live states)); release v2; Should; use cases UC-5 ; UC-13.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #78.
+  - Open issues: #78 (Phone capture: several phones, late clips and live states).
 - **REQ-CAP-25**: The app shall attach a phone clip that arrives late to its shot, re-analyse the shot, and show whether each clip is requested, arriving, absent or timed out.
-  - Status: planned (#78); release v2; Should; use cases UC-13 ; UC-16.
+  - Status: planned (#78 (Phone capture: several phones, late clips and live states)); release v2; Should; use cases UC-13 ; UC-16.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #78.
+  - Open issues: #78 (Phone capture: several phones, late clips and live states).
 - **REQ-CAP-26**: The app shall accept a phone's shot only when the computer's own detectors agree, where it has any.
   - Status: built, not verified · to confirm; release v1; Could; use cases UC-13.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-27**: The app shall pair a phone as a camera by scanning a code, and reconnect an already-paired phone by itself.
   - Status: partial; release v1; Could; use cases UC-5.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #79.
+  - Open issues: #79 (Phone capture: pairing, notifications, host work and transport).
 - **REQ-CAP-28**: The app shall capture from a phone over a cable as well as over Wi-Fi, and never connect one phone twice.
   - Status: partial; release v1; Could; use cases UC-5.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #79.
+  - Open issues: #79 (Phone capture: pairing, notifications, host work and transport).
 - **REQ-CAP-29**: The app shall import a phone's recorded session and launch-monitor files into the library.
   - Status: built, not verified; release v1; Could; use cases UC-17.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-CAP-34**: The app shall check that the phone app and the studio app can work together, and say which one to update when they cannot.
   - Status: partial; release v1; Could; use cases UC-5.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #329.
+  - Open issues: #329 (Be told which app to update when the phone and the studio app don't match).
 - **REQ-CAP-35**: The app shall warn before a session starts when the library's disk is nearly full.
   - Status: proposed · to confirm; release v1; Could; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
@@ -157,15 +157,15 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-CAP-30**: The app shall capture shots while the golfer plays a simulator round, and let the golfer view them apart from practice.
   - Status: proposed; release v2; Could; use cases UC-30.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #330.
+  - Open issues: #330 (Capture during a simulator round, kept apart from practice shots).
 - **REQ-CAP-31**: The app shall let the golfer or coach declare the session's coaching modality; the modality shall steer coaching feedback only, never analysis or grading.
   - Status: proposed · its model change is approved with its design: a new fact on the session, its coaching modality (IM C2/C3); release v2; Should; use cases UC-11 ; UC-30.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #328.
+  - Open issues: #328 (Start a session by saying your usual miss and coaching style, going straight to Ready, and getting a guided first session).
 - **REQ-CAP-32**: The app shall support a third camera view, down the line and high, beside the face-on and down-the-line views.
-  - Status: planned (#180); release v2; Must; use cases UC-4.
+  - Status: planned (#180 (Cameras: a third perspective, down the line high, permanently mounted above the door)); release v2; Must; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #180.
+  - Open issues: #180 (Cameras: a third perspective, down the line high, permanently mounted above the door).
 
 ### Devices and calibration
 
@@ -175,91 +175,92 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Tests: `perspective_test`, `rig_commands_test`.
   - 130 corpus swings in 2026: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-DEV-2**: Every camera shall give a usable picture in the studio's light, every session.
-  - Status: partial · open bug #183; release v1; Must; use cases UC-4.
+  - Status: partial · open bug #183 (Cameras: the face-on and down-the-line cameras pick their own brightness target (−3 to −4 EV) — dark images, club tracks refused); release v1; Must; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75; #183.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware); #183 (Cameras: the face-on and down-the-line cameras pick their own brightness target (−3 to −4 EV) — dark images, club tracks refused).
 - **REQ-DEV-3**: The app shall offer for the swing roles only cameras fast enough for swing analysis, and let the user choose a local camera's frame rate.
   - Status: partial; release v1; Should; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware).
 - **REQ-DEV-4**: The app shall record each camera's lens, region of interest, exposure and gain with each shot.
-  - Status: planned (#75); release v1; Must; use cases UC-12.
+  - Status: planned (#75 (Cameras and capture: finish off and test on the real hardware)); release v1; Must; use cases UC-12.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware).
 - **REQ-DEV-5**: The app shall read launch monitors: a GC Quad directly, devices bridged through GSPro Connect, and Foresight devices under Premier.
   - Status: built, not verified; release v1; Must; use cases UC-6.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
+  - Open issues: #365 (Launch-monitor readings in two corpus sessions are stamped before their shot's impact).
   - 84 corpus swings in 2026: 4 Aug (25), 18 Aug (11), 20 Oct (48).
 - **REQ-DEV-6**: The app shall read an Open Launch Nova when one is available.
-  - Status: planned (#80); release later; no MoSCoW; use cases UC-6.
+  - Status: planned (#80 (Launch monitor: finish off)); release later; no MoSCoW; use cases UC-6.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #80.
+  - Open issues: #80 (Launch monitor: finish off).
 - **REQ-DEV-7**: The app shall connect wrist sensors (HackMotion, Witmotion) and chest and hip sensors, and set each up the same way at every connect.
   - Status: built, not verified · to confirm; release v1; Could; use cases UC-6.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #109.
+  - Open issues: #109 (Trunk IMU: the worn session (W3) and the sequence chart (W4)).
 - **REQ-DEV-8**: The app shall let the golfer or coach choose where each motion sensor is worn for this session.
-  - Status: planned (#85); release v2; Could; use cases UC-6.
+  - Status: planned (#85 (Devices and session setup: finish off)); release v2; Could; use cases UC-6.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #85.
+  - Open issues: #85 (Devices and session setup: finish off).
 - **REQ-DEV-9**: Every device control the app shows shall do what it says.
-  - Status: planned (#85); release v1; Must; use cases UC-6.
+  - Status: planned (#85 (Devices and session setup: finish off)); release v1; Must; use cases UC-6.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #85.
+  - Open issues: #85 (Devices and session setup: finish off).
 - **REQ-DEV-10**: The app shall run every sensor calibration without the golfer touching the screen.
   - Status: partial; release v1; Could; use cases UC-7.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #266.
+  - Open issues: #266 (Calibration: the arm routines should wait for the arm to be on and still before they capture).
 - **REQ-DEV-11**: The app shall guide each calibration with a face-on figure and golf-swing words, and speak an instruction only when the golfer cannot see the screen.
   - Status: partial; release v1; Could; use cases UC-7.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #106.
+  - Open issues: #106 (Calibration: spoken start/return cues for the other calibration routines).
 - **REQ-DEV-12**: The app shall clear a sensor's calibration, and tell the golfer, whenever the calibration stops being valid (a lost link, a re-link, a move to another body segment).
   - Status: proposed · ruling change approved: GU-17 and GU-27 are adopted, which changes the Rig design §4.2 (PR-35) and adds an R-RIG rule; release v1; Should; use cases UC-7 ; UC-15.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-DEV-13**: The app shall tell the golfer when a chest or hip sensor is worn facing the wrong way.
-  - Status: planned (#108); release v1; Must; use cases UC-6.
+  - Status: planned (#108 (Trunk IMU: Check trunk should name a sensor that's facing the wrong way)); release v1; Must; use cases UC-6.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #108.
+  - Open issues: #108 (Trunk IMU: Check trunk should name a sensor that's facing the wrong way).
 - **REQ-DEV-14**: The app shall give one plain answer to 'is calibration good enough?', with the technical detail behind a disclosure.
   - Status: partial · to confirm; release v1; Could; use cases UC-7.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-DEV-15**: The app shall calibrate every camera with everyday kit (an alignment stick, a sheet of paper and a ball) in one routine, once per studio bay.
-  - Status: planned (#74, #76); release v2; Must; use cases UC-8.
+  - Status: planned (#74 (Camera calibration programme), #76 (Capture sessions that other work is waiting for)); release v2; Must; use cases UC-8.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #74; #76.
+  - Open issues: #74 (Camera calibration programme); #76 (Capture sessions that other work is waiting for).
 - **REQ-DEV-16**: The app shall check each session, quickly, that the camera calibration still holds, and say when it does not.
-  - Status: planned (#74); release v2; Must; use cases UC-8 ; UC-11.
+  - Status: planned (#74 (Camera calibration programme)); release v2; Must; use cases UC-8 ; UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #74.
+  - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-17**: The app shall keep the calibration and set-up of each studio bay and load it, so a fixed studio calibrates once.
-  - Status: planned (#74); release v2; Must; use cases UC-8 ; UC-18.
+  - Status: planned (#74 (Camera calibration programme)); release v2; Must; use cases UC-8 ; UC-18.
   - Evidence: an automated test of the logic (E1); no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
   - Tests: `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
-  - Open issues: #74.
+  - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-18**: The app shall show when a camera's focus lock has failed, and restore the camera's focus.
-  - Status: planned (#74); release v2; Should; use cases UC-4.
+  - Status: planned (#74 (Camera calibration programme)); release v2; Should; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #74.
+  - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-20**: The app shall save every change to the rig's set-up, and never refuse a golfer's change because the save failed.
   - Status: planned (platform refactor, Stage C); release v1; Should; use cases UC-8.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
 - **REQ-DEV-21**: Session set-up shall show only the steps the connected hardware needs, and end in a plain 'Ready'.
   - Status: built, not verified; release v1; Should; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #85.
+  - Open issues: #85 (Devices and session setup: finish off).
 - **REQ-DEV-22**: The app shall let a studio whose devices have not changed go straight to Ready after a quick check.
   - Status: proposed; release v2; Could; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #328.
+  - Open issues: #328 (Start a session by saying your usual miss and coaching style, going straight to Ready, and getting a guided first session).
 - **REQ-DEV-23**: The app shall say at set-up which readings the camera framing will lose.
   - Status: built, not verified · to confirm; release v1; Should; use cases UC-4.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #75.
+  - Open issues: #75 (Cameras and capture: finish off and test on the real hardware).
 - **REQ-DEV-24**: The app shall find the ball at address without the golfer calibrating anything.
   - Status: partial; release v1; Must; use cases UC-12.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
-  - Open issues: #77.
+  - Open issues: #77 (Impact camera and ball detection: turn the clip into numbers).
   - 130 corpus swings in 2026, 2 failed: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6, 1 failed), 10 Jul (11), 18 Aug (11, 1 failed), 9 Sep (7), 20 Oct (49).
 - **REQ-DEV-25**: The app shall show live device health (cameras, sensors, phones, buffers) on a screen a first-time golfer never meets unless they go to it.
   - Status: built, not verified; release v1; Could; use cases UC-10.
@@ -276,7 +277,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DEV-30**: The app shall tell the user when a change to the set-up fails to save.
   - Status: proposed · to confirm; release v1; Must; use cases UC-8.
   - Evidence: none yet; no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #352.
+  - Open issues: #352 (Check that a set-up change that fails to save is reported).
 
 ### Analysis and metrics
 
@@ -286,75 +287,80 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-ANA-2**: The app shall analyse each shot by the data it holds.
   - Status: partial; release v1; Should; use cases UC-17 ; UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #73; #89; #273.
+  - Open issues: #73 (Wrist and HackMotion: finish off); #89 (Release, updates and platforms: finish off); #273 (Analysis: the session type is a leftover of the old screens and must steer nothing (55 files still read it)).
 - **REQ-ANA-3**: The app shall find the swing positions P1 to P10 on every shot, choosing for each the better of the camera and the sensors.
   - Status: partial; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #70; #181.
+  - Open issues: #70 (Swing phases and timeline fusion: finish off); #181 (Positions: does P3 time the whole lead arm or the forearm? A library check before deciding).
   - 139 corpus swings in 2026, all failed: 11 Jun (9), 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-ANA-4**: The app shall name swing positions in plain words (for example 'late downswing' for P6), or explain each label on hover.
   - Status: proposed · to confirm; release v1; Could; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #331.
+  - Open issues: #331 (Read a shot in plain words and honest units: swing positions, 3-D lower-body movement and club face angle from the wrist sensor).
 - **REQ-ANA-5**: The app shall track the whole body from each camera, and fit a 3-D skeleton when two cameras see the swing.
   - Status: built, not verified; release v1; Must; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - Open issues: #71 (3-D skeleton and kinematic sequence: finish off); #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 139 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-ANA-6**: The app shall track the club shaft and clubhead through the swing from the face-on camera, with no markers on the club.
   - Status: built, not verified; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #69.
+  - Open issues: #69 (Face-on shaft tracker: robustness and uncertainty leftovers).
 - **REQ-ANA-7**: The app shall track the club from the down-the-line camera, and say where it cannot see it.
   - Status: partial; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #68.
+  - Open issues: #68 (Down-the-line club tracker: finish off).
 - **REQ-ANA-8**: The app shall combine the two camera views of the club into one club in 3-D.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - Open issues: #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 83 corpus swings in 2026, 2 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49, 1 failed).
 - **REQ-ANA-9**: The app shall measure clubhead speed from the cameras when no launch monitor gives it, agreeing with a launch monitor within ±10 mph on a single swing.
   - Status: partial; release v2; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #67; #126.
+  - Open issues: #67 (Readings at impact: low point, shaft lean and clubhead speed); #126 (Clubhead speed: tighten single-swing agreement with the launch monitor from ±20 to about ±10 mph).
 - **REQ-ANA-10**: Every reading the app estimates (one no device reports) shall say how it was made and how sure it is.
-  - Status: planned (#230, #239); release v1; Could; use cases UC-21.
+  - Status: planned (#230 (Audit every derived metric against R-INS-5 (estimate from all inputs, with σ)), #239 (HackMotion: tag the hm.&#42; values as derived (R-INS-5), not readings)); release v1; Could; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #230; #239.
+  - Open issues: #230 (Audit every derived metric against R-INS-5 (estimate from all inputs, with σ)); #239 (HackMotion: tag the hm.&#42; values as derived (R-INS-5), not readings).
 - **REQ-ANA-11**: The app shall estimate the low point of the club's arc from every input it has, with its uncertainty.
-  - Status: planned (#229, #67, #76); release v2; Should; use cases UC-20.
+  - Status: planned (#229 (Low point: one estimator from every input (R-INS-5), not a pick-one ladder), #67 (Readings at impact: low point, shaft lean and clubhead speed), #76 (Capture sessions that other work is waiting for)); release v2; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #67; #76; #229.
+  - Open issues: #67 (Readings at impact: low point, shaft lean and clubhead speed); #76 (Capture sessions that other work is waiting for); #229 (Low point: one estimator from every input (R-INS-5), not a pick-one ladder).
 - **REQ-ANA-12**: Where a launch monitor measures a quantity, the app shall use its reading first and keep its own estimate beside it.
   - Status: built, not verified; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
 - **REQ-ANA-13**: The app shall measure the kinematic sequence (the order and timing of the pelvis, chest, arm and club peaks), with an uncertainty on every peak, and refuse an order its timings cannot support.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #71 (3-D skeleton and kinematic sequence: finish off); #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 1 corpus swing in 2026, failed: 20 Oct (1).
 - **REQ-ANA-14**: The app shall measure pelvis and chest turn, and the difference between them, from two cameras, or from the chest and hip sensors when worn.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - Open issues: #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 83 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49).
 - **REQ-ANA-15**: The app shall measure posture at address and through the swing (forward bend, knee flex, loss of posture).
   - Status: partial; release v1; Should; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
-  - Open issues: #93; #96.
+  - Open issues: #93 (Face-on trunk rise does not track the down-the-line forward bend, so it is held); #96 (Posture chart: finish off); #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 83 corpus swings in 2026, 1 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49).
 - **REQ-ANA-16**: The app shall measure lower-body movement (sway, lift, lead-knee drift, hip-line tilt) in units that stay honest before the cameras are calibrated, and in 3-D when two cameras see the swing.
   - Status: partial; release v1; Should; use cases UC-8 ; UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #331.
+  - Open issues: #331 (Read a shot in plain words and honest units: swing positions, 3-D lower-body movement and club face angle from the wrist sensor).
 - **REQ-ANA-17**: The app shall measure the chest, shoulders and arms from the face-on camera.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
 - **REQ-ANA-18**: The app shall measure the swing plane and the club's delivery the way a coach reads them: the shaft plane at address, the hand path, the plane at the top and in the downswing.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
+  - Open issues: #366 (Some two-camera corpus swings lack a 3-D skeleton, 3-D club, club peak or swing plane).
   - 83 corpus swings in 2026, 5 failed: 11 Jun (9), 3 Jul (10, 1 failed), 4 Jul (15), 20 Oct (49, 4 failed).
 - **REQ-ANA-19**: The app shall measure set-up aim (feet, hips and chest) at address from readings that can see aim, never assuming the golfer is square.
-  - Status: planned (#178); release v2; Should; use cases UC-20.
+  - Status: planned (#178 (Alignment: set-up aim is measured, never assumed — hips, feet and chest at address)); release v2; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #178.
+  - Open issues: #178 (Alignment: set-up aim is measured, never assumed — hips, feet and chest at address).
 - **REQ-ANA-20**: The app shall measure ball position and the ball's distance from the body at address, and refuse a ball the club cannot reach.
   - Status: built, not verified; release v1; Should; use cases UC-20.
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
@@ -362,11 +368,11 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-ANA-21**: The app shall measure the lead and trail wrist angles through the swing, from a wrist sensor when worn and from the cameras otherwise.
   - Status: partial; release v1; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #73.
+  - Open issues: #73 (Wrist and HackMotion: finish off).
 - **REQ-ANA-35**: The app shall estimate the club face angle from the wrist sensor when no launch monitor gives it.
   - Status: proposed; release v2; Could; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #331.
+  - Open issues: #331 (Read a shot in plain words and honest units: swing positions, 3-D lower-body movement and club face angle from the wrist sensor).
 - **REQ-ANA-22**: The app shall measure tempo: the backswing and downswing times and their ratio.
   - Status: built, not verified; release v1; Could; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
@@ -375,66 +381,67 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Evidence: a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated test of the logic yet (E1).
   - 139 corpus swings in 2026: 11 Jun (9), 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-ANA-23**: The app shall produce every reading the diagnostics model needs (for example upper-back rounding, low-back arch, the camera's own club path).
-  - Status: planned (#64); release v2; Must; use cases UC-20.
+  - Status: planned (#64 (Measurements the model needs that nothing produces yet)); release v2; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #64.
+  - Open issues: #64 (Measurements the model needs that nothing produces yet).
 - **REQ-ANA-24**: The app shall measure trunk turn and bend from the chest and hip sensors, fused into the 3-D skeleton.
   - Status: partial; release v2; Could; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #72; #109.
+  - Open issues: #72 (Trunk IMUs, lead-side load and ground forces); #109 (Trunk IMU: the worn session (W3) and the sequence chart (W4)).
 - **REQ-ANA-25**: The app shall estimate lead-side load and ground forces when a sensor or force device can support it, and label any stand-in measure as a stand-in.
-  - Status: planned (#72); release later; no MoSCoW; use cases UC-20.
+  - Status: planned (#72 (Trunk IMUs, lead-side load and ground forces)); release later; no MoSCoW; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #72.
+  - Open issues: #72 (Trunk IMUs, lead-side load and ground forces).
 - **REQ-ANA-26**: The app shall measure club speed, ball speed, launch, attack angle and strike from the impact camera, tagged as the camera's.
-  - Status: planned (#77); release v2; Should; use cases UC-20.
+  - Status: planned (#77 (Impact camera and ball detection: turn the clip into numbers)); release v2; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #77.
+  - Open issues: #77 (Impact camera and ball detection: turn the clip into numbers).
 - **REQ-ANA-27**: The app shall cross-check the cameras against the sensors, and name the device that is wrong when they disagree.
-  - Status: planned (#87); release v2; Must; use cases UC-20 ; UC-45.
+  - Status: planned (#87 (Sensor fusion proposals)); release v2; Must; use cases UC-20 ; UC-45.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #87.
+  - Open issues: #87 (Sensor fusion proposals).
 - **REQ-ANA-28**: The app shall measure short-game strokes (tempo, acceleration through impact, length).
-  - Status: planned (#87); release v2; Could; use cases UC-20.
+  - Status: planned (#87 (Sensor fusion proposals)); release v2; Could; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #87.
+  - Open issues: #87 (Sensor fusion proposals).
 - **REQ-ANA-29**: The app shall give each shot three outcome factors, strike, direction and flight, with flight graded Low, Mid or High against the club's norms and strike checked against the flight.
   - Status: built, not verified; release v1; Should; use cases UC-22.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #237.
+  - Open issues: #237 (Direction words: the compound miss starts at 4° like pull/push, and fade/draw follow the grade policy).
 - **REQ-ANA-30**: The app shall model the ball's flight (carry, height, descent) from the stored launch-monitor reading.
   - Status: partial; release v1; Could; use cases UC-22.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #80.
+  - Open issues: #80 (Launch monitor: finish off).
 - **REQ-ANA-31**: Old shots shall get the app's improvements, and every result shall say which version of the app made it.
   - Status: partial; release v1; Should; use cases UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #332.
+  - Open issues: #332 (Old shots get the app's improvements without the golfer asking).
 - **REQ-ANA-32**: The app shall let the golfer re-analyse a session or the library, and either finish or say that it did not.
   - Status: partial; release v1; Must; use cases UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
+  - Open issues: #308 (Re-analysis: tell the golfer when a quit dropped a re-analysis they asked for (after the platform programme)).
 - **REQ-ANA-33**: The app shall read a left-handed golfer's swing correctly from capture to report.
-  - Status: planned (#84, #236, #76); release v2; Must; use cases UC-20.
+  - Status: planned (#84 (Left-handed golfers), #236 (Coaching: side-naming body conditions read right-handed for a left-hander), #76 (Capture sessions that other work is waiting for)); release v2; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #76; #84; #236.
+  - Open issues: #76 (Capture sessions that other work is waiting for); #84 (Left-handed golfers); #236 (Coaching: side-naming body conditions read right-handed for a left-hander).
 
 ### Diagnostics
 
 - **REQ-DIAG-1**: The app shall grade every reading against a norm for players like the golfer, and say how unusual it is.
   - Status: partial; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #63.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions).
 - **REQ-DIAG-2**: The app shall say, for every reading, what it measures, its typical range, and what a high or low value means, in plain coaching words.
   - Status: partial · to confirm; release v1; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #65.
+  - Open issues: #65 (Session diagnostics and work-ons: finish off).
 - **REQ-DIAG-3**: The app shall find the faults and habits a session shows.
   - Status: built, not verified; release v1; Must; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
 - **REQ-DIAG-22**: The app shall link each fault to its likely causes, where the session's own shots support the link.
   - Status: partial; release v1; Must; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #63.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions).
 - **REQ-DIAG-23**: The app shall show the evidence behind each finding: the shots it fired on and the readings that fired it.
   - Status: built, not verified; release v1; Should; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
@@ -450,7 +457,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DIAG-7**: The app shall grade new readings at once, with their uncertainty and warnings, and show which faults rest on readings not yet validated, without putting a warning on every row.
   - Status: partial; release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #177.
+  - Open issues: #177 (Diagnostics: show which faults rest on new, not-yet-validated readings without flooding the app with warnings).
 - **REQ-DIAG-8**: The app shall let the Coaching Lead change, inside the app, a norm's corridor, which side fires, a measure, a characteristic and its causes, and how strict grading is, and keep those edits.
   - Status: built, not verified; release v1; Should; use cases UC-44.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
@@ -460,50 +467,50 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DIAG-10**: A habit the app cannot yet judge shall be shown as not yet judged, never as passed.
   - Status: partial · to confirm; release v1; Must; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #63; #64.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions); #64 (Measurements the model needs that nothing produces yet).
 - **REQ-DIAG-11**: The app shall record, for each cause link, whether it rests on published evidence or on coaching practice.
   - Status: partial; release v2; Should; use cases UC-24 ; UC-44.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #63.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions).
 - **REQ-DIAG-12**: The app shall show the golfer when a norm it grades against is still provisional.
   - Status: partial · to confirm; release v1; Must; use cases UC-24 ; UC-44.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #63.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions).
 - **REQ-DIAG-13**: The app shall let a coach record a physical screen (mobility, strength) for causes a camera cannot see, and use it in the diagnosis.
-  - Status: planned (#66) · its model change is approved with its design: a new golfer fact (IM C1–C3); release v2; Could; use cases UC-25.
+  - Status: planned (#66 (Session diagnostics: designed features not yet built)) · its model change is approved with its design: a new golfer fact (IM C1–C3); release v2; Could; use cases UC-25.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #66.
+  - Open issues: #66 (Session diagnostics: designed features not yet built).
 - **REQ-DIAG-14**: The app shall diagnose every shot as it is captured, whether or not a panel is open, and keep the session's diagnosis with the session.
   - Status: partial; release v1; Must; use cases UC-12 ; UC-16 ; UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #65.
+  - Open issues: #65 (Session diagnostics and work-ons: finish off).
 - **REQ-DIAG-15**: The app shall say the real reason a reading is unavailable or refused on a shot, in words a golfer reads.
   - Status: partial; release v1; Must; use cases UC-16 ; UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #65.
+  - Open issues: #65 (Session diagnostics and work-ons: finish off).
 - **REQ-DIAG-16**: The app shall judge each shot's outcome (carry, ball speed, club speed) against the golfer's own usual for that club.
   - Status: partial; release v2; Should; use cases UC-22.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #333.
+  - Open issues: #333 (See each shot's outcome against the golfer's usual for that club).
 - **REQ-DIAG-17**: The app shall grade by club where the club changes what is normal.
   - Status: built, not verified; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
 - **REQ-DIAG-18**: The app shall grade wrist positions against reference bands and swing styles, and against the golfer's own best shots.
   - Status: partial; release v2; Should; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #73.
+  - Open issues: #73 (Wrist and HackMotion: finish off).
 - **REQ-DIAG-19**: The app shall describe direction misses (pull, push, hook, slice, draw, fade) with one consistent set of thresholds.
-  - Status: planned (#237); release v1; Must; use cases UC-22.
+  - Status: planned (#237 (Direction words: the compound miss starts at 4° like pull/push, and fade/draw follow the grade policy)); release v1; Must; use cases UC-22.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #237.
+  - Open issues: #237 (Direction words: the compound miss starts at 4° like pull/push, and fade/draw follow the grade policy).
 - **REQ-DIAG-20**: The app shall judge the backswing plane in layers (set-up, turn, takeaway, arms, club), each against the layer beneath, so each fault has one cause and one fix.
   - Status: partial; release v2; Should; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #179.
+  - Open issues: #179 (Diagnostics: the plane stack — takeaway, arms and club each judged against the layer beneath).
 - **REQ-DIAG-21**: The app shall show what the golfer does well, and say why when nothing qualifies yet.
   - Status: partial; release v1; Could; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
-  - Open issues: #194.
+  - Open issues: #194 (Home: say why What you do well is empty instead of only 'Nothing stands out here yet').
 - **REQ-DIAG-24**: The app shall explain a session's outcomes: where the yards went, what is usual for the golfer, and which faults come together.
   - Status: built, not verified; release v1; Should; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no run over real swings yet (E3).
@@ -514,61 +521,61 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Status: built, not verified; release v1; Should; use cases UC-25.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-2**: The app shall let the golfer or coach see the whole coaching picture, not only the first five work-ons.
-  - Status: planned (#182); release v2; Should; use cases UC-25.
+  - Status: planned (#182 (Home: see the whole coaching picture, not just the first five work-ons)); release v2; Should; use cases UC-25.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #182.
+  - Open issues: #182 (Home: see the whole coaching picture, not just the first five work-ons).
 - **REQ-COACH-3**: The app shall follow each work-on across sessions: still happening, improving or resolved, with a trend.
   - Status: built, not verified; release v1; Could; use cases UC-27.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-4**: The app shall let the golfer dismiss a work-on, make one the session's focus, and watch it live.
-  - Status: planned (#65, #83); release v2; Should; use cases UC-25 ; UC-29.
+  - Status: planned (#65 (Session diagnostics and work-ons: finish off), #83 (Visual design programme and keyboard accessibility)); release v2; Should; use cases UC-25 ; UC-29.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #65; #83.
+  - Open issues: #65 (Session diagnostics and work-ons: finish off); #83 (Visual design programme and keyboard accessibility).
 - **REQ-COACH-5**: The app shall show the golfer's tendencies across sessions by strike, direction and flight, filtered by club, and how they lead into one another.
   - Status: built, not verified; release v1; Could; use cases UC-26.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-6**: The app shall show, for the shots a filter picks (club, strike, direction, flight), how often each fault fires on them against the rest, and how their readings differ.
   - Status: partial; release v2; Could; use cases UC-26.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #334.
+  - Open issues: #334 (See how the readings of filtered shots differ from the rest).
 - **REQ-COACH-7**: The app shall let the golfer pick shots by a reading's value (for example face-to-path over 3°).
   - Status: proposed; release v2; Could; use cases UC-26.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-8**: The app shall rank which body readings move with each ball-flight number across the golfer's library, worded as 'moves with', never as cause.
   - Status: proposed; release v2; Could; use cases UC-26.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-9**: The app shall group findings by swing area (what moves) and show each area's state on Home.
   - Status: built, not verified; release v1; Could; use cases UC-24.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-10**: The app shall give lessons: a lesson has a purpose, sets (a baseline, a drill, a re-test) and a takeaway, and leads into the next one.
-  - Status: planned (#66) · its model change is approved with its design: a new domain object, the lesson (IM C1); release v2; Must; use cases UC-28.
+  - Status: planned (#66 (Session diagnostics: designed features not yet built)) · its model change is approved with its design: a new domain object, the lesson (IM C1); release v2; Must; use cases UC-28.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #66; #335.
+  - Open issues: #66 (Session diagnostics: designed features not yet built); #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-11**: The app shall run practice between lessons against the one reading the lesson prescribed, reporting the rate in its zone, the trend against the lesson and the spread, never a made-up score.
   - Status: proposed; release v2; Could; use cases UC-29.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-12**: The app shall judge progress on what holds at the next visit and in varied practice, not on improvement within one session.
   - Status: proposed; release v2; Could; use cases UC-27.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-13**: The app shall let a coach override any coaching decision the app makes, and record each override.
   - Status: proposed · its model change is approved with its design: a new golfer fact, the override record (IM C2/C3); release v2; Should; use cases UC-25 ; UC-28.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-14**: The app shall offer, in practice only and when the golfer or coach opts in, a non-speech cue after each shot saying whether one chosen reading was in its band, fading over shots by default.
   - Status: proposed; release later; no MoSCoW; use cases UC-29.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-15**: The app shall give a live cue from the wrist sensor at the top of the swing when the golfer asks for one.
   - Status: proposed; release later; no MoSCoW; use cases UC-29.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-16**: The app shall narrate its coaching decisions, in text, in words suited to the golfer's level, using a language model as the voice and never as the decider, and never speak a verdict.
   - Status: partial; release v1; Could; use cases UC-25.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #81.
+  - Open issues: #81 (Session types and screens that are still placeholders).
 - **REQ-COACH-23**: The app shall let the golfer or coach ask about a session, by voice or by typing, and give an observation at the end of a session when the user turns that on; the setting is off by default, and its first use says what is sent.
   - Status: partial; release v1; Could; use cases UC-25.
   - Evidence: none yet; no run over real swings yet (E3).
@@ -578,22 +585,22 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-COACH-18**: The app shall offer a short-term fix before an event that expires and never changes the golfer's plan.
   - Status: proposed · its model change is approved with its design: a new golfer fact, a temporary fix (IM C2/C3); release later; no MoSCoW; use cases UC-31.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-19**: The app shall let a golfer send a session to a coach for review and receive the review back, with no server the project must run.
   - Status: proposed · its model change is approved with its design: a new object, the review package (IM C1); release later; no MoSCoW; use cases UC-34.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335; #347.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned); #347 (Send a session to a coach holding only what the golfer chose to share).
 - **REQ-COACH-20**: The app shall advise during a simulator round with at most one cue the golfer opted into, and debrief the round afterwards.
   - Status: proposed; release later; no MoSCoW; use cases UC-30.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #335.
+  - Open issues: #335 (Coaching: the proposed coaching features, not yet planned).
 - **REQ-COACH-21**: The app shall give the golfer, at the end of a lesson or session, one or two things to work on, how each should feel, a drill, and what to ignore.
   - Status: partial; release v1; Should; use cases UC-25 ; UC-28 ; UC-32.
   - Evidence: none yet; no run over real swings yet (E3).
 - **REQ-COACH-22**: The app shall draw drills, constraints and feels for each work-on from a coach-written library that cites its sources and names no commercial programme.
   - Status: partial · to confirm; release v2; Should; use cases UC-25.
   - Evidence: none yet; no run over real swings yet (E3).
-  - Open issues: #336.
+  - Open issues: #336 (Get drills for what to work on from a coach-written library).
 
 ### Review, replay and reports
 
@@ -606,11 +613,11 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-REV-3**: The app shall draw coach's lines (head, hips, plane, spine, shoulder plane) at address by itself.
   - Status: partial; release v1; Could; use cases UC-19.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #83.
+  - Open issues: #83 (Visual design programme and keyboard accessibility).
 - **REQ-REV-4**: The app shall let a coach draw on the video (lines, circles, angles) and keep the marks with the swing.
   - Status: partial; release v1; Must; use cases UC-19.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #83.
+  - Open issues: #83 (Visual design programme and keyboard accessibility).
 - **REQ-REV-5**: The app shall chart each reading of a shot through the swing, and say for each chart how far to trust it.
   - Status: built, not verified; release v1; Should; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
@@ -620,11 +627,11 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-REV-7**: The app shall show two swings' videos side by side or overlaid, kept in step by swing position.
   - Status: proposed; release v2; Should; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #337.
+  - Open issues: #337 (Compare two swings side by side, or a shot against the golfer's best swings).
 - **REQ-REV-8**: The app shall compare a shot against the golfer's best swings, chosen by their outcome.
   - Status: proposed; release v2; Could; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #337.
+  - Open issues: #337 (Compare two swings side by side, or a shot against the golfer's best swings).
 - **REQ-REV-9**: The app shall let the golfer mark a reference swing and compare others against it, from any session.
   - Status: built, not verified; release v1; Could; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
@@ -634,68 +641,68 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-REV-11**: The app shall show the session's launch-monitor numbers, with dispersion and per-club figures.
   - Status: partial; release v1; Should; use cases UC-24.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #80.
+  - Open issues: #80 (Launch monitor: finish off).
 - **REQ-REV-12**: The app shall show the session's diagnosis while the session runs, in depth for analysis, and in print, each with the same content.
   - Status: partial; release v1; Must; use cases UC-24.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #65.
+  - Open issues: #65 (Session diagnostics and work-ons: finish off).
 - **REQ-REV-13**: The app shall make a session report for the golfer: what happened, what to work on and why, with pictures, a launch-monitor appendix and the coach's note.
   - Status: partial; release v1; Could; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-REV-14**: The app shall send the report by email directly or hand it to the mail app, on every platform.
   - Status: partial; release v2; Should; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-REV-32**: The app shall put the studio's and the coach's details (name, logo, contact, booking link) on the report and its email.
   - Status: built, not verified; release v1; Could; use cases UC-9 ; UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-REV-15**: The app shall show a report inside the app.
-  - Status: planned (#98); release v2; Could; use cases UC-32.
+  - Status: planned (#98 (Session report: view the PDF inside the app instead of in Preview)); release v2; Could; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #98.
+  - Open issues: #98 (Session report: view the PDF inside the app instead of in Preview).
 - **REQ-REV-16**: The app shall print, or save as a PDF, the Diagnostics, Launch monitor and Charts panels.
-  - Status: planned (#82); release v2; Could; use cases UC-33.
+  - Status: planned (#82 (Charts and panels: print, Reads and follow-ups)); release v2; Could; use cases UC-33.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #82.
-- **REQ-REV-17**: The app shall keep a report small enough to email: 3 MB, by means decided in #61.
-  - Status: planned (#61); release v2; Should; use cases UC-32.
+  - Open issues: #82 (Charts and panels: print, Reads and follow-ups).
+- **REQ-REV-17**: The app shall keep a report small enough to email: 3 MB, by means decided in #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
+  - Status: planned (#61 (Session report: finish it off on Windows and Linux, and close its remaining gaps)); release v2; Should; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-REV-18**: The app shall show every shot as a card with its outcome, club, key numbers and a picture.
   - Status: partial; release v1; Should; use cases UC-19.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #81.
+  - Open issues: #81 (Session types and screens that are still placeholders).
 - **REQ-REV-19**: The app shall show a table of every reading for a shot, and export it as a spreadsheet file.
   - Status: built, not verified; release v1; Could; use cases UC-20.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-REV-20**: The app shall show the wrist analysis: live angles during set-up, curves on replay, and a reference pattern to compare against.
   - Status: partial; release v1; Could; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #97.
+  - Open issues: #97 (Wrist page: finish off).
 - **REQ-REV-21**: The app shall show the golfer's posture at each swing position against good players, by pattern, on screen and in the report.
   - Status: partial; release v1; Could; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #96.
+  - Open issues: #96 (Posture chart: finish off).
 - **REQ-REV-22**: The app shall show the club's delivery as a coach reads it, and add the release (lag and the clubhead's peak timing) once arm and club timing are verified.
   - Status: partial; release v1; Should; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #117.
+  - Open issues: #117 (Club delivery: release timing section, paused until arm and club timing have truth).
 - **REQ-REV-23**: The app shall show the kinematic sequence as a chart and a strip, among the first things a teaching pro sees after a session.
   - Status: built, not verified; release v1; Should; use cases UC-23 ; UC-24.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-REV-24**: The app shall show the swing in 3-D from any side, with the club and ball, and the session's usual swing.
   - Status: built, not verified; release v1; Could; use cases UC-19.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #71.
+  - Open issues: #71 (3-D skeleton and kinematic sequence: finish off).
 - **REQ-REV-33**: The app shall show a body figure with each joint marked by how its readings graded.
-  - Status: planned (#73); release v2; Could; use cases UC-20.
+  - Status: planned (#73 (Wrist and HackMotion: finish off)); release v2; Could; use cases UC-20.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #73.
+  - Open issues: #73 (Wrist and HackMotion: finish off).
 - **REQ-REV-25**: The app shall show the golfer's progress over weeks and months: a dated trend for each fault, work-on, launch-monitor number or chosen reading.
   - Status: partial; release v2; Should; use cases UC-27.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #338.
+  - Open issues: #338 (See progress on a dated chart over weeks and months, and a session beside an earlier one).
 - **REQ-REV-26**: The app shall show a dashboard on a second screen during a session.
   - Status: partial · to confirm; release v1; Could; use cases UC-18 ; UC-28.
   - Evidence: none yet; no automated screen test yet (E4).
@@ -705,29 +712,29 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-REV-28**: The app shall let the golfer or coach keep a note for a session outside the report.
   - Status: proposed · its model change is approved with its design: a new golfer fact, the session note (IM C2/C3); release v2; Could; use cases UC-28.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #339.
+  - Open issues: #339 (Keep a session note outside the report, and record spoken commentary over a replay).
 - **REQ-REV-29**: The app shall export a clip of a swing with the coach's marks and lines drawn in.
   - Status: proposed; release v2; Could; use cases UC-34.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-REV-34**: The app shall let a coach record a spoken commentary over a replay.
   - Status: proposed; release later; no MoSCoW; use cases UC-28 ; UC-34.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #339.
+  - Open issues: #339 (Keep a session note outside the report, and record spoken commentary over a replay).
 - **REQ-REV-35**: The app shall show a session side by side with an earlier one.
   - Status: proposed; release v2; Could; use cases UC-27.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #338.
+  - Open issues: #338 (See progress on a dated chart over weeks and months, and a session beside an earlier one).
 - **REQ-REV-36**: When a report fails to send, the app shall say so and keep it to send again.
   - Status: proposed · to confirm; release v1; Should; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-REV-30**: The app shall let an analyst mark the club and body on video frames as reference truth for checking the trackers.
   - Status: built, not verified; release v2; Must; use cases UC-45.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #68.
+  - Open issues: #68 (Down-the-line club tracker: finish off).
 - **REQ-REV-31**: The app shall offer short read-outs on Charts (sequence, speed, rotation, wrist style, body, tempo).
-  - Status: planned (#82); release v2; Could; use cases UC-23.
+  - Status: planned (#82 (Charts and panels: print, Reads and follow-ups)); release v2; Could; use cases UC-23.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #82.
+  - Open issues: #82 (Charts and panels: print, Reads and follow-ups).
 
 ### The library and athletes
 
@@ -740,14 +747,14 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-LIB-3**: The app shall keep each golfer's bag of clubs (loft, length, shaft, markings) and use it in analysis.
   - Status: partial; release v1; Should; use cases UC-36.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #69.
+  - Open issues: #69 (Face-on shaft tracker: robustness and uncertainty leftovers).
 - **REQ-LIB-4**: The app shall put the most recent golfers one click away, so the coach can switch pupil in seconds.
   - Status: partial · to confirm; release v1; Could; use cases UC-11 ; UC-18.
   - Evidence: none yet; no automated test of the logic yet (E1).
 - **REQ-LIB-5**: The app shall import golfers from a roster file.
   - Status: proposed; release v2; Could; use cases UC-36.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #340.
+  - Open issues: #340 (Import golfers from a roster file).
 - **REQ-LIB-6**: The app shall change the golfer on screen only when no session is being recorded.
   - Status: built, not verified; release v1; Must; use cases UC-18.
   - Evidence: none yet; no automated test of the logic yet (E1).
@@ -760,19 +767,19 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-LIB-9**: The app shall move a session to another golfer keeping everything in it, and refuse while it is in progress.
   - Status: built, not verified; release v1; Must; use cases UC-37.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #204; #205.
+  - Open issues: #204 (Unassigned and the move: six rare cases found in step 5.1's review); #205 (Move to golfer: a second no-golfer session from the same day can't move to the same golfer (folder name clash)).
 - **REQ-LIB-10**: The app shall list a golfer's sessions with their date, shots, clubs, devices and work-on, and let the user select several for one job (export, archive, report).
   - Status: partial; release v1; Should; use cases UC-27 ; UC-32.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-LIB-11**: A golfer's page shall list that golfer's own sessions, whoever is chosen on Home.
-  - Status: planned (#61); release v2; Should; use cases UC-27.
+  - Status: planned (#61 (Session report: finish it off on Windows and Linux, and close its remaining gaps)); release v2; Should; use cases UC-27.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-LIB-12**: The app shall remove a saved shot, or a whole session, only when the golfer or coach moves it to the trash, and let that be undone until the app's own clean-up purges it, even where the system would empty its own trash first.
   - Status: partial · ruling change approved: changes DEC-175 (GU-4); release v1; Must; use cases UC-38.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #89; #193.
+  - Open issues: #89 (Release, updates and platforms: finish off); #193 (Library: consider the app's own trash always, since Windows can empty a full Recycle Bin by itself).
 - **REQ-LIB-13**: The app shall never give a trashed shot's number to another shot.
   - Status: partial; release v1; Must; use cases UC-38.
   - Evidence: none yet; no automated test of the logic yet (E1).
@@ -803,19 +810,19 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-LIB-20**: The app shall export one row per shot, with every reading, its uncertainty and the launch-monitor numbers, for a session or the whole library.
   - Status: proposed; release v2; Could; use cases UC-35.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #341.
+  - Open issues: #341 (Take the data out: one row per shot, an open swing file format and a 3-D skeleton export).
 - **REQ-LIB-21**: The app shall store swings in an open, documented format with a published reader, and keep its description current.
   - Status: partial; release v2; Should; use cases UC-35.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #341.
+  - Open issues: #341 (Take the data out: one row per shot, an open swing file format and a 3-D skeleton export).
 - **REQ-LIB-22**: The app shall export the 3-D skeleton in a standard motion format, saying when the cameras were not calibrated.
   - Status: proposed; release v2; Could; use cases UC-35.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #341.
+  - Open issues: #341 (Take the data out: one row per shot, an open swing file format and a 3-D skeleton export).
 - **REQ-LIB-23**: A golfer's history shall survive every upgrade: the app reads every swing file it has written, a past shot keeps the set-up it was captured with, and no upgrade alters a recording or a golfer's input.
-  - Status: planned (#88); release v2; Must; use cases UC-2 ; UC-43.
+  - Status: planned (#88 (Release gates: swing file compatibility and the uncertainty census)); release v2; Must; use cases UC-2 ; UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #88.
+  - Open issues: #88 (Release gates: swing file compatibility and the uncertainty census).
 - **REQ-LIB-25**: The app shall keep each golfer's distances and sideways spread by club.
   - Status: built, not verified; release v1; Could; use cases UC-27.
   - Evidence: none yet; no automated test of the logic yet (E1).
@@ -831,7 +838,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-LIB-31**: A re-analysis the golfer asks for shall keep every input of the golfer's and the coach's (ratings, notes, club corrections, the coach's marks, the reference swing) as it was.
   - Status: proposed · to confirm; release v1; Must; use cases UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1).
-  - Open issues: #356.
+  - Open issues: #356 (Test that a re-analysis keeps every rating, note and club correction).
 
 ### Install, update and platforms
 
@@ -841,7 +848,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-INST-2**: The app shall install from one signed installer per platform.
   - Status: partial; release v1; Should; use cases UC-1.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #89.
+  - Open issues: #89 (Release, updates and platforms: finish off).
 - **REQ-INST-3**: The app shall tell the user an update is ready, install it when the user says so, and relaunch.
   - Status: built, not verified; release v1; Should; use cases UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
@@ -852,55 +859,55 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Status: partial; release v1; Must; use cases UC-2 ; UC-16 ; UC-43.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
 - **REQ-INST-6**: The app shall let the user choose a stable or a beta update channel.
-  - Status: planned (#89); release v2; Could; use cases UC-2.
+  - Status: planned (#89 (Release, updates and platforms: finish off)); release v2; Could; use cases UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #89.
+  - Open issues: #89 (Release, updates and platforms: finish off).
 - **REQ-INST-7**: The app shall download only what changed in an update, where the platform allows it.
-  - Status: planned (#89); release v2; Could; use cases UC-2.
+  - Status: planned (#89 (Release, updates and platforms: finish off)); release v2; Could; use cases UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #89.
+  - Open issues: #89 (Release, updates and platforms: finish off).
 - **REQ-INST-8**: The app shall install without the graphics-card runtime and fetch it only when the machine has a supported card.
   - Status: built, not verified · to confirm; release v1; Could; use cases UC-1.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
 - **REQ-INST-9**: The app shall run its pose engine on any maker's graphics card (NVIDIA, AMD, Apple), and fall back to the processor when there is none.
   - Status: partial; release v2; Should; use cases UC-1.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #86.
+  - Open issues: #86 (Performance: measure live and finish the speed-ups).
 - **REQ-INST-10**: The app shall ask for the system permissions it needs (camera, microphone, Bluetooth, local network) with a reason, and keep them across signed upgrades.
   - Status: partial · to confirm; release v1; Must; use cases UC-1 ; UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #89.
+  - Open issues: #89 (Release, updates and platforms: finish off).
 - **REQ-INST-11**: The app shall work with phones on the local network without the user setting up the firewall.
   - Status: built, not verified · to confirm; release v1; Could; use cases UC-1 ; UC-5.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
 - **REQ-INST-13**: The app shall show its version and licences, and check for an update when the user asks.
   - Status: partial; release v1; Should; use cases UC-2 ; UC-3.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #342.
+  - Open issues: #342 (See the software licences in the About box).
 - **REQ-INST-14**: When the user refuses a system permission, the app shall say what will not work without it and how to grant it later.
   - Status: proposed · to confirm; release v1; Must; use cases UC-1.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #357.
+  - Open issues: #357 (Check that a refused camera or microphone permission says what won't work and how to allow it).
 - **REQ-INST-15**: When an update fails or will not start, the app shall let the user put the previous version back, with the library untouched and readable by it.
-  - Status: planned (#350); release v2; Should; use cases UC-2.
+  - Status: planned (#350 (Putting the previous version back when an update fails, with the library untouched)); release v2; Should; use cases UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #350.
+  - Open issues: #350 (Putting the previous version back when an update fails, with the library untouched).
 - **REQ-INST-16**: Uninstalling or reinstalling the app shall leave the library untouched.
   - Status: proposed · to confirm; release v1; Must; use cases UC-2.
   - Evidence: none yet; no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Open issues: #351.
+  - Open issues: #351 (Check that an update or a reinstall keeps the library, the settings, the calibration, the phones and the model edits).
 - **REQ-INST-17**: Every update shall keep the studio's settings, each bay's calibration and set-up, the paired phones and the Coaching Lead's edits to the diagnostics model.
   - Status: proposed · to confirm; release v1; Must; use cases UC-2.
   - Evidence: an automated test of the logic (E1); no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
   - Tests: `device_key_test`, `rig_import_test`.
-  - Open issues: #351.
+  - Open issues: #351 (Check that an update or a reinstall keeps the library, the settings, the calibration, the phones and the model edits).
 
 ### Non-functional: reliability
 
 - **REQ-REL-1**: Every way of quitting shall go through one prompt, no quit shall drop a shot still being saved without the golfer choosing to, and End, quit and update shall never disagree about whether a shot is still being saved.
-  - Status: partial · open bug #280; release v1; Must; use cases UC-2 ; UC-16.
+  - Status: partial · open bug #280 (Capture: quitting while a shot analyses loses the shot and its session: the golfer's choice, but the close dialog should say so); release v1; Must; use cases UC-2 ; UC-16.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #280.
+  - Open issues: #280 (Capture: quitting while a shot analyses loses the shot and its session: the golfer's choice, but the close dialog should say so).
 - **REQ-REL-2**: Once the golfer has answered the quit prompt, the app shall be gone promptly, leave no process without a window, and name any work still in flight.
   - Status: partial; release v1; Should; use cases UC-2 ; UC-16.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
@@ -911,50 +918,50 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Status: partial · ruling change approved: changes DEC-70 (GU-15); release v1; Must; use cases UC-39.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
 - **REQ-REL-5**: A calibration's evidence shall be saved with its session, or the golfer told it was not.
-  - Status: partial · open bug #265; release v1; Must; use cases UC-7.
+  - Status: partial · open bug #265 (Calibration: a failed trunk-ceremony write can lose the ceremony, and a failed aside copy lets the next write overwrite the earlier file); release v1; Must; use cases UC-7.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #265.
+  - Open issues: #265 (Calibration: a failed trunk-ceremony write can lose the ceremony, and a failed aside copy lets the next write overwrite the earlier file).
 - **REQ-REL-6**: A power cut shall never lose a saved shot or edit.
   - Status: partial; release v1; Must; use cases UC-16 ; UC-39 ; UC-42.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #343.
+  - Open issues: #343 (A power cut never loses a saved shot or an edit).
 - **REQ-REL-8**: The app shall tell the golfer about a problem once, not repeat the same notice.
-  - Status: planned (#79); release v1; Could; use cases UC-3 ; UC-15.
+  - Status: planned (#79 (Phone capture: pairing, notifications, host work and transport)); release v1; Could; use cases UC-3 ; UC-15.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #79.
+  - Open issues: #79 (Phone capture: pairing, notifications, host work and transport).
 - **REQ-REL-11**: The app shall keep a log the user can read and filter, and hand to support.
   - Status: built, not verified · to confirm; release v1; Should; use cases UC-3.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
 - **REQ-REL-9**: The app shall keep working when the shared library folder is out of reach, say so, and catch up when it returns.
   - Status: won't have; release never; no MoSCoW; use cases UC-15 ; UC-41.
   - Evidence: none needed (won't have).
-  - Closed issues: #344.
+  - Closed issues: #344 (Keep capturing when the shared library is out of reach).
 - **REQ-REL-10**: The app shall run a full studio day without slowing down or running out of memory.
   - Status: partial · to confirm; release v1; Must; use cases UC-18.
   - Evidence: none yet; no automated test of the logic yet (E1), and never seen at the rig or in a corpus swing (E6).
-  - Open issues: #353.
+  - Open issues: #353 (Run a full studio day to check speed and memory).
 
 ### Non-functional: performance
 
 - **REQ-PERF-1**: The app shall show a shot's results within about 10 s of impact, on the primary studio platform (REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …)).
   - Status: partial; release v1; Should; use cases UC-12.
   - Evidence: none yet; no run on Windows yet (E5).
-  - Open issues: #86.
+  - Open issues: #86 (Performance: measure live and finish the speed-ups).
 - **REQ-PERF-2**: No step (launch, Start, opening a shot, saving a shot, End) shall freeze the screen for longer than the app's own stall warning allows.
-  - Status: partial · open bug #284, #278; release v1; Should; use cases UC-11 ; UC-12 ; UC-16 ; UC-19.
+  - Status: partial · open bug #284 (Gui: the screen freezes 3-4 s at start-up, about 3 s at each session start, and 1.3-2.9 s after each shot saves), #278 (Replay: opening a shot in Replay freezes the screen for 0.3-0.45 s, every time); release v1; Should; use cases UC-11 ; UC-12 ; UC-16 ; UC-19.
   - Evidence: none yet; no run on Windows yet (E5).
-  - Open issues: #82; #86; #278; #284.
+  - Open issues: #82 (Charts and panels: print, Reads and follow-ups); #86 (Performance: measure live and finish the speed-ups); #278 (Replay: opening a shot in Replay freezes the screen for 0.3-0.45 s, every time); #284 (Gui: the screen freezes 3-4 s at start-up, about 3 s at each session start, and 1.3-2.9 s after each shot saves).
 - **REQ-PERF-4**: Home and the session lists shall open within a time the Product Owner sets once today's times are measured, on the primary studio platform (REQ-INST-1 (The app shall run on Windows 11, on macOS on Apple and …)).
   - Status: partial · to confirm; release v1; Could; use cases UC-24.
   - Evidence: none yet; no run on Windows yet (E5).
 - **REQ-PERF-5**: The app shall make a report in the background, without freezing the screen.
-  - Status: planned (#61); release v2; Could; use cases UC-32.
+  - Status: planned (#61 (Session report: finish it off on Windows and Linux, and close its remaining gaps)); release v2; Could; use cases UC-32.
   - Evidence: none yet; no run on Windows yet (E5).
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-PERF-6**: The app shall share the studio computer's graphics card with the simulator software without either failing.
   - Status: partial · to confirm; release v1; Must; use cases UC-18.
   - Evidence: none yet; no run on Windows yet (E5).
-  - Open issues: #240.
+  - Open issues: #240 (Pose: GPU segmentation for PersonSegmenter, out of the platform refactor).
 - **REQ-PERF-7**: The app shall be ready to capture within 30 s of its first launch, and within 6 s of any later launch.
   - Status: partial; release v1; Should; use cases UC-1 ; UC-11.
   - Evidence: none yet; no run on Windows yet (E5).
@@ -967,35 +974,35 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-PRIV-2**: The app shall send nothing to an outside service (speech, voice, a language model, email) unless the user has turned that service on, and shall say what it sends.
   - Status: proposed; release v1; Must; use cases UC-9 ; UC-25 ; UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #345.
+  - Open issues: #345 (Settings that do what they say: language, units and the diagnostics opt-in, with nothing sent unless turned on).
 - **REQ-PRIV-3**: The app shall keep passwords and keys in the system's secure store, never as plain text.
   - Status: partial; release v2; Should; use cases UC-9 ; UC-32.
   - Evidence: an automated test of the logic (E1); no automated screen test yet (E4).
   - Tests: `secret_store_test`.
-  - Open issues: #61.
+  - Open issues: #61 (Session report: finish it off on Windows and Linux, and close its remaining gaps).
 - **REQ-PRIV-4**: The app shall put a golfer's photo in a report only with that golfer's recorded consent, asked of every golfer whatever their age and recorded with its date; without it, no photo.
   - Status: partial; release v1; Must; use cases UC-32.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #346.
+  - Open issues: #346 (Put a golfer's photo in a report only when their consent is recorded).
 - **REQ-PRIV-6**: The app shall send crash and performance reports only if the user opts in, and the setting shall do what it says.
   - Status: partial; release v1; Must; use cases UC-9.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #345.
+  - Open issues: #345 (Settings that do what they say: language, units and the diagnostics opt-in, with nothing sent unless turned on).
 - **REQ-PRIV-5**: A session sent for review shall hold only what the golfer chose to include.
   - Status: proposed; release later; no MoSCoW; use cases UC-34.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #347.
+  - Open issues: #347 (Send a session to a coach holding only what the golfer chose to share).
 
 ### Non-functional: accessibility and ease of use
 
 - **REQ-ACC-1**: The app shall never use colour as the only way of saying something: every colour comes with a shape or words.
   - Status: partial · to confirm; release v1; Must; use cases UC-19.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #354.
+  - Open issues: #354 (Check across the screens that colour is never the only signal).
 - **REQ-ACC-2**: The app shall be usable from the keyboard throughout, designed once for the whole app.
-  - Status: planned (#83); release v2; Should; use cases UC-9.
+  - Status: planned (#83 (Visual design programme and keyboard accessibility)); release v2; Should; use cases UC-9.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #83.
+  - Open issues: #83 (Visual design programme and keyboard accessibility).
 - **REQ-ACC-3**: The app shall let the user choose how dense the screens are and whether they are light or dark, and every screen shall follow the choice.
   - Status: built, not verified; release v1; Could; use cases UC-9.
   - Evidence: none yet; no automated screen test yet (E4).
@@ -1005,11 +1012,11 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-ACC-10**: The app shall show its words in the language the user picks, from the languages it offers.
   - Status: partial; release v2; Could; use cases UC-9.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #345.
+  - Open issues: #345 (Settings that do what they say: language, units and the diagnostics opt-in, with nothing sent unless turned on).
 - **REQ-ACC-11**: The app shall show speeds, distances and forces in the units the user picks (for example mph or km/h).
   - Status: partial; release v1; Should; use cases UC-9 ; UC-20.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #345.
+  - Open issues: #345 (Settings that do what they say: language, units and the diagnostics opt-in, with nothing sent unless turned on).
 - **REQ-ACC-4**: The app shall stay usable in a smaller window.
   - Status: partial · to confirm; release v1; Should; use cases UC-9.
   - Evidence: none yet; no automated screen test yet (E4).
@@ -1019,69 +1026,70 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-ACC-6**: The app shall guide a golfer's first session step by step: explain each set-up step plainly and recommend defaults, ending in REQ-DEV-21 (Session set-up shall show only the steps the connected hardware needs, and …)'s plain 'Ready'.
   - Status: proposed; release v2; Should; use cases UC-11.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #328.
+  - Open issues: #328 (Start a session by saying your usual miss and coaching style, going straight to Ready, and getting a guided first session).
 - **REQ-ACC-7**: The app shall start cleanly on a machine with no golfers and no devices, and lead the user to their first session.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-1.
   - Evidence: none yet; no automated screen test yet (E4).
 - **REQ-ACC-8**: The app shall speak only what the golfer must do and cannot read at that moment.
   - Status: partial; release v1; Should; use cases UC-7.
   - Evidence: none yet; no automated screen test yet (E4).
-  - Open issues: #66; #276.
+  - Open issues: #66 (Session diagnostics: designed features not yet built); #276 (Voice: the developer AI Coach speaks its replies, but speech is only for instructions the golfer must act on).
 
 ### Non-functional: data honesty
 
 - **REQ-HON-1**: The golfer shall see every reading the app has.
   - Status: partial; release v1; Must; use cases UC-20.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #82.
+  - Open issues: #82 (Charts and panels: print, Reads and follow-ups).
 - **REQ-HON-2**: The golfer shall be able to tell a missing reading from a zero.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-16 ; UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Closed issues: #186.
+  - Closed issues: #186 (Gui: every shot card outside wrist sessions shows a red score of 0).
 - **REQ-HON-3**: The golfer shall be able to see how sure each number is.
   - Status: partial; release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #88.
+  - Open issues: #88 (Release gates: swing file compatibility and the uncertainty census).
 - **REQ-HON-4**: Before the first full release, the app shall state for every reading its sources of error and what its uncertainty covers.
-  - Status: planned (#88); release v1; Must; use cases UC-21.
+  - Status: planned (#88 (Release gates: swing file compatibility and the uncertainty census)); release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #88.
+  - Open issues: #88 (Release gates: swing file compatibility and the uncertainty census).
 - **REQ-HON-5**: The app shall say how far to trust each reading it shows; why a reading is missing or refused is REQ-DIAG-15 (The app shall say the real reason a reading is unavailable or …).
   - Status: built, not verified; release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
+  - Open issues: #102 (Charts: judge KS curves by their shape to predict measurement error).
 - **REQ-HON-6**: The app shall never claim more than it measured: a reading from uncalibrated cameras says it is estimated, and a stand-in says it is a stand-in.
   - Status: built, not verified; release v1; Must; use cases UC-8 ; UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
 - **REQ-HON-7**: No screen shall show placeholder content or a made-up value.
-  - Status: planned (#81); release v1; Must; use cases UC-21.
+  - Status: planned (#81 (Session types and screens that are still placeholders)); release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #81.
+  - Open issues: #81 (Session types and screens that are still placeholders).
 - **REQ-HON-8**: The app shall draw noisy curves honestly: a gap shows as a gap, never smoothed over, and the uncertainty band is visible.
   - Status: partial; release v1; Must; use cases UC-23.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #82.
+  - Open issues: #82 (Charts and panels: print, Reads and follow-ups).
 - **REQ-HON-9**: A summary shall agree with its chart.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-23.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
 - **REQ-HON-10**: A finding shall never be excused by what the golfer meant to do.
   - Status: partial · to confirm; release v1; Must; use cases UC-24.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #355.
+  - Open issues: #355 (Audit the diagnosis: no finding excused by intent, and every shot counted).
 - **REQ-HON-11**: Every shot of a session shall count in full.
   - Status: partial · to confirm; release v1; Must; use cases UC-12 ; UC-24 ; UC-30.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #355.
+  - Open issues: #355 (Audit the diagnosis: no finding excused by intent, and every shot counted).
 - **REQ-HON-12**: The app shall do its best with the cameras where they are, and say how good each reading is.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-4 ; UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
 - **REQ-HON-13**: The app shall not grade what a reading cannot see.
   - Status: partial; release v1; Must; use cases UC-21.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #63.
+  - Open issues: #63 (Diagnostics content: missing norms and causes, citations, and content decisions).
 - **REQ-HON-14**: The app shall never let a stored field change meaning between releases without it being caught.
-  - Status: planned (#88); release v1; Must; use cases UC-2 ; UC-43.
+  - Status: planned (#88 (Release gates: swing file compatibility and the uncertainty census)); release v1; Must; use cases UC-2 ; UC-43.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
-  - Open issues: #88.
+  - Open issues: #88 (Release gates: swing file compatibility and the uncertainty census).
 - **REQ-HON-15**: The app shall show when a shot is still being analysed.
   - Status: built, not verified · to confirm; release v1; Must; use cases UC-12 ; UC-19.
   - Evidence: none yet; no automated test of the logic yet (E1), and no automated screen test yet (E4).
@@ -1096,16 +1104,16 @@ Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap
 | 2. An id cited anywhere does not exist, or is withdrawn | A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, or was withdrawn. It clears when the citation is corrected. | 0 | 0 | 0 | 0 |
 | 3. A delivered, built or partial row without evidence of every kind it needs | A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that evidence exists: a labelled test, or a passing observation in rtm_observations.csv. | 299 | 0 | 299 | 0 |
 | 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 425 | 2 | 423 | 0 |
-| 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 66 | 0 | 66 | 0 |
+| 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 12 | 0 | 12 | 0 |
 | 6. An open bug naming a delivered row: the row is failing | An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is closed, or no longer names the row. | 0 | 0 | 0 | 0 |
 | 7. A planned row whose issues are all closed | A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an issue is opened for what is left. | 0 | 0 | 0 | 0 |
 | 8. A row that needs a ruling change but is marked built or delivered | A row whose status says "proposed, for the Solution Architect" (it waits on a ruling change) is marked built or delivered. It clears when requirements.md drops that marker, or the status changes. | 0 | 0 | 0 | 0 |
 | 9. A test labelled for a requirement but in no platform's gate list | A test labelled for a requirement is in no platform's gate list. A commit that adds a labelled test retakes macos.txt until BT-25's release gate writes the lists: python3 tools/method/make_rtm.py --platform-list &lt;configured test tree&gt; macos. It clears when the test is in a gate list. | 0 | 0 | 0 | 0 |
 | 10. A hardware row never observed | A row that needs hardware has never been seen at the rig or in a corpus swing (E6). It clears with a passing observation at the rig, or a corpus swing. | 52 | 0 | 52 | 0 |
 | 11. The evidence supports a different status from requirements.md's | The evidence supports a different status from requirements.md's. It clears when requirements.md's owner changes the status: the matrix never does. | 0 | 0 | 0 | 0 |
-| 12. A row not delivered, with no open issue and no accepted gap | A row not delivered has no open issue and no accepted gap. It clears with an open issue, or an accepted gap. | 111 | 0 | 111 | 0 |
+| 12. A row not delivered, with no open issue and no accepted gap | A row not delivered has no open issue and no accepted gap. It clears with an open issue, or an accepted gap. | 103 | 0 | 103 | 0 |
 | 13. A baseline line whose gap has closed | The baseline lists a gap that has closed. It clears when the line is taken out of rtm_baseline.txt, so the baseline only shrinks. | 0 | 0 | 0 | 0 |
-| warnings | Printed by every mode; they never fail the check. | 43 | | | |
+| warnings | Printed by every mode; they never fail the check. | 72 | | | |
 
 ## Warnings
 
@@ -1146,14 +1154,43 @@ Printed by every mode; they never fail the check.
 - a design document no row cites: docs/design/variability-mark/decisions.md
 - a design document no row cites: docs/design/variability-mark/plan.md
 - a design document no row cites: docs/design/variability-mark/spec.md
-- an open engineering issue with neither a Requirement: nor a Control: line: #76
-- an open engineering issue with neither a Requirement: nor a Control: line: #90
-- an open engineering issue with neither a Requirement: nor a Control: line: #101
-- an open engineering issue with neither a Requirement: nor a Control: line: #134
-- an open engineering issue with neither a Requirement: nor a Control: line: #197
-- an open engineering issue with neither a Requirement: nor a Control: line: #199
-- an open engineering issue with neither a Requirement: nor a Control: line: #222
-- an open engineering issue with neither a Requirement: nor a Control: line: #224
+- an open engineering issue with neither a Requirement: nor a Control: line: #90 (Tests, corpus and library upkeep)
+- an open engineering issue with neither a Requirement: nor a Control: line: #101 (One shared Kalman smoother and one segmented-smoothing driver)
+- an open engineering issue with neither a Requirement: nor a Control: line: #134 (Design system: replace the 47 hand-drawn copies the design lint holds (needs the Design Lead's look approval))
+- an open engineering issue with neither a Requirement: nor a Control: line: #197 (UX: the toolbar's mode switch and the Motion panel need a designed interaction)
+- an open engineering issue with neither a Requirement: nor a Control: line: #199 (Gui: a Statistics tab on the resource monitor showing the live object instance model)
+- an open engineering issue with neither a Requirement: nor a Control: line: #222 (Split the long analysis and coaching functions (was refactor plan step 8))
+- an open engineering issue with neither a Requirement: nor a Control: line: #224 (Refactor: step 7's hygiene items, moved out of the plan)
+- an open engineering issue with neither a Requirement: nor a Control: line: #368 (The studio test runner commits the shared folder's path)
+- an open engineering issue with neither a Requirement: nor a Control: line: #375 (Tests: the requirements matrix re-read from GitHub after the requirement backfill)
+- an open engineering issue with neither a Requirement: nor a Control: line: #376 (Platform: Stage B Part 1's figures re-counted)
+- an open engineering issue with neither a Requirement: nor a Control: line: #377 (Camera: the cameras' set-up moves to the Rig)
+- an open engineering issue with neither a Requirement: nor a Control: line: #378 (Wrist: the motion sensors' set-up moves to the Rig)
+- an open engineering issue with neither a Requirement: nor a Control: line: #379 (Library: each recording stores which cameras and sensors made it)
+- an open engineering issue with neither a Requirement: nor a Control: line: #380 (Calibration: the trunk calibration's raw recording is written through the session)
+- an open engineering issue with neither a Requirement: nor a Control: line: #381 (Tests: the build and audit tools fixed before the build is split into libraries)
+- an open engineering issue with neither a Requirement: nor a Control: line: #382 (Platform: the build split into one library per layer, first part)
+- an open engineering issue with neither a Requirement: nor a Control: line: #383 (Platform: the build split into one library per layer, second part)
+- an open engineering issue with neither a Requirement: nor a Control: line: #384 (Platform: Stage B Part 2's figures and build timings re-counted)
+- an open engineering issue with neither a Requirement: nor a Control: line: #385 (Platform: one code namespace per context)
+- an open engineering issue with neither a Requirement: nor a Control: line: #386 (Gui: the screens get typed values instead of loose maps)
+- an open engineering issue with neither a Requirement: nor a Control: line: #387 (Gui: the review screens read shots and recordings through the domain)
+- an open engineering issue with neither a Requirement: nor a Control: line: #388 (Report: history, work-ons and the report read through the Session)
+- an open engineering issue with neither a Requirement: nor a Control: line: #389 (Gui: the presenters handed out by one door per session, and the screens' work re-counted)
+- an open engineering issue with neither a Requirement: nor a Control: line: #390 (Platform: the composition root builds and owns the app's parts)
+- an open engineering issue with neither a Requirement: nor a Control: line: #391 (Analysis: the motion-capture probe's job leaves the pose folder and runs on the worker pool)
+- an open engineering issue with neither a Requirement: nor a Control: line: #392 (Platform: every setting inventoried and pinned by a test)
+- an open engineering issue with neither a Requirement: nor a Control: line: #393 (Video: groundwork for the capture seam)
+- an open engineering issue with neither a Requirement: nor a Control: line: #394 (Video: the shot processor's test rig, its pins, and overlapping capture)
+- an open engineering issue with neither a Requirement: nor a Control: line: #395 (Camera: device inventories, and the device managers handed their settings)
+- an open engineering issue with neither a Requirement: nor a Control: line: #396 (Library: a shot exists from its trigger, and is never lost part-way)
+- an open engineering issue with neither a Requirement: nor a Control: line: #397 (Video: the shot processor split up, then the visit to the bay)
+- an open engineering issue with neither a Requirement: nor a Control: line: #398 (Launch monitor: a launch-monitor-only shot has its own writer, and the board becomes a view)
+- an open engineering issue with neither a Requirement: nor a Control: line: #399 (Video: the shot controller narrowed, and one owner of the trigger rule)
+- an open engineering issue with neither a Requirement: nor a Control: line: #400 (Platform: the shot processor deleted, the capture files moved, and Stages C and D re-counted)
+- an open engineering issue with neither a Requirement: nor a Control: line: #401 (Platform: the API keys move to the secure store, the Rig's keys leave the settings, and Stage E closes)
+- an open engineering issue with neither a Requirement: nor a Control: line: #402 (Platform: how the platform refactor's issues are worked (the standing block))
+- an open engineering issue with neither a Requirement: nor a Control: line: #403 (Platform: decisions the platform refactor is waiting on)
 
 ## Controls checked by tests
 
@@ -1928,72 +1965,18 @@ None.
 
 ### 5. An open enhancement with no Requirement: line, or one naming an unknown id
 
-- #61, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #61` baseline</sub>
-- #63, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #63` baseline</sub>
-- #64, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #64` baseline</sub>
-- #65, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #65` baseline</sub>
-- #66, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #66` baseline</sub>
-- #67, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #67` baseline</sub>
-- #68, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #68` baseline</sub>
-- #69, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #69` baseline</sub>
-- #70, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #70` baseline</sub>
-- #71, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #71` baseline</sub>
-- #72, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #72` baseline</sub>
-- #73, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #73` baseline</sub>
-- #74, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #74` baseline</sub>
-- #75, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #75` baseline</sub>
-- #77, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #77` baseline</sub>
-- #78, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #78` baseline</sub>
-- #79, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #79` baseline</sub>
-- #80, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #80` baseline</sub>
-- #81, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #81` baseline</sub>
-- #82, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #82` baseline</sub>
-- #83, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #83` baseline</sub>
-- #84, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #84` baseline</sub>
-- #85, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #85` baseline</sub>
-- #86, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #86` baseline</sub>
-- #87, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #87` baseline</sub>
-- #88, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #88` baseline</sub>
-- #89, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #89` baseline</sub>
-- #93, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #93` baseline</sub>
-- #96, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #96` baseline</sub>
-- #97, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #97` baseline</sub>
-- #98, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #98` baseline</sub>
-- #102, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #102` baseline</sub>
-- #106, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #106` baseline</sub>
-- #108, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #108` baseline</sub>
-- #109, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #109` baseline</sub>
-- #117, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #117` baseline</sub>
-- #126, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #126` baseline</sub>
-- #131, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #131` baseline</sub>
-- #169, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #169` baseline</sub>
-- #177, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #177` baseline</sub>
-- #178, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #178` baseline</sub>
-- #179, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #179` baseline</sub>
-- #180, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #180` baseline</sub>
-- #181, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #181` baseline</sub>
-- #182, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #182` baseline</sub>
-- #193, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #193` baseline</sub>
-- #194, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #194` baseline</sub>
-- #229, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #229` baseline</sub>
-- #230, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #230` baseline</sub>
-- #237, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #237` baseline</sub>
-- #238, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #238` baseline</sub>
-- #239, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #239` baseline</sub>
-- #240, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #240` baseline</sub>
-- #262, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #262` baseline</sub>
-- #266, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #266` baseline</sub>
-- #289, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #289` baseline</sub>
-- #291, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #291` baseline</sub>
-- #292, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #292` baseline</sub>
-- #293, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #293` baseline</sub>
-- #308, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #308` baseline</sub>
-- #314, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #314` baseline</sub>
-- #315, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #315` baseline</sub>
-- #316, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #316` baseline</sub>
-- #317, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #317` baseline</sub>
-- #318, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #318` baseline</sub>
-- #319, an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #319` baseline</sub>
+- #131 (Typeset design for the basic controls: buttons, chips, fields, popups, notices, badges, headings (design brief)), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #131` baseline</sub>
+- #262 (A per-shot score for every session, to replace the wrist score the shot cards no longer show), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #262` baseline</sub>
+- #289 (Presenters: type the three big screen helpers' value bundles when a screen that reads them next changes (deferred from #224-U)), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #289` baseline</sub>
+- #291 (Calibration: move the three calibration routines' logic from QML to C++, together with #266 and #270 (deferred from Stage C)), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #291` baseline</sub>
+- #292 (Build: the vision Rules library (pp_rules_vision), moved out of Stage D), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #292` baseline</sub>
+- #293 (Work-ons: the athlete says which sessions are out of date, in one rule (Q4's end state, after #224-U's interim)), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #293` baseline</sub>
+- #314 (Phone sync, buffer, processor and disk warnings are decided in the screens; move the thresholds to C++), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #314` baseline</sub>
+- #315 (Quality, strength and grade colour bands are decided in QML (Theme and the grade marks)), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #315` baseline</sub>
+- #316 (Charts, reports and the 3-D view decide outliers, minimum swing counts and tolerances in QML), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #316` baseline</sub>
+- #317 (Set-up: the framing page decides in QML whether the golfer is framed), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #317` baseline</sub>
+- #318 (Camera settings: the frame rates offered, and the impact camera's minimum rate, are decided in QML), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #318` baseline</sub>
+- #319 (QML rule check: 30 comparisons it counts are not rules (wording, layout, animation); narrow the check or reword them), an open enhancement, says no requirement it serves (no Requirement: line) <sub>`5 #319` baseline</sub>
 
 ### 6. An open bug naming a delivered row: the row is failing
 
@@ -2090,7 +2073,6 @@ None.
 - REQ-CAP-38 (When an import stops part-way, the app shall say which shots came …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-CAP-38` baseline</sub>
 - REQ-CAP-39 (At End, the app shall name a phone clip still on its …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-CAP-39` baseline</sub>
 - REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-1` baseline</sub>
-- REQ-DEV-5 (The app shall read launch monitors: a GC Quad directly, devices bridged …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-5` baseline</sub>
 - REQ-DEV-12 (The app shall clear a sensor's calibration, and tell the golfer, whenever …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-DEV-12` baseline</sub>
 - REQ-DEV-14 (The app shall give one plain answer to 'is calibration good enough?' …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-DEV-14` baseline</sub>
 - REQ-DEV-20 (The app shall save every change to the rig's set-up, and never …) is planned, and has no open issue and no accepted gap <sub>`12 REQ-DEV-20` baseline</sub>
@@ -2099,17 +2081,11 @@ None.
 - REQ-DEV-28 (The app shall let the user choose the microphone, the screen the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DEV-28` baseline</sub>
 - REQ-DEV-29 (The app shall let the user unpair a phone the studio no …) is proposed, and has no open issue and no accepted gap <sub>`12 REQ-DEV-29` baseline</sub>
 - REQ-ANA-1 (The app shall analyse every shot by itself after capture, with no …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-1` baseline</sub>
-- REQ-ANA-5 (The app shall track the whole body from each camera, and fit …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-5` baseline</sub>
-- REQ-ANA-8 (The app shall combine the two camera views of the club into …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-8` baseline</sub>
 - REQ-ANA-12 (Where a launch monitor measures a quantity, the app shall use its …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-12` baseline</sub>
-- REQ-ANA-13 (The app shall measure the kinematic sequence, with an uncertainty on every …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-13` baseline</sub>
-- REQ-ANA-14 (The app shall measure pelvis and chest turn, and the difference between …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-14` baseline</sub>
 - REQ-ANA-17 (The app shall measure the chest, shoulders and arms from the face-on camera.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-17` baseline</sub>
-- REQ-ANA-18 (The app shall measure the swing plane and the club's delivery the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-18` baseline</sub>
 - REQ-ANA-20 (The app shall measure ball position and the ball's distance from the …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-20` baseline</sub>
 - REQ-ANA-22 (The app shall measure tempo: the backswing and downswing times and their ratio.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-22` baseline</sub>
 - REQ-ANA-36 (The app shall measure head movement through the swing.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ANA-36` baseline</sub>
-- REQ-ANA-32 (The app shall let the golfer re-analyse a session or the library …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-ANA-32` baseline</sub>
 - REQ-DIAG-3 (The app shall find the faults and habits a session shows.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-3` baseline</sub>
 - REQ-DIAG-23 (The app shall show the evidence behind each finding: the shots it …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-23` baseline</sub>
 - REQ-DIAG-4 (The app shall say, for each finding, how often it fired in …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-DIAG-4` baseline</sub>
@@ -2178,7 +2154,6 @@ None.
 - REQ-ACC-5 (The app shall speak to the golfer in golf words throughout, and …) is partial, and has no open issue and no accepted gap <sub>`12 REQ-ACC-5` baseline</sub>
 - REQ-ACC-7 (The app shall start cleanly on a machine with no golfers and …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-ACC-7` baseline</sub>
 - REQ-HON-2 (The golfer shall be able to tell a missing reading from a zero.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-2` baseline</sub>
-- REQ-HON-5 (The app shall say how far to trust each reading it shows …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-5` baseline</sub>
 - REQ-HON-6 (The app shall never claim more than it measured: a reading from …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-6` baseline</sub>
 - REQ-HON-9 (A summary shall agree with its chart.) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-9` baseline</sub>
 - REQ-HON-12 (The app shall do its best with the cameras where they are …) is built, not verified, and has no open issue and no accepted gap <sub>`12 REQ-HON-12` baseline</sub>
