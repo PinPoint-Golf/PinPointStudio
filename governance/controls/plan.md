@@ -63,8 +63,8 @@ The coordinator never re-pastes reports, reads a notes file only when a decision
 *Why:* reports entering the coordinator's context twice, and clerical work, used up the context needed for judgement.[^ag-19]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
-**AG-48.** A coordinator session must hand over to a fresh session once about half its context is used, and must tell the Product Owner when its estimate passes that point.
-It keeps the handover file current as items land, so the change loses nothing: the briefs' rules, each lane's state, what waits on a role, and where each brief and note is. It reports at once if its context has been summarised. An agent can't see its own usage, so it estimates, early rather than late; the exact figure is the session's own context command.
+**AG-48.** A coordinator session must re-read the controls it read at the start once about half its context is used, must hand over to a fresh session at about 65%, and must tell the Product Owner when its estimate passes each point.
+Its handover is one page of state, rewritten (never appended) as items land, so the change loses nothing: the briefs' rules, each lane's state, every item in flight with its brief and notes, what waits on a role, and any standing rule not yet in `governance/`. The log of calls is kept apart and is not read at a handover. It reports at once if its context has been summarised. An agent can't see its own usage, so it estimates, early rather than late; the exact figure is the session's own context command.
 *Why:* a rule read hours earlier in a long session is no longer in front of the agent when it decides, so it gets missed: the overnight coordinator wrote one brief without the standing block, and a lane started a cabin run it hadn't been asked for.[^ag-48]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
@@ -78,7 +78,12 @@ Start the next item the moment one lands or goes into its first review, choosing
 *Why:* reviews take a while, and lanes sat idle while rulings were recorded; filling them with open bugs took the steering of the work away from the Product Owner.[^ag-20]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
-**BT-2.** A piece of work must need at most two or three builds in all, and the budget must cover the whole item: the implementer's builds, every fix round's and the reviewer's.
+**AG-50.** Planned work must be briefed and built in chunks of about 6–10 hours: several plan items in one agent run, back to back, with one review (plus at most one check of its fixes), the full suite run once on the primary platform where the change needs it (BT-4), and one commit for the chunk.
+A chunk counts as one task and one item for AG-17, AG-20, AG-21 and AG-22: one agent run, one commit, one review. Each item's own brief and its rules still bind inside the chunk. A defect, a fix of an issue a role scheduled, or an item the plan isolates (a scripted move that runs alone, a cut-over) may still be a chunk of one (proposed, for the Product Owner). A chunk's build budget is the sum of its items' budgets, at most five (proposed, for the Product Owner; BT-2).
+*Why:* each item carried a fixed price of brief, review, re-review, full-suite run and commit that was as large as the work; items of 1.5 to 3 hours spent most of the day on that price.[^ag-50]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* a review of the plan
+
+**BT-2.** A piece of work must need at most two or three builds in all, and the budget must cover the whole item: the implementer's builds, every fix round's and the reviewer's. A chunk of several items is budgeted as [AG-50](plan.md) says.
 Batch related edits and build at the end of each part, not after every stage. A plan's verification section names the targets the change affects, one line each on why, and says which suites are not run and why. Reviewers run ctest on the implementer's current build and rebuild only when it is stale. A "before" build of an old commit is made only when no kept binary or dump can answer. A long machine run (a sweep, a re-run on another machine) is justified in one line before it starts, and runs once. Build-time measurements (clean, one-header, link) run on one machine of the primary platform, the same one for the before and the after, since a comparison needs one machine[^bt-2b]. Each brief sets its item's build budget, and each commit report gives the build count (proposed, for the Product Owner)[^bt-2c].
 *Why:* builds are slow and memory-bound, and every build costs the owner time and energy; one step of the domain refactor ran about 200 builds.[^bt-2]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
@@ -108,5 +113,6 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 [^bt-2]: Product Owner, 28 Oct and 21 Nov 2026.
 
 [^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is its own artefact, `governance/artefacts/lifecycle_model.md`, owned by the Solution Architect (option (a); DEC-204).
-[^ag-48]: Product Owner, 26 Nov 2026, after the overnight brief that omitted COMMON.md.
+[^ag-50]: Product Owner, 26 Nov 2026: "we definitely need to work at a less granular level; it's bonkers right now", then "just do it" to the proposal: chunks of about 6–10 h, each with one review, one full-suite run and one commit.
+[^ag-48]: Product Owner, 26 Nov 2026, after the overnight brief that omitted COMMON.md; the re-read at half, the handover at about 65% and the one-page state, Product Owner, 26 Nov 2026 ("just do it"), because every handover costs the next coordinator its re-reading.
 [^bt-38]: Product Owner, 25 Nov 2026 (the evidence rule, [POL-9](../policies.md)); the control and its wording approved by the Product Owner and the Solution Architect, 26 Nov 2026.

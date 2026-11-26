@@ -3,7 +3,7 @@
 Reviewing the change, and putting it before the role that approves it. Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../README.md).
 
 **AG-21.** Every item, and each fix in a batch reviewed later, must get a fresh, independent reviewer agent (not a fork of the coordinator) that checks every definition-of-done bullet and the diff, and returns SIGNED OFF or CHANGES NEEDED before it reaches the role's list.
-No kind of item is exempt: review is not kept for cut-overs, deletions and data writes only[^ag-21b].
+No kind of item is exempt: review is not kept for cut-overs, deletions and data writes only[^ag-21b]. A fix round that changes only wording (a document, a comment, a commit message) is checked by the coordinator against the review's findings, not by a fresh reviewer; a fix that changes code, a test or a governed rule's meaning gets a fresh reviewer[^ag-21c].
 Reviewers read, and run ctest on the implementer's build; they never edit, and rebuild only when the build is stale.
 *Why:* what lands on the owner's list should already have survived an independent check, so the review time goes on judgement.[^ag-21]
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review (this control is the review)
@@ -52,6 +52,7 @@ Check each sheet yourself before showing it.
 
 [^ag-21]: Product Owner, 30 Oct 2026.
 [^ag-21b]: Product Owner, 26 Nov 2026 (the memory audit, item 14): every item is reviewed; a lighter tier that reviews only cut-overs, deletions and data writes is not adopted.
+[^ag-21c]: Product Owner, 26 Nov 2026 ("just do it"), after a one-cell wording fix took a third fresh review; with the work in chunks of about 6–10 h, each with one review.
 [^finding]: Product Owner, 26 Nov 2026 (the memory audit, contradiction 18): a finding nobody has seen is filed as a `finding` issue, "reproduce first", never as a `bug`; this settles AG-22 against AG-24.
 [^git-15]: Product Owner, 31 Jul 2026; a control from 26 Nov 2026 (the memory audit, item 15).
 [^ag-22]: Product Owner, 21–22 Nov 2026.

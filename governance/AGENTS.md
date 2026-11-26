@@ -30,7 +30,7 @@ A brief carries the rules for what it touches, so the agent that reads it doesn'
 Read these in full, not by their pointers here[^startup]:
 
 - **every agent:** the non-negotiables (`README.md`), this page, [`controls/decide.md`](controls/decide.md) (every agent makes calls), and its brief with the standing block the brief names;
-- **a coordinator, also:** [`policies.md`](policies.md), [`controls/plan.md`](controls/plan.md), [`controls/review.md`](controls/review.md) and [`controls/commit.md`](controls/commit.md), again at every handover ([AG-48](controls/plan.md));
+- **a coordinator, also:** [`policies.md`](policies.md), [`controls/plan.md`](controls/plan.md), [`controls/review.md`](controls/review.md) and [`controls/commit.md`](controls/commit.md), again at about half its context and at every handover ([AG-48](controls/plan.md));
 - **a reviewer, also:** [`controls/review.md`](controls/review.md);
 - **before editing a file that holds rules** (`governance/`, a local agent file, an agent's memory): [POL-3 and POL-7](policies.md), to put the change in the right one.
 
@@ -49,10 +49,11 @@ Each line says what the rule requires; the control's own text is the one copy.
 - [AG-17](controls/plan.md): one task per agent run.
 - [AG-18](controls/plan.md): fix the contracts up front; every brief lists its traps.
 - [AG-19](controls/plan.md): the full report goes to a notes file, the reply is 15 lines at most; the coordinator keeps its context for decisions, and a clerk builds and commits.
-- [AG-48](controls/plan.md): hand over at about half the context, and say when it gets there.
+- [AG-50](controls/plan.md): work in chunks of about 6–10 h, each with one review, one full-suite run and one commit.
+- [AG-48](controls/plan.md): re-read the controls at about half the context, hand over at about 65% with a one-page state, and say when each point passes.
 - [AG-46](controls/plan.md): keep the run's dashboard current at every item's start and finish.
 - [AG-20](controls/plan.md): in an unattended run, each lane keeps two briefed items ready.
-- [AG-21](controls/review.md): every item gets a fresh, independent reviewer.
+- [AG-21](controls/review.md): every item gets a fresh, independent reviewer; a wording-only fix round is the coordinator's check.
 - [AG-26](controls/build.md): every long command has its own watchdog.
 - [AG-27](controls/build.md): anything the owner must run goes in a script under `build/run-me/`.
 - [AG-28](guidance/advice.md): put a result in front of the owner before asking for a decision.
