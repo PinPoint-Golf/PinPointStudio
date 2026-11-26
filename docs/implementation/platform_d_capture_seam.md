@@ -473,7 +473,7 @@ After every row above was ruled, a lever pass ranked Stage D's remaining items b
 [^d-lever]: The Product Owner and the Solution Architect, 25 Nov 2026: the lever pass on #224-U, Stage C and Stage D, ruled as recommended, with D-V3 and D-V4 ruled by the Product Owner after the Solution Architect.
 [^d-v1]: The Product Owner, 25 Nov 2026 (lever D-V1, as recommended): dropped, not deferred; no issue.
 [^d-v2]: The Product Owner, 25 Nov 2026 (lever D-V2, as recommended): moved to an issue, #292.
-[^d-v3]: The Product Owner and the Solution Architect, 25 Nov 2026: lever D-V3 was first taken (the Product Owner, after the Solution Architect re-opened and withdrew J-109's Buffer part), then reversed the same night. Buffer's stream types move to `src/Vocabulary/` in Stage D as J-109 ruled, keeping the Solution Architect's mandate of 23 Nov 2026 that the architecture lint ends with one Vocabulary rule. The information model's v1.12.4 still says the headers stay; that amendment is undone in its next version.
+[^d-v3]: The Product Owner and the Solution Architect, 25 Nov 2026: lever D-V3 was first taken (the Product Owner, after the Solution Architect re-opened and withdrew J-109's Buffer part), then reversed the same night. Buffer's stream types move to `src/Vocabulary/` in Stage D as J-109 ruled, keeping the Solution Architect's mandate of 23 Nov 2026 that the architecture lint ends with one Vocabulary rule. The information model says so again from v1.12.14.
 [^d-v4]: The Product Owner, 25 Nov 2026 (lever D-V4, taken as an order); the Solution Architect agreed that S2 can be built on the unsplit class.
 
 ## Added after SD-1c (the inventory of `ShotController`, the arbiter and the source ordinals, 25 Nov 2026)
