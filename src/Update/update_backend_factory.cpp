@@ -31,20 +31,17 @@
 #  include "mac_sparkle_backend.h"
 #endif
 
-UpdateBackend *makeUpdateBackend(AppSettings *settings,
-                                 SessionController *session,
-                                 QObject *parent)
+UpdateBackend *makeUpdateBackend(UpdateHost *host, QObject *parent)
 {
 #if defined(Q_OS_LINUX)
-    return new LinuxAppImageBackend(settings, session, parent);
+    return new LinuxAppImageBackend(host, parent);
 #elif defined(Q_OS_WIN) && defined(HAVE_WINSPARKLE)
-    return new WinSparkleBackend(settings, session, parent);
+    return new WinSparkleBackend(host, parent);
 #elif defined(Q_OS_MACOS) && defined(HAVE_SPARKLE)
-    return new MacSparkleBackend(settings, session, parent);
+    return new MacSparkleBackend(host, parent);
 #else
     // macOS without Sparkle / Windows without WinSparkle → inert.
-    Q_UNUSED(settings);
-    Q_UNUSED(session);
+    Q_UNUSED(host);
     return new InertUpdateBackend(parent);
 #endif
 }

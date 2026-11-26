@@ -22,8 +22,7 @@
 
 #include "update_backend.h"   // pp::update::State / OfferInfo (slot signatures + alias)
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 
 // The QML-facing in-app updater façade — registered in main.cpp as the
 // `updateController` context property on ALL platforms so the shared QML binds
@@ -35,7 +34,8 @@ class SessionController;
 // State→string mapping (the single source of truth for the strings the update
 // banner switches on), relays the backend's transitions, enforces the relaunch
 // session-safety guard, and persists "skip this version". Everything platform-
-// specific lives behind UpdateBackend. Authoritative design: the three
+// specific lives behind UpdateBackend. The session question and the two settings
+// come from the UpdateHost the app hands in (update_host.h). Authoritative design: the three
 // docs/design/{linux,windows,macos}_update.md documents.
 class UpdateController : public QObject
 {
@@ -55,13 +55,14 @@ public:
     using State = pp::update::State;
 
     // Production constructor: builds the platform backend via makeUpdateBackend().
-    explicit UpdateController(AppSettings *settings = nullptr,
-                              SessionController *session = nullptr,
-                              QObject *parent = nullptr);
+    // `host` answers the session question and holds the settings; it is not owned
+    // and must outlive the controller. Null: no session ever blocks, automatic
+    // checks are off and "skip" persists nothing.
+    explicit UpdateController(UpdateHost *host = nullptr, QObject *parent = nullptr);
     // Dependency-injection constructor (tests / explicit backend). Takes ownership
     // of `backend` (reparents it to this).
-    UpdateController(UpdateBackend *backend, AppSettings *settings,
-                     SessionController *session, QObject *parent = nullptr);
+    UpdateController(UpdateBackend *backend, UpdateHost *host,
+                     QObject *parent = nullptr);
     ~UpdateController() override;
 
     QString state() const;
@@ -110,9 +111,8 @@ private:
     void onBackendState(pp::update::State s, const QString &error);
     void onBackendOffer(const pp::update::OfferInfo &info);
 
-    AppSettings       *m_settings = nullptr;
-    SessionController *m_session  = nullptr;
-    UpdateBackend     *m_backend  = nullptr;
+    UpdateHost    *m_host    = nullptr;
+    UpdateBackend *m_backend = nullptr;
 
     State   m_state = State::Idle;
     bool    m_supported = false;

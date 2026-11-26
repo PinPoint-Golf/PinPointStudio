@@ -19,8 +19,7 @@
 
 #include "mac_sparkle_update.h"
 
-MacSparkleBackend::MacSparkleBackend(AppSettings *settings, SessionController *session,
-                                     QObject *parent)
+MacSparkleBackend::MacSparkleBackend(UpdateHost *host, QObject *parent)
     : UpdateBackend(parent)
 {
     // Mirrors the old UpdateController macOS branch: supported when installed AND a
@@ -29,7 +28,7 @@ MacSparkleBackend::MacSparkleBackend(AppSettings *settings, SessionController *s
     // Windows unins000.exe checks.
     if (MacSparkleUpdater::isInstalledBuild()) {
         m_engine    = new MacSparkleUpdater(this);
-        m_supported = m_engine->configureAndInit(settings, session);
+        m_supported = m_engine->configureAndInit(host);
         m_state     = m_supported ? pp::update::State::Idle
                                   : pp::update::State::Unsupported;
     } else {

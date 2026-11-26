@@ -23,8 +23,7 @@
 
 #include "mac_sparkle_update.h"
 
-#include "app_settings.h"        // checkForUpdates()
-#include "session_controller.h"  // running() / runningChanged — relaunch session guard
+#include "update_host.h"         // checkForUpdates(); sessionRunning() / sessionRunningChanged — relaunch session guard
 
 #include <QCoreApplication>
 #include <QString>
@@ -55,10 +54,10 @@ constexpr double kCheckIntervalSeconds = 24 * 60 * 60;
 #ifdef HAVE_SPARKLE
 // ── SPUUpdaterDelegate: session-safety relaunch gate + error logging ──────────
 // Sparkle's delegate callbacks run on the main thread (it is a Cocoa UI framework),
-// so this reads SessionController directly — no atomic mirror, no queued invoke
+// so this asks the UpdateHost directly — no atomic mirror, no queued invoke
 // (design §5.1, the macOS simplification over WinSparkle's off-thread can_shutdown).
 @interface PPSparkleDelegate : NSObject <SPUUpdaterDelegate>
-@property (nonatomic, assign) SessionController *session;        // C++ ptr, not owned
+@property (nonatomic, assign) UpdateHost *host;                  // C++ ptr, not owned
 @property (nonatomic, copy)   void (^pendingInstall)(void);      // held while a session runs
 @end
 
@@ -74,7 +73,7 @@ constexpr double kCheckIntervalSeconds = 24 * 60 * 60;
 {
     Q_UNUSED(updater);
     Q_UNUSED(item);
-    if (self.session && self.session->running()) {
+    if (self.host && self.host->sessionRunning()) {
         self.pendingInstall = installHandler;   // ARC copy property retains the block
         ppInfo() << "[Sparkle] update staged — postponing relaunch until the session ends";
         return YES;
@@ -85,7 +84,7 @@ constexpr double kCheckIntervalSeconds = 24 * 60 * 60;
 // Invoke any held relaunch once it is safe (session ended). No-op if nothing pending.
 - (void)firePendingInstallIfSafe
 {
-    if (self.pendingInstall && !(self.session && self.session->running())) {
+    if (self.pendingInstall && !(self.host && self.host->sessionRunning())) {
         void (^blk)(void) = self.pendingInstall;
         self.pendingInstall = nil;
         ppInfo() << "[Sparkle] session ended — performing the postponed update relaunch";
@@ -141,11 +140,10 @@ bool MacSparkleUpdater::isInstalledBuild()
 #endif
 }
 
-bool MacSparkleUpdater::configureAndInit(AppSettings *settings, SessionController *session)
+bool MacSparkleUpdater::configureAndInit(UpdateHost *host)
 {
 #ifdef HAVE_SPARKLE
-    m_settings = settings;
-    m_session  = session;
+    m_host = host;
 
     @autoreleasepool {
         // Refuse to arm the updater until a real pinned EdDSA key exists (design §6).
@@ -160,7 +158,7 @@ bool MacSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
         }
 
         PPSparkleDelegate *delegate = [[PPSparkleDelegate alloc] init];
-        delegate.session = m_session;
+        delegate.host = m_host;
 
         // startingUpdater:NO — defer the actual -startUpdater to doInit(), once the main
         // window is up (Sparkle requires a live UI). Reads SUFeedURL + SUPublicEDKey
@@ -170,7 +168,7 @@ bool MacSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
                                                          updaterDelegate:delegate
                                                       userDriverDelegate:nil];
         uc.updater.automaticallyChecksForUpdates =
-            (m_settings && m_settings->checkForUpdates());
+            (m_host && m_host->checkForUpdates());
         uc.updater.updateCheckInterval = kCheckIntervalSeconds;
 
         // Retain across the C++ boundary; released in shutdown().
@@ -179,9 +177,9 @@ bool MacSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
     }
 
     // Fire any postponed relaunch when a live session ends (design §5.1). Main-thread
-    // signal → main-thread slot; the guard touches SessionController directly.
-    if (m_session)
-        connect(m_session, &SessionController::runningChanged,
+    // signal → main-thread slot; the guard asks the UpdateHost directly.
+    if (m_host)
+        connect(m_host, &UpdateHost::sessionRunningChanged,
                 this, &MacSparkleUpdater::onSessionRunningChanged);
 
     // Sparkle needs the main window up before -startUpdater. The controller is created
@@ -190,8 +188,7 @@ bool MacSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
     QTimer::singleShot(3000, this, &MacSparkleUpdater::doInit);
     return true;
 #else
-    Q_UNUSED(settings);
-    Q_UNUSED(session);
+    Q_UNUSED(host);
     return false;
 #endif
 }
@@ -206,7 +203,7 @@ void MacSparkleUpdater::doInit()
     [uc startUpdater];   // non-blocking; an automatic check (if enabled) runs now
     m_initialised = true;
     ppInfo() << "[Sparkle] initialised — automatic checks"
-             << ((m_settings && m_settings->checkForUpdates()) ? "on" : "off");
+             << ((m_host && m_host->checkForUpdates()) ? "on" : "off");
 #endif
 }
 

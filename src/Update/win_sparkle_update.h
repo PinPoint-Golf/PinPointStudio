@@ -22,8 +22,7 @@
 
 #include <string>
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 
 // Thin Qt/Win32 shim over WinSparkle (the Windows analogue of macOS Sparkle) — the
 // Windows in-app update engine. WinSparkle owns the appcast fetch, version compare,
@@ -60,7 +59,9 @@ public:
     // a VALID pinned EdDSA key is configured. Returns false (and does NOT init) when
     // the pinned key is still the placeholder, so an unsigned/untrusted feed can never
     // drive an update (mirrors the Linux gate refusing until the real key lands, P2).
-    bool configureAndInit(AppSettings *settings, SessionController *session);
+    // `host` (not owned, may be null) answers "is a session running?" and holds the
+    // automatic-check setting; it must outlive this object.
+    bool configureAndInit(UpdateHost *host);
 
     // Manual, user-initiated check — shows WinSparkle's UI whether or not an update is
     // found (and ignores any prior "Skip this version"). Backs the Settings action.
@@ -84,8 +85,7 @@ private:
     // surfaces WinSparkle's window only if an update exists.
     void launchCheck();
 
-    AppSettings       *m_settings = nullptr;
-    SessionController *m_session  = nullptr;
+    UpdateHost *m_host = nullptr;
 
     bool m_initialised = false;
 

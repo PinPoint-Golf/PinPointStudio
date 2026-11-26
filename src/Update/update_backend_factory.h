@@ -18,14 +18,12 @@
 #pragma once
 
 class UpdateBackend;
-class AppSettings;
-class SessionController;
+class UpdateHost;
 class QObject;
 
 // THE single place platform selection lives — the one remaining #ifdef ladder of
 // the update subsystem (in the .cpp). Returns a backend owned by `parent` (or
 // reparented by the controller). Never returns null: the fallback is an
-// InertUpdateBackend reporting Unsupported.
-UpdateBackend *makeUpdateBackend(AppSettings *settings,
-                                 SessionController *session,
-                                 QObject *parent);
+// InertUpdateBackend reporting Unsupported. `host` (may be null) is handed on to the
+// backend: the session question and the settings it reads.
+UpdateBackend *makeUpdateBackend(UpdateHost *host, QObject *parent);

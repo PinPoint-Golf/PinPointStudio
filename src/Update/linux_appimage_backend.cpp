@@ -18,7 +18,7 @@
 #include "linux_appimage_backend.h"
 
 #include "appimage_update.h"
-#include "app_settings.h"         // checkForUpdates() launch-check gate
+#include "update_host.h"          // checkForUpdates() launch-check gate
 #include "linux_update_logic.h"   // pure version-compare / asset-select / gpg-parse
 #include "platform_target.h"      // assetArchToken() — arch-driven asset selection
 #include "version.h"              // PINPOINT_VERSION_STRING (src/Core)
@@ -61,10 +61,8 @@ QString currentVersion()
 
 } // namespace
 
-LinuxAppImageBackend::LinuxAppImageBackend(AppSettings *settings,
-                                           SessionController * /*session*/,
-                                           QObject *parent)
-    : UpdateBackend(parent), m_settings(settings)
+LinuxAppImageBackend::LinuxAppImageBackend(UpdateHost *host, QObject *parent)
+    : UpdateBackend(parent), m_host(host)
 {
     m_net = new QNetworkAccessManager(this);
 
@@ -79,7 +77,7 @@ LinuxAppImageBackend::LinuxAppImageBackend(AppSettings *settings,
         // a few seconds so it never competes with startup/device bring-up. The
         // launch banner reacts to the resulting state (suppressed for skipped
         // versions and during a session — handled in QML).
-        if (m_settings && m_settings->checkForUpdates())
+        if (m_host && m_host->checkForUpdates())
             QTimer::singleShot(4000, this, &LinuxAppImageBackend::checkNow);
     }
 }

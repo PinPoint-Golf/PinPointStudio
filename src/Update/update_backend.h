@@ -21,9 +21,6 @@
 #include <QObject>
 #include <QString>
 
-class AppSettings;
-class SessionController;
-
 namespace pp::update {
 
 // The state vocabulary, owned here so both UpdateController and every backend
@@ -97,7 +94,7 @@ public:
     // cancel any in-flight Linux download). Idempotent.
     virtual void shutdown()            {}
 
-    // Keep the engine's automatic-check pref in sync with AppSettings::checkForUpdates.
+    // Keep the engine's automatic-check pref in sync with UpdateHost::checkForUpdates.
     virtual void setAutomaticChecks(bool /*enabled*/) {}
 
 signals:

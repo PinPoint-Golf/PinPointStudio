@@ -66,6 +66,9 @@ src/Update/
                                  makeUpdateBackend(). No platform #ifdef in its body.
   update_backend.h               UpdateBackend — abstract base + pp::update::{State,OfferInfo}.
                                  One concrete subclass per OS engine family.
+  update_host.h                  UpdateHost — what the updater asks of the app, handed in
+                                 by whoever builds it: is a session running, and the
+                                 automatic-check and skipped-version settings.
   update_backend_factory.h/.cpp  makeUpdateBackend() — the SOLE platform #ifdef ladder.
   linux_appimage_backend.h/.cpp  LinuxAppImageBackend — the Linux engine and the only
                                  backend that drives the rich state machine: GitHub feed
@@ -215,8 +218,8 @@ ReadyToRelaunch ──user: On next launch──▶ (apply at next clean exit)
 
 ### 5.2 Session safety
 
-Updates must respect the single-active-session model. `UpdateController` holds a
-`SessionController*`; **`Relaunch` is refused while a session is running** and the
+Updates must respect the single-active-session model. `UpdateController` is handed an
+`UpdateHost` that answers whether a session is running[^host]; **`Relaunch` is refused while a session is running** and the
 button explains why ("End the session to install"). The launch banner (surface A)
 is suppressed while a session is active or starting. This mirrors `Main.qml`'s
 `onClosing` guard — relaunch routes through the same "is it safe to quit?" gate,
@@ -353,3 +356,5 @@ PinPointStudio-<ver>-x86_64.AppImage.sig      # detached GPG sig — THE trust a
 `<ver>` = `PINPOINT_VERSION_STRING` from `version.h` (e.g. `v0.1-alpha1`) — this
 filename carries the version the updater reads. The git **tag** is independent and
 free-form. The release `body` is the changelog rendered in the prompt.
+
+[^host]: The updater lives outside `src/Gui` and so never includes a `Gui` header: lint A1's widening (the Solution Architect, 15 Nov 2026, DEC-146), met by the platform refactor's SE-3 (26 Nov 2026; `docs/implementation/platform_e_host_settings.md`, "Built (SE-3)"). The app's answer, `AppUpdateHost` (`src/Gui/app/app_update_host.h`), asks `SessionController::running()` and reads and writes `AppSettings`, as the updater did itself before.

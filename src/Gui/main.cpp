@@ -78,6 +78,7 @@
 #include "resource_monitor_controller.h"
 #include "profiler_controller.h"
 #include "update_controller.h"
+#include "app_update_host.h"
 #include "cuda_runtime_controller.h"
 #include "motion_capture_probe.h"
 #include "pp_os_metrics.h"
@@ -600,7 +601,9 @@ int main(int argc, char *argv[])
     // macOS (all behind this one QML context property). Constructed on all platforms
     // for QML uniformity; inert ("unsupported"/"devbuild") in a dev/build-tree run or
     // where no engine is compiled in. See docs/design/{linux,windows,macos}_update.md.
-    UpdateController        updateController(&appSettings, &sessionController);
+    // It is handed its session question and its settings (built first, so it outlives it).
+    AppUpdateHost           updateHost(&appSettings, &sessionController);
+    UpdateController        updateController(&updateHost);
     // Hardware-adaptive CUDA-runtime offer (Windows): detects an NVIDIA GPU and offers
     // the separately-packaged GPU runtime when present but not installed, so users who
     // add a GPU later adapt without reinstalling. Inert off Windows. See §4.4.

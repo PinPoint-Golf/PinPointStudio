@@ -4,7 +4,10 @@
 #   • pure logic   — version compare, asset selection across arches, gpg-status
 #                    parse, placeholder-key refusal, PlatformTarget arch tokens.
 #   • controller   — UpdateController's state-machine + session-safety policy,
-#                    driven by a FakeUpdateBackend (no real platform engine).
+#                    driven by a FakeUpdateBackend (no real platform engine);
+#                    the session question and the settings come from an
+#                    injected UpdateHost: a fake one (update_host_test), or the
+#                    app's own over a temporary settings file (the policy test).
 # Shared infra (Qt prefix, sanitizers via -DPP_SANITIZE, gtest, pp_add_test) lives
 # in tests/cmake/PinPointTests.cmake.
 #
@@ -34,9 +37,23 @@ pp_add_test(platform_target_test
     INCLUDE ${UPDATE}
     GTEST)
 
+# --- The injected question and settings, through a fake host (no Gui source) -----
+# UpdateController with a FakeUpdateBackend and a FakeUpdateHost only: proves the
+# updater asks the host and builds with nothing from src/Gui.
+pp_add_test(update_host_test
+    SOURCES update_host_test.cpp
+            fake_update_backend.h          # Q_OBJECT with no paired .cpp → list for AUTOMOC
+            fake_update_host.h             # the same
+            ${UPDATE}/update_backend.h      # abstract Q_OBJECT bases; moc supplies their signals
+            ${UPDATE}/update_host.h
+            ${UPDATE}/update_controller.cpp
+    INCLUDE ${UPDATE} ${SRC}/Core      # Core: version.h only
+    GTEST_NO_MAIN  AUTOMOC)
+
 # --- Controller state machine + session-safety policy, via a FakeUpdateBackend ----
-# Compiles the real UpdateController + the real (lightweight) AppSettings /
-# SessionController, drives them through an injected fake backend. SessionController
+# Compiles the real UpdateController + the app's UpdateHost (AppUpdateHost) over the
+# real (lightweight) AppSettings / SessionController, drives them through an
+# injected fake backend. SessionController
 # is a QML_ELEMENT (needs Qt6::Qml) and logs via ppWarn() (reuse Core's PpLogStream
 # stub — never link pp_debug.cpp, it drags in whisper). Own main() → GTEST_NO_MAIN.
 find_package(Qt6 REQUIRED COMPONENTS Qml Test)   # Qml: SessionController QML_ELEMENT; Test: QSignalSpy
@@ -44,7 +61,9 @@ pp_add_test(update_controller_policy_test
     SOURCES update_controller_policy_test.cpp
             fake_update_backend.h          # Q_OBJECT with no paired .cpp → list for AUTOMOC
             ${UPDATE}/update_backend.h      # abstract Q_OBJECT base; moc supplies its signals
+            ${UPDATE}/update_host.h         # the same
             ${UPDATE}/update_controller.cpp
+            ${SRC}/Gui/app/app_update_host.h ${SRC}/Gui/app/app_update_host.cpp
             ${SRC}/Gui/app/app_settings.cpp
             ${SRC}/Gui/session/session_controller.cpp
             ${SRC}/Gui/athlete/athlete_controller.cpp

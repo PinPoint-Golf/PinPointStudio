@@ -339,7 +339,7 @@ The single-active-session invariant holds identically. WinSparkle asks the host
 before it quits the app to run the installer, via two callbacks
 (`win_sparkle_set_can_shutdown_callback`, `win_sparkle_set_shutdown_request_callback`):
 
-- **can-shutdown** returns `FALSE` while `SessionController::running()` — WinSparkle
+- **can-shutdown** returns `FALSE` while `SessionController::running()` (asked through the updater's `UpdateHost`[^host], mirrored into an atomic on each change) — WinSparkle
   then will not launch the installer / will keep the app alive (the user finishes the
   session first, mirroring the Linux "End the session to install" guard).
 - **shutdown-request** performs a *graceful* quit through the normal close path
@@ -527,4 +527,5 @@ installer co-exist with the Linux
 `*.AppImage*` assets on the **same** release; each platform's updater reads only its
 own assets and ignores the other's (the Linux updater already skips Windows-only
 releases, and WinSparkle only ever looks at `appcast-win.xml`).
-</invoke>
+
+[^host]: The updater lives outside `src/Gui` and so never includes a `Gui` header: lint A1's widening (the Solution Architect, 15 Nov 2026, DEC-146), met by the platform refactor's SE-3 (26 Nov 2026; `docs/implementation/platform_e_host_settings.md`, "Built (SE-3)"). The app's answer, `AppUpdateHost` (`src/Gui/app/app_update_host.h`), asks `SessionController::running()` and reads and writes `AppSettings`, as the updater did itself before.

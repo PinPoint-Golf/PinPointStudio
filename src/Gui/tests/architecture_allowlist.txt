@@ -33,10 +33,6 @@ Gui/shot/shot_controller.cpp | A1 | 2 | the shot trigger (an application service
 Gui/shot/shot_controller.h | A1 | 1 | the shot trigger (an application service, 03 §2) listens to the devices and the capture ring itself; that is the platform refactor (capture), outside steps 1-8 (05 §1)  # unplanned
 # Added by S1-g (DEC-146): an adapter outside Gui including a Gui header.
 Pose/motion_capture_probe.cpp | A1 | 1 | DEC-146: the motion-capture probe takes the session controller (Gui/session/session_controller.h) to hold off while a session runs; a device / execution-provider probe, the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
-Update/linux_appimage_backend.cpp | A1 | 1 | DEC-146: the updater takes the app's settings object (Gui/app/app_settings.h); the settings' QML API is the platform refactor's (05 §2), outside steps 1-8  # platform refactor (settings)
-Update/mac_sparkle_update.mm | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
-Update/update_controller.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
-Update/win_sparkle_update.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
 
 # ── A2 QML creating a session/athlete-scoped type ──
 Gui/charts/PpChartsPanel.qml | A2 | 5 | the Charts panel creates its five presenters over the session's series (5.5a); 5.5b and 5.5c typed them but left their making in the view. Handing them out from an owner is an ownership change for the Product Owner  # platform refactor (#224)

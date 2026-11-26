@@ -1246,6 +1246,11 @@ target_sources(PinPointStudio PRIVATE
     src/Update/update_controller.h
     src/Update/update_controller.cpp
     src/Update/update_backend.h
+    # What the updater asks of the app (the session question, its settings), handed in;
+    # the app's answer lives in Gui, over AppSettings and SessionController.
+    src/Update/update_host.h
+    src/Gui/app/app_update_host.h
+    src/Gui/app/app_update_host.cpp
     src/Update/update_backend_factory.h
     src/Update/update_backend_factory.cpp
     src/Update/inert_update_backend.h

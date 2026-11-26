@@ -67,6 +67,13 @@ repository (SE-4's first half, after B1.9; its directory is ruled[^q11]; its typ
 global's move for H5); the probe's job onto the pool (SE-6e, after SD-7); the one cloud-fallback piece (SE-8); and
 the Gemini key in a header (SE-7c). Everything else waits for a row below.
 
+**Built (SE-3).** The updater no longer includes a `Gui` header. It is handed one object, `UpdateHost`
+(`src/Update/update_host.h`), that answers whether a session is running and holds its two settings: automatic
+checks, read at start-up and followed, and the skipped version, which it only writes. The app's answer is
+`AppUpdateHost` (`src/Gui/app/app_update_host.h`), built in `main.cpp` over the one `AppSettings` and
+`SessionController`. Lint A1 on the updater's four files: 7 → 0, the four lines removed; no settings key, default or
+behaviour changes[^se3-built].
+
 ## The six questions
 
 ### H1 · The composition root's ring, and where its file goes
@@ -523,5 +530,6 @@ chains dropped are the ones that edit the most files for no count that anything 
 [^ds]: `governance/artefacts/design_system/README.md`, "The non-negotiables": any change to the design system needs the Design Lead's approval before it is built. This page also sends to that role any row that changes what the golfer or coach sees.
 [^sched]: The method's rule: a plan places every audit finding, as a step, an agreed deferral or a rejection. F-09 is `docs/implementation/swe-audit/02-findings.md`: "Five threading idioms".
 
+[^se3-built]: Built in SE-3, 26 Nov 2026 (`build/platform/E/NOTES-SE-3.md`): the rule is lint A1's widening (the Solution Architect, 15 Nov 2026: DEC-146), and SE-3 needed no ruling (above). The information model's §11 row for A1's widening is updated (a status edit).
 [^e-ruled-25nov]: Ruled in the platform programme's coordination session, 25 Nov 2026: every open question of this pack as recommended, levers 7 (settings: one class, bodies out of the header, no groups) and 8 (threads: name the owners, build no helper yet) taken. **Condition on lever 8 (Product Owner):** Stage E's first items include quit tests aimed at the lifecycle model's GAP-20 (a quit that waits with no window) and GAP-21 (a quit that touches destroyed objects or kills a thread), quitting while each long-lived thread is busy; a fault they find brings the helper back as its fix, for the owner at fault first. H4 and H5 were ruled with Stage D (Q5, Q17). K2's new behaviour (the key never shown again; Change and Remove) is the Design Lead's approval.
 [^se4-built]: Built in SE-4, 26 Nov 2026 (`build/platform/E/NOTES-SE-4.md`): lint A5 on `studio_profile.cpp` 9 → 0 and A6 on `studio_profile.h` 4 → 0 (both allowlist lines removed); no settings key, file or format changes (`report_studio_test`, `persistedBytesUnchanged`). The information model's §11 rows are updated (version 1.12.19).

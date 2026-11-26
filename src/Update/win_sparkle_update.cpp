@@ -17,9 +17,10 @@
 
 #include "win_sparkle_update.h"
 
-#include "app_settings.h"        // checkForUpdates()
-#include "session_controller.h"  // running() / runningChanged — relaunch session guard
+#include "update_host.h"         // checkForUpdates(); sessionRunning() / sessionRunningChanged — relaunch session guard
 #include "version.h"             // PINPOINT_VERSION_STRING / PINPOINT_VERSION_BUILD_STRING
+
+#include <atomic>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -64,7 +65,7 @@ constexpr int kCheckIntervalSeconds = 24 * 60 * 60;
 // ── WinSparkle C callbacks (no userdata → file-scope state) ───────────────────
 #ifdef HAVE_WINSPARKLE
 namespace {
-// Mirror of SessionController::running(), written on the GUI thread and read by the
+// Mirror of UpdateHost::sessionRunning(), written on the GUI thread and read by the
 // can-shutdown callback OFF the main thread — hence atomic, and the only state the
 // callbacks share with the object.
 std::atomic<bool> g_sessionRunning{false};
@@ -112,21 +113,20 @@ bool WinSparkleUpdater::isInstalledBuild()
         || QFileInfo::exists(appDir.filePath(QStringLiteral("unins000.exe")));
 }
 
-bool WinSparkleUpdater::configureAndInit(AppSettings *settings, SessionController *session)
+bool WinSparkleUpdater::configureAndInit(UpdateHost *host)
 {
 #ifdef HAVE_WINSPARKLE
-    m_settings = settings;
-    m_session  = session;
+    m_host = host;
 
-    // Mirror SessionController::running() into the file-scope atomic the can-shutdown
+    // Mirror UpdateHost::sessionRunning() into the file-scope atomic the can-shutdown
     // callback reads off-thread. Written only here, on the GUI thread, on every
     // session transition.
     const auto syncRunning = [this] {
-        g_sessionRunning.store(m_session && m_session->running());
+        g_sessionRunning.store(m_host && m_host->sessionRunning());
     };
     syncRunning();
-    if (m_session)
-        connect(m_session, &SessionController::runningChanged, this, syncRunning);
+    if (m_host)
+        connect(m_host, &UpdateHost::sessionRunningChanged, this, syncRunning);
 
     // Refuse to arm the updater until a real pinned key exists (P2). Without a valid
     // EdDSA key WinSparkle would accept an unsigned feed — never allow that.
@@ -156,7 +156,7 @@ bool WinSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
     win_sparkle_set_app_build_version(m_buildVersion.c_str());
 
     win_sparkle_set_automatic_check_for_updates(
-        (m_settings && m_settings->checkForUpdates()) ? 1 : 0);
+        (m_host && m_host->checkForUpdates()) ? 1 : 0);
     win_sparkle_set_update_check_interval(kCheckIntervalSeconds);
 
     win_sparkle_set_can_shutdown_callback(&canShutdownCb);
@@ -170,8 +170,7 @@ bool WinSparkleUpdater::configureAndInit(AppSettings *settings, SessionControlle
     QTimer::singleShot(3000, this, &WinSparkleUpdater::launchCheck);
     return true;
 #else
-    Q_UNUSED(settings);
-    Q_UNUSED(session);
+    Q_UNUSED(host);
     return false;
 #endif
 }
@@ -200,7 +199,7 @@ void WinSparkleUpdater::launchCheck()
     // WinSparkle's update window only if a newer version exists — quiet when up to date,
     // exactly like the Linux passive launch banner. WinSparkle's interval timer still
     // covers long-running sessions on top of this.
-    if (!(m_settings && m_settings->checkForUpdates())) {
+    if (!(m_host && m_host->checkForUpdates())) {
         ppInfo() << "[WinSparkle] launch check skipped — checkForUpdates is off";
         return;
     }

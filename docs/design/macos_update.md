@@ -311,11 +311,11 @@ relaunches/installs, via the **`SPUUpdaterDelegate`** hook:
         untilInvokingBlock:(void (^)(void))installHandler;
 ```
 
-- While `SessionController::running()`, return **YES** and **retain** `installHandler`;
+- While `SessionController::running()` (asked through the updater's `UpdateHost`[^host]), return **YES** and **retain** `installHandler`;
   the update is downloaded and staged but the swap-and-relaunch is **deferred** (the
   user is told to finish the session first, mirroring the Linux "End the session to
   install" guard and the Windows can-shutdown gate).
-- When the session ends (`SessionController::runningChanged` → not running), invoke the
+- When the session ends (`SessionController::runningChanged`, relayed as `UpdateHost::sessionRunningChanged` → not running), invoke the
   retained `installHandler` — Sparkle then quits the app gracefully and the helper
   performs the swap. If the user just quits normally first, Sparkle installs on the next
   launch's "ready" state regardless.
@@ -542,3 +542,5 @@ as `LSMinimumSystemVersion`; `make_appcast_mac.sh` reads it back out of the DMG 
 signed. This matters because Sparkle offers any update whose `minimumSystemVersion` the
 user's Mac satisfies and then installs it **in place**: an over-optimistic floor does not
 decline gracefully, it replaces a working install with one that cannot launch.
+
+[^host]: The updater lives outside `src/Gui` and so never includes a `Gui` header: lint A1's widening (the Solution Architect, 15 Nov 2026, DEC-146), met by the platform refactor's SE-3 (26 Nov 2026; `docs/implementation/platform_e_host_settings.md`, "Built (SE-3)"). The app's answer, `AppUpdateHost` (`src/Gui/app/app_update_host.h`), asks `SessionController::running()` and reads and writes `AppSettings`, as the updater did itself before.

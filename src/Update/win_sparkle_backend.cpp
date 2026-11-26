@@ -19,8 +19,7 @@
 
 #include "win_sparkle_update.h"
 
-WinSparkleBackend::WinSparkleBackend(AppSettings *settings, SessionController *session,
-                                     QObject *parent)
+WinSparkleBackend::WinSparkleBackend(UpdateHost *host, QObject *parent)
     : UpdateBackend(parent)
 {
     // Mirrors the old UpdateController Windows branch: supported when installed AND a
@@ -28,7 +27,7 @@ WinSparkleBackend::WinSparkleBackend(AppSettings *settings, SessionController *s
     // Windows analogue of the Linux $APPIMAGE-unset check.
     if (WinSparkleUpdater::isInstalledBuild()) {
         m_engine    = new WinSparkleUpdater(this);
-        m_supported = m_engine->configureAndInit(settings, session);
+        m_supported = m_engine->configureAndInit(host);
         m_state     = m_supported ? pp::update::State::Idle
                                   : pp::update::State::Unsupported;
     } else {

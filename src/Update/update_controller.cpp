@@ -19,20 +19,17 @@
 
 #include "update_backend.h"
 #include "update_backend_factory.h"
-#include "app_settings.h"         // checkForUpdates() / skippedUpdateVersion persistence
-#include "session_controller.h"   // running() for the relaunch session-safety guard
+#include "update_host.h"          // the session question and the two settings, handed in
 #include "version.h"              // PINPOINT_VERSION_STRING (src/Core)
 
-UpdateController::UpdateController(AppSettings *settings, SessionController *session,
-                                  QObject *parent)
-    : UpdateController(makeUpdateBackend(settings, session, nullptr),
-                       settings, session, parent)
+UpdateController::UpdateController(UpdateHost *host, QObject *parent)
+    : UpdateController(makeUpdateBackend(host, nullptr), host, parent)
 {
 }
 
-UpdateController::UpdateController(UpdateBackend *backend, AppSettings *settings,
-                                  SessionController *session, QObject *parent)
-    : QObject(parent), m_settings(settings), m_session(session), m_backend(backend)
+UpdateController::UpdateController(UpdateBackend *backend, UpdateHost *host,
+                                  QObject *parent)
+    : QObject(parent), m_host(host), m_backend(backend)
 {
     wireBackend();
 }
@@ -55,10 +52,10 @@ void UpdateController::wireBackend()
 
     // One unconditional wire (was duplicated per platform branch): keep the engine's
     // automatic-check pref in sync with the existing toggle.
-    if (m_settings)
-        connect(m_settings, &AppSettings::checkForUpdatesChanged, this, [this] {
+    if (m_host)
+        connect(m_host, &UpdateHost::checkForUpdatesChanged, this, [this] {
             if (m_backend)
-                m_backend->setAutomaticChecks(m_settings->checkForUpdates());
+                m_backend->setAutomaticChecks(m_host->checkForUpdates());
         });
 }
 
@@ -153,7 +150,7 @@ void UpdateController::relaunch()
     // Never relaunch out from under a live session (design §5.2). The QML button is
     // disabled in that case; this is the hard guard — the single piece of session-
     // safety POLICY that stays in the controller, above any platform backend.
-    if (m_session && m_session->running()) {
+    if (m_host && m_host->sessionRunning()) {
         setStatus(tr("End the session to install the update."));
         return;
     }
@@ -169,8 +166,8 @@ void UpdateController::installOnNextLaunch()
 
 void UpdateController::skipVersion()
 {
-    if (m_settings && !m_latestVersion.isEmpty())
-        m_settings->setSkippedUpdateVersion(m_latestVersion);
+    if (m_host && !m_latestVersion.isEmpty())
+        m_host->setSkippedUpdateVersion(m_latestVersion);
 }
 
 void UpdateController::shutdownUpdater()

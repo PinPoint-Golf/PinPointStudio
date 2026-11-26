@@ -21,8 +21,7 @@
 
 #include <QString>
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 class AppImageUpdater;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -50,9 +49,8 @@ class LinuxAppImageBackend : public UpdateBackend
 {
     Q_OBJECT
 public:
-    explicit LinuxAppImageBackend(AppSettings *settings = nullptr,
-                                  SessionController *session = nullptr,
-                                  QObject *parent = nullptr);
+    // `host` (not owned, may be null): its checkForUpdates() gates the launch check.
+    explicit LinuxAppImageBackend(UpdateHost *host = nullptr, QObject *parent = nullptr);
     ~LinuxAppImageBackend() override;
 
     pp::update::State initialState() const override { return m_state; }
@@ -82,7 +80,7 @@ private:
     static bool verifySignatureBlocking(const QString &appImagePath,
                                         const QString &detachedSigPath);
 
-    AppSettings           *m_settings = nullptr;   // checkForUpdates() launch gate
+    UpdateHost            *m_host = nullptr;   // checkForUpdates() launch gate
     QNetworkAccessManager *m_net = nullptr;
     AppImageUpdater       *m_updater = nullptr;
     QFutureWatcher<bool>  *m_verifyWatcher = nullptr;

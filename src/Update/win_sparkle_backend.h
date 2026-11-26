@@ -19,8 +19,7 @@
 
 #include "update_backend.h"
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 class WinSparkleUpdater;
 
 // The Windows in-app update backend: a thin UpdateBackend over WinSparkleUpdater
@@ -34,9 +33,7 @@ class WinSparkleBackend : public UpdateBackend
 {
     Q_OBJECT
 public:
-    explicit WinSparkleBackend(AppSettings *settings = nullptr,
-                               SessionController *session = nullptr,
-                               QObject *parent = nullptr);
+    explicit WinSparkleBackend(UpdateHost *host = nullptr, QObject *parent = nullptr);
     ~WinSparkleBackend() override;
 
     pp::update::State initialState() const override { return m_state; }

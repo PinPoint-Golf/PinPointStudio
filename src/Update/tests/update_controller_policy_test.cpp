@@ -19,16 +19,20 @@
 // mapping (the contract PpUpdateBanner.qml switches on), the relaunch session-
 // safety guard, and skip/auto-check wiring — all driven by a FakeUpdateBackend
 // injected through the controller's dependency-injection constructor. No network,
-// no subprocess, no platform engine. Real AppSettings + SessionController are used
-// (both are lightweight and expose the exact API the controller touches); QSettings
-// is isolated via QStandardPaths test mode in main().
+// no subprocess, no platform engine. The guard and the two settings go through the
+// app's own host (AppUpdateHost) over a real AppSettings + SessionController, so
+// these tests prove the app's answers are today's; the settings file is a temporary
+// one (IsolatedStores in main()). update_host_test drives the same policy through a
+// fake host.
 
 #include "update_controller.h"
 #include "update_backend_factory.h"
 #include "fake_update_backend.h"
 
 #include "app_settings.h"
+#include "app_update_host.h"
 #include "session_controller.h"
+#include "pp_settings.h"
 
 #include <gtest/gtest.h>
 
@@ -46,7 +50,7 @@ using State = pp::update::State;
 // suite only exercises the dependency-injection constructor, so we stub the factory
 // rather than link the real one (which would drag in the Linux backend + its
 // network/subprocess chain). Never called by these tests.
-UpdateBackend *makeUpdateBackend(AppSettings *, SessionController *, QObject *)
+UpdateBackend *makeUpdateBackend(UpdateHost *, QObject *)
 {
     return nullptr;
 }
@@ -182,7 +186,8 @@ TEST(UpdateControllerPolicy, RelaunchSessionGuard)
     auto *fake = makeFake(State::Idle, true);
     AppSettings settings;
     SessionController session;
-    UpdateController ctrl(fake, &settings, &session);
+    AppUpdateHost host(&settings, &session);
+    UpdateController ctrl(fake, &host);
 
     fake->driveState(State::ReadyToRelaunch);
     ASSERT_EQ(ctrl.state(), QStringLiteral("ready"));
@@ -192,7 +197,7 @@ TEST(UpdateControllerPolicy, RelaunchSessionGuard)
     ASSERT_TRUE(session.running());
     ctrl.relaunch();
     EXPECT_EQ(fake->relaunchCount, 0);
-    EXPECT_FALSE(ctrl.statusMessage().isEmpty());
+    EXPECT_EQ(ctrl.statusMessage(), QStringLiteral("End the session to install the update."));
 
     // Session ended → relaunch is allowed.
     session.endSession();
@@ -205,7 +210,8 @@ TEST(UpdateControllerPolicy, RelaunchOnlyWhenReady)
 {
     auto *fake = makeFake(State::Idle, true);
     SessionController session;   // never started → not running
-    UpdateController ctrl(fake, nullptr, &session);
+    AppUpdateHost host(nullptr, &session);
+    UpdateController ctrl(fake, &host);
 
     // Not in ReadyToRelaunch → relaunch is a no-op even with no live session.
     fake->driveState(State::UpToDate);
@@ -252,11 +258,17 @@ TEST(UpdateControllerPolicy, SkipVersionPersists)
 {
     auto *fake = makeFake(State::Checking, true);
     AppSettings settings;
-    UpdateController ctrl(fake, &settings, nullptr);
+    AppUpdateHost host(&settings, nullptr);
+    UpdateController ctrl(fake, &host);
 
     fake->driveOffer(QStringLiteral("v0.1-alpha4"), QString());
     ctrl.skipVersion();
     EXPECT_EQ(settings.skippedUpdateVersion(), QStringLiteral("v0.1-alpha4"));
+    // Written to the (temporary) settings file under today's key, so a relaunch reads it back.
+    EXPECT_EQ(ppSettings().value(QStringLiteral("General/skippedUpdateVersion")).toString(),
+              QStringLiteral("v0.1-alpha4"));
+    AppSettings reread;
+    EXPECT_EQ(reread.skippedUpdateVersion(), QStringLiteral("v0.1-alpha4"));
 }
 
 TEST(UpdateControllerPolicy, SkipVersionNoOpWhenNoOffer)
@@ -264,7 +276,8 @@ TEST(UpdateControllerPolicy, SkipVersionNoOpWhenNoOffer)
     auto *fake = makeFake(State::Idle, true);
     AppSettings settings;
     settings.setSkippedUpdateVersion(QStringLiteral("sentinel"));
-    UpdateController ctrl(fake, &settings, nullptr);
+    AppUpdateHost host(&settings, nullptr);
+    UpdateController ctrl(fake, &host);
 
     // No offer → latestVersion empty → skipVersion must not overwrite.
     ctrl.skipVersion();
@@ -278,12 +291,59 @@ TEST(UpdateControllerPolicy, AutomaticChecksWiring)
     auto *fake = makeFake(State::Idle, true);
     AppSettings settings;
     settings.setCheckForUpdates(true);
-    UpdateController ctrl(fake, &settings, nullptr);
+    AppUpdateHost host(&settings, nullptr);
+    UpdateController ctrl(fake, &host);
 
     const int before = fake->autoCount;
     settings.setCheckForUpdates(false);
     EXPECT_GT(fake->autoCount, before);
     EXPECT_FALSE(fake->lastAuto);
+    settings.setCheckForUpdates(true);
+    EXPECT_TRUE(fake->lastAuto);
+}
+
+// ── the app's host: today's answers, from the app's own objects ────────────────
+
+TEST(AppUpdateHost, AnswersFromTheSessionController)
+{
+    SessionController session;
+    AppUpdateHost host(nullptr, &session);
+    QSignalSpy spy(&host, &UpdateHost::sessionRunningChanged);
+
+    EXPECT_FALSE(host.sessionRunning());
+    session.start(0);
+    EXPECT_TRUE(host.sessionRunning());
+    EXPECT_EQ(spy.count(), 1);
+    session.endSession();
+    EXPECT_FALSE(host.sessionRunning());
+    EXPECT_EQ(spy.count(), 2);
+}
+
+TEST(AppUpdateHost, FollowsTheCheckSetting)
+{
+    AppSettings settings;
+    settings.setCheckForUpdates(true);
+    AppUpdateHost host(&settings, nullptr);
+    QSignalSpy spy(&host, &UpdateHost::checkForUpdatesChanged);
+
+    EXPECT_TRUE(host.checkForUpdates());
+    settings.setCheckForUpdates(false);
+    EXPECT_FALSE(host.checkForUpdates());
+    EXPECT_EQ(spy.count(), 1);
+    // The Settings page and the updater read the one AppSettings: a write through
+    // either is seen by the other, and lands in the (temporary) file.
+    EXPECT_FALSE(ppSettings().value(QStringLiteral("General/checkForUpdates")).toBool());
+    settings.setCheckForUpdates(true);
+}
+
+TEST(AppUpdateHost, NullObjectsAreTodaysNulls)
+{
+    AppUpdateHost host(nullptr, nullptr);
+    EXPECT_FALSE(host.sessionRunning());     // nothing blocks a relaunch
+    EXPECT_FALSE(host.checkForUpdates());    // automatic checks off
+    // With no settings object there is nothing to write to: this call is a
+    // no-crash check only (no assertion could tell a write from none).
+    host.setSkippedUpdateVersion(QStringLiteral("v9"));
 }
 
 // ── shutdown delegation ────────────────────────────────────────────────────────

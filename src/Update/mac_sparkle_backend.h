@@ -19,8 +19,7 @@
 
 #include "update_backend.h"
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 class MacSparkleUpdater;
 
 // The macOS in-app update backend: a thin UpdateBackend over MacSparkleUpdater
@@ -36,9 +35,7 @@ class MacSparkleBackend : public UpdateBackend
 {
     Q_OBJECT
 public:
-    explicit MacSparkleBackend(AppSettings *settings = nullptr,
-                               SessionController *session = nullptr,
-                               QObject *parent = nullptr);
+    explicit MacSparkleBackend(UpdateHost *host = nullptr, QObject *parent = nullptr);
     ~MacSparkleBackend() override;
 
     pp::update::State initialState() const override { return m_state; }

@@ -19,8 +19,7 @@
 
 #include <QObject>
 
-class AppSettings;
-class SessionController;
+class UpdateHost;
 
 // Thin Qt/Cocoa shim over Sparkle 2 (the macOS analogue of WinSparkle) — the macOS
 // in-app update engine. Sparkle owns the appcast fetch, version compare, download,
@@ -39,7 +38,7 @@ class SessionController;
 // opaque `void *` handles below and are defined only in the .mm (compiled when
 // HAVE_SPARKLE — i.e. APPLE with the fetched framework). Sparkle's delegate callbacks
 // run on the main thread, so unlike WinSparkle there is no atomic mirror of the
-// session state — the guard touches SessionController directly (design §5.1).
+// session state — the guard asks the injected UpdateHost directly (design §5.1).
 class MacSparkleUpdater : public QObject
 {
     Q_OBJECT
@@ -63,7 +62,9 @@ public:
     // SUPublicEDKey is still the placeholder, so an unsigned/untrusted feed can never
     // drive an update (mirrors the Linux/Windows gates refusing until the real key
     // lands, P2 / design §6).
-    bool configureAndInit(AppSettings *settings, SessionController *session);
+    // `host` (not owned, may be null) answers "is a session running?" and holds the
+    // automatic-check setting; it must outlive this object.
+    bool configureAndInit(UpdateHost *host);
 
     // Manual, user-initiated check — shows Sparkle's UI whether or not an update is
     // found (and ignores any prior "Skip this version"). Backs the Settings action.
@@ -79,12 +80,11 @@ public:
 private:
     // Deferred -startUpdater target (scheduled by configureAndInit once the loop is up).
     void doInit();
-    // Main-thread reaction to SessionController::runningChanged: when a session ends,
+    // Main-thread reaction to UpdateHost::sessionRunningChanged: when a session ends,
     // fire any relaunch the postpone hook is holding (design §5.1, §9).
     void onSessionRunningChanged();
 
-    AppSettings       *m_settings = nullptr;
-    SessionController *m_session  = nullptr;
+    UpdateHost *m_host = nullptr;
 
     bool m_initialised = false;
 
