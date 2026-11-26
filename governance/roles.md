@@ -19,7 +19,7 @@ A decision is attributed to the role whose domain it is in. Where a decision spa
 
 | Role | Documents |
 |---|---|
-| Product Owner | The plan: `docs/implementation/swe-audit/04-remediation-plan.md` (and the audit's deferred work list, `05-deferred-worklist.md`) |
+| Product Owner | The plan: `docs/implementation/swe-audit/04-remediation-plan.md` (and the audit's deferred work list, `05-deferred-worklist.md`); the requirements, `governance/artefacts/requirements.md`, and the use cases over them, `governance/artefacts/use_cases.md` with `uc-map.csv`[^po-req] |
 | Solution Architect | The information model and its decision register: `governance/artefacts/information_model.md`; the target architecture, `docs/implementation/swe-audit/03-target-architecture.md`; the lint rules (`architecture_lint_test` A1–A8) and `src/Gui/tests/architecture_allowlist.txt`; the QML-rule check's exception list, `src/Gui/tests/qml_rule_allowlist.txt` (`session_setup_lint_test` W12, [AD-52](controls/build.md))[^sa-w12]; the test strategy, `governance/artefacts/test_strategy.md`, and its observations register, `governance/artefacts/rtm_observations.csv`[^sa-ts] |
 | Design Lead | The design system: `governance/artefacts/design_system/` (README, component pages, variability page, generated `tokens.json`); `src/Gui/theme/Theme.qml`; the design-system lint (`design_system_lint_test` D1–D5) and `src/Gui/tests/design_system_allowlist.txt` |
 | Coaching Lead | The norms and the coaching content: the norms and fault edges the diagnostics grade against, `governance/artefacts/normative_reference.md`, and the words a golfer reads |
@@ -39,3 +39,4 @@ Agents do the work. These are agent roles, not human roles, and **an agent never
 
 [^sa-w12]: Product Owner and Solution Architect, 26 Nov 2026: the QML-rule check lands with a shrink-only exception list, each line pointing to an issue, and its owner is the Solution Architect.
 [^sa-ts]: Product Owner and Solution Architect, 26 Nov 2026: the test strategy's controls approved, and the observations register's home; the strategy owned by the Solution Architect.
+[^po-req]: Product Owner, 25 Nov 2026 (the requirements' home, owned by the Product Owner, hand-edited) and 26 Nov 2026 (the requirements approved as v1.0; the use cases' own page, owned by the Product Owner, with `uc-map.csv` read by the traceability matrix's generator).

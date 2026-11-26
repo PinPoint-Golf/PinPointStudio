@@ -4,6 +4,8 @@ The governing specifications: the documents a change is checked against. Each ha
 
 | Artefact | Owner | What it governs |
 |---|---|---|
+| [`requirements.md`](requirements.md) | Product Owner | What the app must do for golfers and coaches: each need, with why, its status and what it rests on. Hand-edited; the Coaching Lead approves the golf in the rows marked CL, and a row that points to a rule is decided by that rule's owner |
+| [`use_cases.md`](use_cases.md) and [`uc-map.csv`](uc-map.csv) | Product Owner | The requirements organised into epics and use cases, and the mapping of each requirement to its use cases, which the traceability matrix reads |
 | [`information_model.md`](information_model.md) | Solution Architect | The domain's objects, ids, files, ownership, rings and contexts, and the decision register |
 | [`design_system/`](design_system/README.md) | Design Lead | Every colour, font, size and space (`Theme.qml` and the generated `tokens.json`), and the shared components |
 | [`sign_conventions.md`](sign_conventions.md) | Solution Architect | The sign of every measured angle and direction |
