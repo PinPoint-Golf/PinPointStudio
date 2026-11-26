@@ -10,9 +10,7 @@ On top of the stages, each kind of work adds its own controls. A control written
 
 ## Bug fix
 
-**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash.
-
-**Guidance:** [AG-20](../guidance/advice.md) start the next issue at first review (agents).
+**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash · [AG-20](plan.md) two ready items per lane; the next issue at first review (agents).
 
 **Guidance, lessons that bite here:** [L-21](../guidance/lessons.md) sample intermittent failures · [L-36](../guidance/lessons.md) read the truth first.
 
@@ -80,7 +78,7 @@ Batches are for scope and regression checks after the cause is known.
 *Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
 
 **AD-23.** Any multi-swing run (a sweep, a bisect of three or more swings, anything that re-runs pose, or a string of one-swing runs) must run on the primary platform's release build, not a development build. A one-swing comparison with pinned poses may run locally.
-Keep a sweep's before and after on one platform. Builds on the primary platform's studio machine go only through the committed `tools/studio/studio-build.cmd`[^ad-23b]; uncommitted work goes there as a patch (its `patch <file>` mode), never as a commit[^ad-23c]; full test runs there go through `tools/method/cabin_run.sh` (proposed, for the Product Owner).
+Keep a sweep's before and after on one platform. A build on a remote build machine goes only through the project's committed script for that machine, never through ad-hoc commands[^ad-23b]; uncommitted work goes there as a patch, never as a commit[^ad-23c]. Which machine, which script and how it is driven are in the local agent file ([POL-7](../policies.md)).
 *Why:* the release build there is many times faster; platforms decode video slightly differently.[^ad-23]
 *Owner:* Product Owner · *Stage:* Data and analysis work · *Compliance:* none yet
 

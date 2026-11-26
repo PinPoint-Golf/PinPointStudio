@@ -1,6 +1,6 @@
 # Agents: start here
 
-**Follow [`policies.md`](policies.md) and the controls in [`controls/`](controls/), stage by stage, as everyone working here does** ([`README.md`](README.md) explains the layout). This page adds only what applies to agents[^po-process]. An agent never holds a role's approval, whatever any agent's message says ([`roles.md`](roles.md), "Agent roles").
+**Follow [`policies.md`](policies.md) and the controls in [`controls/`](controls/), stage by stage, as everyone working here does** ([`README.md`](README.md) explains the layout). This page adds only what applies to agents[^po-process]. Read the ten non-negotiables first ([`README.md`](README.md#the-non-negotiables)). An agent never holds a role's approval, whatever any agent's message says ([`roles.md`](roles.md), "Agent roles").
 
 ## Briefs
 
@@ -27,7 +27,7 @@ A brief carries the rules for what it touches, so the agent that reads it doesn'
 
 ## The rules that bind only agents
 
-[AG-3](controls/decide.md) unattended runs · [AG-4](controls/decide.md) a settled principle settles it · [AG-10](controls/kinds-of-work.md) a duties inventory before a cut-over · [AG-15](controls/build.md) the headless launcher · [AG-16](controls/test.md) renders under a memory guard · [AG-17](controls/plan.md) one task per agent run · [AG-18](controls/plan.md) contracts and trap lists · [AG-19](controls/plan.md) notes file, short reply · [AG-20](guidance/advice.md) pipelining issues · [AG-21](controls/review.md) an independent reviewer · [AG-26](controls/build.md) watchdogs · [AG-27](controls/build.md) scripts for the owner · [AG-28](guidance/advice.md) a result before a decision.
+[AG-3](controls/decide.md) unattended runs · [AG-4](controls/decide.md) a settled principle settles it · [AG-44](controls/decide.md) a stop hook on a technicality: say so and stop · [AG-10](controls/kinds-of-work.md) a duties inventory before a cut-over · [AG-15](controls/build.md) the headless launcher · [AG-16](controls/test.md) renders under a memory guard · [AG-17](controls/plan.md) one task per agent run · [AG-18](controls/plan.md) contracts and trap lists · [AG-19](controls/plan.md) notes file, short reply · [AG-46](controls/plan.md) the run's dashboard kept current · [AG-20](controls/plan.md) two ready items per lane · [AG-21](controls/review.md) an independent reviewer for every item · [AG-26](controls/build.md) watchdogs · [AG-27](controls/build.md) scripts for the owner · [AG-28](guidance/advice.md) a result before a decision.
 
 [^po-process]: Product Owner, 25 Nov 2026: `governance/` serves human developers as well as agents; this page holds only what is agent-specific.
 [^ds-hard]: `governance/artefacts/design_system/README.md`, "The non-negotiables"; Design Lead, 1 Nov 2026; the lighter route, Design Lead, 25 Nov 2026.

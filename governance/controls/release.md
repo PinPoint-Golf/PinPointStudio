@@ -28,7 +28,7 @@ A bench run without it proves nothing about GPU memory. Windows is the primary p
 *Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
 
 **BT-18.** Installers in the shared local-release folder must not be staged or deleted without asking the owner first.
-*Why:* that folder is what the studio machine installs from.[^om-13]
+*Why:* that folder is what a second machine installs from ([BT-12](release.md)).[^om-13]
 *Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
 
 **BT-24.** Every release must carry a build number strictly greater than the last release's: `PINPOINT_VERSION_BUILD` in `src/Core/version.h` on macOS and Windows, the version in the AppImage file name on Linux.
@@ -94,9 +94,15 @@ Staging it in the shared folder is [BT-18](release.md).
 *Why:* library validation is opted out only because the bundled third-party code is signed by its vendors, not by the team; `allow-jit`, `allow-unsigned-executable-memory` and `allow-dyld-environment-variables` stay out until a launch crash proves one is needed.[^bt-37]
 *Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
 
+**BT-45.** An uncertainty census and its fixes must be done before validation and before the first full public release; a beta does not wait on it.
+The census and its gate are `docs/design/uncertainty_census_design.md`, "Gate".
+*Why:* a reading's σ reaches the chance that a fault fired, the session's counts and the ranking of root causes, so that chain is only as honest as the σ fed into it; on 2 Oct 2026, 42 of one session's 58 metrics carried no per-reading σ.[^bt-45]
+*Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
+
 **Guidance, lessons that bite here:** [L-26](../guidance/lessons.md) macOS permissions and signing.
 
 [^om-11]: Product Owner, 25 Nov 2026 (#195, OM-11).
+[^bt-45]: Product Owner, 2 Oct 2026; a control from 26 Nov 2026 (the memory audit, item 18).
 [^bt-10]: Product Owner, 5–6 Nov 2026.
 [^bt-10r]: Product Owner, 25 Nov 2026 (#195): no CI release route; the CI build paths were removed from the release procedures.
 [^bt-11]: Incidents 30 Jul 2026 (the key file) and 3 Sep 2026 (the stale feed). Owning role (proposed): Product Owner.

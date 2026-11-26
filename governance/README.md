@@ -2,9 +2,24 @@
 
 This folder is the project's one home for the policies, controls, procedures and guidance that decide whether a change is acceptable, and for the governing documents themselves[^po-195]. People and agents read the same text here; an agent's own instructions file holds no rules of its own and points here[^issue-195].
 
+## The non-negotiables
+
+The ten rules broken most often, listed together. Each line points to the control or rule that holds it, which stays the one copy ([POL-3](policies.md))[^nn].
+
+1. **Nothing is called done, fixed or working without evidence:** a passing test, or an observation against a named build ([POL-6](policies.md), [AG-25](controls/test.md); the test strategy's evidence rule, once ruled) (proposed, for the Product Owner: the test strategy).
+2. **Approval before building:** information-model changes need the Solution Architect, and design-system changes the Design Lead. Before recommending a cut or a change, grep the governed artefacts for what it touches ([POL-4](policies.md); [`information_model.md`](artefacts/information_model.md) §1.2).
+3. **No rule in QML;** rules are C++ ([AD-52](controls/build.md)).
+4. **An object's files are read and written only by their owner** ([`information_model.md`](artefacts/information_model.md) P11; lint A5).
+5. **A fix for a broken rule removes the breach, or it is an honest deferral with the breach named on an issue** ([AG-42](controls/review.md), [AG-9](controls/plan.md)).
+6. **Commit messages are plain English, with no programme ids in the title;** tests and docs go in the same commit ([GIT-6](controls/commit.md), [GIT-8](controls/commit.md), [GIT-9](controls/commit.md), [GIT-13](controls/commit.md)).
+7. **Decisions are put in plain English with a recommendation;** a question never stops a lane ([AG-1](controls/decide.md), [AG-3](controls/decide.md)).
+8. **One heavy job at a time on a shared machine;** tell the owner before heavy work on a machine they use; each machine's own limits and restrictions are in its local agent file ([BT-15](controls/build.md), [BT-44](controls/build.md), [POL-7](policies.md)).
+9. **Checks never change another lane's working copy** ([AG-41](controls/build.md)).
+10. **Rules live in `governance/`, never in an agent's private notes;** a note is trimmed once its rule is committed ([POL-3](policies.md)).
+
 ## Scope
 
-This governance applies to PinPoint Studio only. Its sibling repositories (the phone-link library, the wrist-sensor library, the capture app and the others) set their own rules[^scope]. Hardware limits, such as a machine's build-job limit, are set in each developer's local agent file, not here[^local].
+This governance applies to PinPoint Studio only. Its sibling repositories (the phone-link library, the wrist-sensor library, the capture app and the others) set their own rules[^scope]. Hardware limits, such as a machine's build-job limit, are set in each developer's local agent file, not here[^local]; so is how a developer uses their own machines and shares ([POL-7](policies.md)).
 
 ## Terms
 
@@ -85,3 +100,4 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 [^agents]: `roles.md`, "Agent roles".
 [^scope]: Product Owner, 25 Nov 2026 (#195, OM-7).
 [^local]: Product Owner, 25 Nov 2026 (#195, OM-1; D5 revised).
+[^nn]: Product Owner, 26 Nov 2026: the list is approved, chosen for the misses that have actually happened, not for completeness; line 1 waits on the test strategy's ruling.

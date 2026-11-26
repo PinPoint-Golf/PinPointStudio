@@ -98,6 +98,7 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 ## Patterns
 
 - **Wait, or … anyway.** When going on now would lose or skip something the app is still doing (a check not passed, a shot still being saved), the prompt says what it is waiting for in plain words ("Saving the last shot…"), goes on by itself the moment it is done, and offers the golfer's way to go on regardless, worded "… anyway" ("Start anyway", "End anyway", "Close anyway") in the warning tone (`colorWarn`; on PpConfirm, `tone: "warn"`). Cancel or Esc only closes the prompt; nothing was registered. Uses: session setup's Start (`ScreenSessionSetup.qml`), the toolbar's End card (`PpSessionToolbar.qml`), the close prompt (`Main.qml`)[^wait-anyway].
+- **A chart page** runs in the order [UI-4](../../controls/product/ui-behaviour.md) sets, and says trust once. When a gate refuses the wrist reading, there is no wrist score and no all-clear heading. The "±" explanation shows on hover only; the ⚠ caution stays. Short findings lines sit side by side in two columns. Plain sentences, never strung-together phrases[^chart-page].
 
 ## Motion
 
@@ -112,4 +113,5 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 
 [^ds-approval]: Design Lead, 1 Nov 2026; narrowed to this list by the lighter route, Design Lead, 25 Nov 2026 (a changed look or behaviour of an existing component stays before approval: review round 2, M9).
 [^ui-20]: Design Lead, 25 Nov 2026 (the lighter design route, [UI-20](../../controls/decide.md); the sheet is UI-17, [`review.md`](../../controls/review.md)).
+[^chart-page]: Design Lead, 17 Oct 2026 (the Charts page, quietened); on this page from 26 Nov 2026 (the memory audit, item 3, approved by the Design Lead).
 [^wait-anyway]: Design Lead, 25 Nov 2026 (#280, #281: End and quit while a shot is being saved; PpConfirm's warn tone).

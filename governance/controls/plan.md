@@ -45,13 +45,31 @@ To change course, stop it and resume it with one explicit instruction.
 *Why:* agents reading only the code miss traps found by tracing; two implementers in one tree clashed on builds.[^ag-18]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
+**AG-43.** A plan asked for on a hard question (a root cause, a fragility, why something breaks) must spend its effort on that question: the mechanism, with numbers and evidence, and a design against it. Mechanical plumbing gets one line, marked out of scope.
+*Why:* a plan answered a tracker-fragility question with product plumbing and left the hard question to "trace it later"; the answer that landed found two failure families in existing results without a new run.[^ag-43]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* a review of the plan
+
+**AG-45.** Before a redesign is briefed, what the shipped screen already does that a role asked for must be listed in the brief and kept, unless that role says otherwise.
+*Why:* a redesign brief asked for curves in ink only, and every design agent dropped the per-metric colours the Product Owner had asked for a week before.[^ag-45]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* a review of the brief
+
 **AG-19.** Every agent must write its full report to a notes file in its work folder and reply in 15 lines or fewer (state, files, tests, decisions needed, the notes path).
 The coordinator never re-pastes reports, reads a notes file only when a decision depends on a detail, and keeps its own context for decisions, briefs, review judgement and spot checks; a clerk agent builds, stages, commits and pushes a signed-off item, under GIT-1, GIT-2 or GIT-4. State lives in files, so a compaction loses nothing. Check any agent silent for over 30 minutes.
 *Why:* reports entering the coordinator's context twice, and clerical work, used up the context needed for judgement.[^ag-19]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
+**AG-46.** A run's dashboard (the file where the Product Owner reads the run's state) must be kept current: at every item's start and finish, every field of its summary is rewritten, not only a log line added; times come from the clock, never estimated; completion is a percentage weighted by effort, with an overall figure computed as done ÷ (done + left) and its range; and what blocks the run is kept apart from what does not.
+The columns themselves are the programme's own files' business.
+*Why:* a dashboard updated only in its log said a finished step was still running, and an estimated time misled the Product Owner after time away.[^ag-46]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
+
+**AG-20.** In an unattended run, no lane may sit idle: each lane must keep at least two briefed, unblocked items ready, drawn only from ruled work (the plan, or issues a role has scheduled), never filled with open bugs.
+Start the next item the moment one lands or goes into its first review, choosing one with no files in common with any uncommitted change; one commit per issue. A signed-off item that can't commit yet is parked as a patch, so its worktree is free. When the plan's next items are blocked, bring ruled work forward (the next stage's briefs, scheduled test or lint items).
+*Why:* reviews take a while, and lanes sat idle while rulings were recorded; filling them with open bugs took the steering of the work away from the Product Owner.[^ag-20]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
+
 **BT-2.** A piece of work must need at most two or three builds in all, and the budget must cover the whole item: the implementer's builds, every fix round's and the reviewer's.
-Batch related edits and build at the end of each part, not after every stage. A plan's verification section names the targets the change affects, one line each on why, and says which suites are not run and why. Reviewers run ctest on the implementer's current build and rebuild only when it is stale. A "before" build of an old commit is made only when no kept binary or dump can answer. A long machine run (a sweep, a re-run on another machine) is justified in one line before it starts, and runs once. Build-time measurements (clean, one-header, link) run on the Windows studio machine only, since a before-and-after comparison needs one machine[^bt-2b].
+Batch related edits and build at the end of each part, not after every stage. A plan's verification section names the targets the change affects, one line each on why, and says which suites are not run and why. Reviewers run ctest on the implementer's current build and rebuild only when it is stale. A "before" build of an old commit is made only when no kept binary or dump can answer. A long machine run (a sweep, a re-run on another machine) is justified in one line before it starts, and runs once. Build-time measurements (clean, one-header, link) run on one machine of the primary platform, the same one for the before and the after, since a comparison needs one machine[^bt-2b]. Each brief sets its item's build budget, and each commit report gives the build count (proposed, for the Product Owner)[^bt-2c].
 *Why:* builds are slow and memory-bound, and every build costs the owner time and energy; one step of the domain refactor ran about 200 builds.[^bt-2]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
@@ -71,7 +89,12 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 [^ag-17]: Product Owner, 12 Oct 2026.
 [^ag-18]: Product Owner, 29 Aug 2026 (multi-repo work) and 15 Nov 2026 (own worktrees).
 [^ag-19]: Product Owner, 14 Nov 2026.
-[^bt-2b]: Product Owner, 24 Nov 2026.
+[^bt-2b]: Product Owner, 24 Nov 2026. Which machine is in the local agent file (POL-7).
+[^bt-2c]: The general half of the memory audit's item 1 (the Product Owner's practice since 21 Nov 2026); its machine half went to the local agent file on 26 Nov 2026. Whether this half is a control is for the Product Owner.
+[^ag-43]: Product Owner, 30 Sep 2026; a control from 26 Nov 2026 (the memory audit, item 5).
+[^ag-45]: Product Owner, 14 Oct 2026; a control from 26 Nov 2026 (the memory audit, item 7).
+[^ag-46]: Product Owner, 14, 15 and 22 Nov 2026 (the summary and the clock) and 24 Nov 2026 (the completion figure); a control from 26 Nov 2026 (the memory audit, items 11 and 12).
+[^ag-20]: Product Owner, 11 Nov 2026 (the next issue at first review) and 24 Nov 2026 (no lane idle); 25 Nov 2026 (no open bugs brought forward to fill lanes); guidance until 26 Nov 2026, then a control (the memory audit, item 8).
 [^bt-2]: Product Owner, 28 Oct and 21 Nov 2026.
 
 [^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is its own artefact, `governance/artefacts/lifecycle_model.md`, owned by the Solution Architect (option (a); DEC-204).

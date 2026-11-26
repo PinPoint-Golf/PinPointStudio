@@ -69,7 +69,7 @@ the before and after figures, the regressions found (or none), and the run ids.
 *Why:* the reason a fix was accepted belongs with it in the history.[^om-13]
 *Owner:* Product Owner · *Stage:* Commit · *Compliance:* a review of the commit
 
-**Also at this stage (written elsewhere):** [AG-19](plan.md) notes file, reply in 15 lines (agents) · [BT-4](test.md) affected tests once; screen tests for touched screens.
+**Also at this stage (written elsewhere):** [GIT-15](review.md) a short list of what to try · [AG-19](plan.md) notes file, reply in 15 lines (agents) · [BT-4](test.md) affected tests once; screen tests for touched screens.
 
 [^git-1]: Product Owner, 28 Jul 2026 (stated as hard), with incidents on 31 Jul, 3 Aug, 9 Sep, 7 Oct and 12 Oct 2026.
 [^d1]: Product Owner, 25 Nov 2026 (#195, decision D1): after a refactor, every commit and push needs the Product Owner's approval again; an unattended session the Product Owner asks for may commit and push; during a refactor, its own pre-approval applies.

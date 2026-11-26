@@ -7,9 +7,7 @@ What the product must do with faults, misses, tendencies and the words a golfer 
 - There are no warm-up shots: every shot counts in full in every reduction (`governance/artefacts/information_model.md` §2; `docs/design/session_diagnostics_design.md` §5.4).
 - Recorded intent never excuses, suppresses or re-grades a finding (`information_model.md` §2).
 - Diagnostics have three levels, shot, session and athlete, each owned at its own level (`information_model.md` §7.1).
-- A shot's tendency has three factors (`docs/design/shot_outcomes_design.md` §3.8, §7.0; `docs/design/ball-flight-classification.md`).
 - A condition's "draft" state gates nothing; only `reportHold` keeps a condition out of a report (`docs/developer/diagnostics_developer_guide.md`, `detect()`; `docs/design/session_report_design.md` §5).
-- The diagnostic model is complete ahead of its producers on purpose: never report a model item as deficient for lacking a producer, a norm or a signal (`docs/design/swing_fault_ontology.md`, "What the prevalence field made visible on day one").
 - Diagnostics content never cites a commercial organisation, product, certification body or brand (`docs/design/diagnostics_content_extension.md`, "Provenance discipline"). *Check:* `core_pack_test`, `diagnostics_catalogue_integrity_test`.
 - The kinematic sequence is judged relative to impact: out of order and peaking after impact are both sharp findings (`docs/design/trunk_imu_sequence_grf_design.md` §10.9).
 - How work-ons rank (`docs/design/work_ons_design.md`).
@@ -64,14 +62,19 @@ The metric catalogue's golfer-facing text is cleaned of such names.
 *Why:* a reference shape is an exemplar, not an endorsement; internal docs still need their sources.[^dc-13]
 *Owner:* Coaching Lead · *Stage:* Build; checked at Review · *Compliance:* `core_pack_test`, `diagnostics_catalogue_integrity_test` (diagnostics content); a review elsewhere
 
-**DC-14.** A measure that nothing reads yet must never be treated as a candidate for deletion:
-the model is the specification of what producers to build.
-*Why:* the diagnostic model is complete ahead of its producers on purpose.[^om-13]
+**DC-14.** The diagnostic model is complete ahead of its producers on purpose: a measure that nothing reads yet must never be treated as a candidate for deletion, and no health check, warning or test may report a model item as deficient for lacking a producer, a norm or a signal.
+The model is the specification of what producers to build. An analysis over the pack sweeps every condition, not only those that can fire today. The background is `docs/design/swing_fault_ontology.md`, "What the prevalence field made visible on day one"[^dc-14b].
+*Why:* a complete model can be reviewed with coaches and sets the producers' priorities; a warning that fires on the design itself is worse than none.[^om-13]
 *Owner:* Product Owner · *Stage:* Build; checked at Review · *Compliance:* a review
 
 **DC-15.** A reference's bibliographic fields must be re-resolved from the source, never filled in from memory.
 *Why:* a remembered citation can be wrong in every field.[^om-13]
 *Owner:* Product Owner · *Stage:* Build; checked at Review · *Compliance:* a review
+
+**DC-16.** A shot's tendency must be three separate factors, strike, direction and flight, never one miss chosen across them: flight is Low, Mid or High against the club's norms (none of them a fault), and Sky is the flight fault.
+Where tendencies are listed or filtered, the three are separate columns and separate filters, beside the club. The detail is `docs/design/shot_outcomes_design.md` §3.8 and §7.0, and `docs/design/ball-flight-classification.md`.
+*Why:* reading a tendency as one miss was the root of the trouble with precedence and priority.[^dc-16]
+*Owner:* Coaching Lead (proposed) · *Stage:* Build; checked at Review · *Compliance:* a review
 
 [^dc-3]: Coaching Lead, 10 Nov 2026.
 [^dc-4]: Coaching Lead, 13 Nov 2026 (the plane stack review).
@@ -84,3 +87,5 @@ the model is the specification of what producers to build.
 [^dc-12]: Coaching Lead, 22 Oct 2026.
 [^dc-13]: Coaching Lead, 25 Oct 2026, ruled in scope 25 Nov 2026 (#195, decision D9).
 [^om-13]: Product Owner, 25 Nov 2026 (#195, OM-13).
+[^dc-14b]: Product Owner, 3 Aug 2026 (the model complete ahead of its producers); widened from a pointer to this control 26 Nov 2026 (the memory audit, item 20).
+[^dc-16]: Product Owner, 10 Nov 2026; a control from 26 Nov 2026 (the memory audit, item 17). Owning role (proposed): Coaching Lead.

@@ -114,7 +114,7 @@ Engineering lessons: traps that cost real time, what was happening, and what to 
 
 **L-38. The analysis DAG only adds edges from earlier-authored stages to later ones:** a declared read can't move a stage later, so reorder the profile. Grep the header before claiming a default.[^l-38]
 
-**L-39. A tool binary run outside its full build folder silently degrades** (missing runtime libraries, or models it can't find). On a network share, the Mac's client shows deleted files for minutes: run bulk file work on the machine that holds the share.[^l-39]
+**L-39. A tool binary run outside its full build folder silently degrades** (missing runtime libraries, or models it can't find). On a network share, a macOS client shows deleted files for minutes: run bulk file work on the machine that holds the share.[^l-39]
 
 **L-40. When analysis slows late in a session, read the GPU memory log line first:** a GPU inference session called from short-lived threads never reuses freed memory (information model DEC-194).[^l-40]
 

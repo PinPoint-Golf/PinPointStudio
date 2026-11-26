@@ -6,9 +6,7 @@ Recommended practice: these say what should be done, not what must be. They keep
 (the deployment, the user, the use case).
 *Why:* twenty findings were applied, over four review passes, to a change request granted for a deployment that doesn't exist.[^ag-13]
 
-**AG-20.** When working through issues, start the next issue's implementer as soon as the current one goes into its first review,
-choosing one with no files in common with the current uncommitted change; one commit per issue.
-*Why:* reviews take a while, and an idle implementer slot wastes time.[^ag-20]
+AG-20 (start the next issue at first review) is now a control: [`controls/plan.md`](../controls/plan.md).
 
 **AG-28.** Put a result in front of the owner before asking for a decision on it:
 once a change's gates pass, offer the whole path to something the owner can try in the app (commit and push, re-analysis, regrade), and say what will and won't show until then; "built, awaiting commit" is not a finished state. Commits and library writes still need their approvals.
@@ -30,7 +28,6 @@ once a change's gates pass, offer the whole path to something the owner can try 
 *Why:* a fast suite gets run.[^om-13]
 
 [^ag-13]: Product Owner, 24 Aug 2026 (the phone protocol's guided-pairing change request, erratum E53).
-[^ag-20]: Product Owner, 11 Nov 2026.
 [^ag-28]: Product Owner, 2 Oct 2026.
 [^om-5]: Product Owner, 25 Nov 2026 (#195, OM-5).
 [^om-6]: Product Owner, 25 Nov 2026 (#195, OM-6).

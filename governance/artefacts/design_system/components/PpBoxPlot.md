@@ -9,6 +9,8 @@ Any box of a session's spread: the Charts rows, runs, traces, kinds, scatter mar
 
 It works out no number. The statistics come from the one C++ implementation, `src/Gui/typeset/box_stats.h` (type-7 quantiles, Tukey whiskers within 1.5 × IQR), published by the models; the labels come from whoever owns their formatting.
 
+Beside a shot-by-shot chart, a session's spread is this box, narrow, never a dot swarm (beeswarm) or a density curve[^box-not-swarm].
+
 Not for: one shot's marks without a box (use `PpMark`), or a session strip (use `PpShotStrip`).
 
 ## Consumer supplies
@@ -70,3 +72,5 @@ PpBoxPlot {
 
 ## Used by
 Instantiated in `charts/PpChBoxCell.qml` — which the Charts panel places in `PpChProfile`, `PpChRunBox`, `PpChReadingTrace`, `PpChKindTable`, `PpChScatter`, `PpChPositionProfile`, `PpChPostureAddress`, `PpChDeliverySession` and the report's `PpReportProfile` and `PpDeliveryPage` — `diagnostics/PpBoxStrip.qml` (Session diagnostics Spread box), `diagnostics/PpHistoryStrip.qml` (across-sessions boxes), `athlete/AthleteClubsSection.qml` (Your distances, collapsed to mean ± SD) and `typeset/PpPageKey.qml` (the key's box swatch, `namePrefix: "sdKeyBox"`).
+
+[^box-not-swarm]: Design Lead, 12 Oct 2026 (Session diagnostics' detail figure: the spread strip replaced by a box beside the session plot); on this page from 26 Nov 2026 (the memory audit, item 4, approved by the Design Lead).

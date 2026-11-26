@@ -12,9 +12,9 @@ The short principles that every control, procedure and piece of work here follow
 
 **POL-5. Honest numbers.** The product shows every reading it has, with its warning, and never hides one for being unreliable; it never claims more than it measured. *Controls:* [UI-1](controls/product/ui-behaviour.md), [UI-2](controls/product/ui-behaviour.md), [AD-5](controls/product/analysis-and-data.md), [DC-6](controls/product/diagnostics-and-coaching.md).[^pol-5]
 
-**POL-6. Honest reporting.** Work is reported as it was observed: a failure is filed only when seen, a claim about the product is checked by running it, and a result is shown before a decision is asked for. *Controls:* [AG-24](controls/review.md), [AG-25](controls/test.md); guidance [AG-28](guidance/advice.md).[^pol-6]
+**POL-6. Honest reporting.** Work is reported as it was observed: a failure is filed as a bug only when seen (one predicted by reading is filed as a finding, to reproduce first), a claim about the product is checked by running it, and a result is shown before a decision is asked for. *Controls:* [AG-22](controls/review.md), [AG-24](controls/review.md), [AG-25](controls/test.md); guidance [AG-28](guidance/advice.md).[^pol-6]
 
-**POL-7. Privacy.** Nothing private enters the repository: no golfer's name or athlete id, no machine name, login, share path or home path, and no one's personal working style. Machine matter stays in each developer's local, untracked agent file.[^pol-7]
+**POL-7. Privacy.** Nothing private enters the repository: no golfer's name or athlete id, no machine name, login, share path or home path, and no one's personal working style. Rules here apply to any developer; how one developer uses their own machines and shares is written in their local agent file, never here. That file is local and untracked.[^pol-7][^pol-7w]
 
 **POL-8. A personal, non-commercial product.** PinPoint Studio will never be released commercially; licence questions are weighed accordingly, and vendor software is never decompiled, bypassed or reached into. *Controls:* [AG-30](controls/decide.md).[^pol-8]
 
@@ -23,6 +23,7 @@ The short principles that every control, procedure and piece of work here follow
 [^pol-3]: Product Owner, 21 Nov 2026 (#195, "One source"); Solution Architect, 14 Nov 2026 (never paraphrase a governing definition).
 [^pol-4]: `roles.md`; `governance/artefacts/information_model.md` §1.2; `governance/artefacts/design_system/README.md`, "The non-negotiables".
 [^pol-5]: Product Owner, 22 Oct 2026 ("a big philosophical principle for the entire product").
-[^pol-6]: Product Owner, 6 Nov 2026 (evidence for bugs) and 2 Oct 2026 (a result before a decision). Stated as a policy: proposed, for the Product Owner.
+[^pol-6]: Product Owner, 6 Nov 2026 (evidence for bugs) and 2 Oct 2026 (a result before a decision); 26 Nov 2026 (a finding nobody has seen is filed as a finding, never a bug). Stated as a policy: proposed, for the Product Owner.
 [^pol-7]: Product Owner, 21 Nov 2026 (#195: "Nothing private is copied"; personal and machine matter "never goes into the repo").
+[^pol-7w]: Product Owner, 26 Nov 2026: governance holds nothing about one developer's own machines, shares or how and when they are used; that is one developer's way of working, and it would leak a private set-up into a public repository.
 [^pol-8]: Product Owner, 2 Nov 2026.

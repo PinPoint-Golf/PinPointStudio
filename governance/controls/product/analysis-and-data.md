@@ -9,7 +9,6 @@ What the product must do with measurement, sources and devices. Who owns a piece
 - The wrist sensor (HackMotion) is the criterion for wrist measurement: grade against it when it is present (`docs/implementation/hackmotion_integration_brief.md` §0, decision 3).
 - Wired phone transport is an optimisation, never a requirement; a change of transport is a new link with a new clock estimator (`docs/design/wired_transport_design.md` §0).
 - The release dashboard is regenerated whenever metric, fault-model, norm or evidence work lands (`docs/validation/release_status.md`, "How to read it").
-- An uncertainty census and its fixes come before validation and before the first full public release (`docs/design/uncertainty_census_design.md`, "Gate").
 - Parity gates run on pinned poses (`docs/developer/testing_developer_guide.md`, "Parity baseline").
 
 ## Sources and measurement

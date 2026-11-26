@@ -37,6 +37,10 @@ When a fix keeps needing rounds, say so before round three and offer to stop or 
 *Why:* a narrow reading of a scope cut cost about four hours on one small component.[^ag-5]
 *Owner:* Product Owner · *Stage:* Decide · *Compliance:* none yet
 
+**AG-44.** When the work is done and a tool's stop hook objects on a technicality, an agent must say so once, in one line, and stop; it must never start sweeps, builds or commits just to satisfy the hook.
+*Why:* an agent began re-running an hour-long sweep to quiet a hook after the Product Owner had said they would clear it themselves.[^ag-44]
+*Owner:* Product Owner · *Stage:* Decide · *Compliance:* none yet
+
 **AG-30.** Third-party licence questions must be weighed as personal, non-commercial use, and licence risk must not be raised as a blocker for a connector that reads a vendor's output files: the product will never be released commercially.
 Still never decompile, reverse-engineer or bypass vendor software, and never touch a vendor's authentication or credential files.
 *Why:* it came up over a launch-monitor vendor's licence terms for a file-reading connector.[^ag-30]
@@ -86,6 +90,7 @@ Still approved before it is built: a new component; a new style, size or kind va
 [^ag-4]: Solution Architect, 15 Nov 2026.
 [^ag-5]: Product Owner, 11 Nov 2026.
 [^ag-30]: Product Owner, 2 Nov 2026.
+[^ag-44]: Product Owner, 7 Nov 2026; a control from 26 Nov 2026 (the memory audit, item 6).
 [^ag-6]: Solution Architect, 14 Nov 2026.
 [^ag-7]: Solution Architect, 24 Nov 2026.
 [^ag-2]: Product Owner, 7 Nov 2026.
