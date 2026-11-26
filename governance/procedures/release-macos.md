@@ -293,6 +293,7 @@ The last line must read `100% tests passed, 0 tests failed out of N` (N grows as
 and tests are added: 121 as of v0.1-alpha11). If the umbrella fails to configure or build,
 or any test fails, stop ([BT-17](../controls/release.md)): fix it and re-run before you tag. Do not proceed to
 the build/sign steps below.
+Then [BT-42](../controls/release.md): refresh the issue snapshot, regenerate the RTM at the release commit, run the smoke visit, and list the last observed build of every other hardware requirement.
 
 > The `rm -rf build/tests` and the umbrella are [BT-25](../controls/release.md), not housekeeping. The umbrella
 > works because `tests/CMakeLists.txt` enumerates the suites, so one added later is picked

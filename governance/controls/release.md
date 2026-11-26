@@ -3,7 +3,7 @@
 Building, publishing and installing a release. The steps are the platform procedures: [`release-macos.md`](../procedures/release-macos.md), [`release-windows.md`](../procedures/release-windows.md), [`release-linux.md`](../procedures/release-linux.md), and for macOS signing [`code-signing-macos.md`](../procedures/code-signing-macos.md). Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../README.md).
 
 **BT-17.** A release must pass every test before it is published; a known failure needs the Product Owner's recorded acceptance for that release, listed in its release notes.
-The release procedures' test gates hold the steps (`procedures/release-*.md`); how the gate is run is [BT-25](release.md).
+The release procedures' test gates hold the steps (`procedures/release-*.md`); how the gate is run is [BT-25](release.md). Accepted RTM gaps are listed beside the accepted failures ([BT-42](release.md)). A standing red is accepted by its line in the accepted-gaps register, with its issue and owner; the register is what makes the gate green ([`test_strategy.md`](../artefacts/test_strategy.md), "Words used here")[^bt-17e].
 *Why:* each acceptance of a known failure stays a decision.[^om-11]
 *Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
 
@@ -40,6 +40,14 @@ It is the only thing the macOS and Windows updaters compare; a local release kee
 Configure, build and test failures all block. The total grows as tests are added, so no fixed count is pinned; a run that configured fewer tests than expected is still not green ([BT-22](test.md)). The job limit is the machine's own ([BT-1](build.md)).
 *Why:* an incremental configure reported 134/134 passing while running binaries from an older checkout, and a fresh configure at the same commit failed at once; a hand-rolled suite loop silently stopped covering two suites added after it was written.[^bt-25]
 *Owner:* Product Owner · *Stage:* Release · *Compliance:* none yet
+
+**BT-42.** A release must not be published unless the RTM, with its issue snapshot refreshed and regenerated at the release's commit, has no flag outside its accepted gaps and its baseline; the release smoke checklist has been observed on this release's build; and the release notes list every other hardware requirement ([`test_strategy.md`](../artefacts/test_strategy.md) §3) with the build it was last observed on, or "never observed".
+- **The baseline does not block.** Lines in the RTM's baseline (today's gaps, which may only shrink) do not stop a release; the release notes give their count and list each hardware requirement among them by its last observed build. Accepted gaps are listed as BT-17 lists accepted failures.
+- **The smoke checklist** is a fixed, committed list the Product Owner rules once (about 30 minutes at the capture rig: install and start; each device class connects; three real shots end to end with the launch monitor, the cameras and a phone; one calibration routine started and finished; End, then quit), each step naming the requirements it observes. A code change after the smoke visit means the smoke visit again, not a full visit. Every other hardware requirement is observed at full visits, at a feature release or when the Product Owner asks; requirements the Product Owner marks safety-critical (lost work, lost shots) carry an age limit, set by the Product Owner, after which they need a fresh observation.
+- **This release's build** is the release's commit on the primary platform, or an ancestor that `test_strategy.md` §7.1's script accepts; a local installer of it counts.
+- **Before and after publishing.** Only the checks made before publishing count here (BT-26, BT-27, BT-28, BT-34). BT-11 is checked after publishing; it is recorded on the release, and a failed BT-11 reopens the release under its procedure.
+*Why:* a visit observation proves only the build it was made on; a full visit every release is not possible for one person at one capture rig, so the release shows each device's last observation honestly instead of carrying it forward.[^bt-42]
+*Owner:* Product Owner · *Stage:* Release · *Compliance:* `rtm_check --release <commit>` (its release mode, `test_strategy.md` §8) and the observations register; until `rtm_check` and its baseline exist, the release notes' list of hardware requirements observed on this build is the compliance
 
 **BT-26.** A macOS bundle must be launched, and its main window seen to open, before it is notarized; a crash on launch stops the release until it is fixed.
 On Apple Silicon the bundle is signed first (ad hoc, or with the Developer ID and no notarization); only a code-signature kill of an unsigned arm64 bundle is explained away.
@@ -124,3 +132,5 @@ The census and its gate are `docs/design/uncertainty_census_design.md`, "Gate".
 [^bt-35]: Moved from `code-signing-macos.md` §6, 25 Nov 2026 (#195).
 [^bt-36]: Moved from `code-signing-macos.md` §8, 25 Nov 2026 (#195).
 [^bt-37]: Moved from `code-signing-macos.md` §5 and `release-macos.md`, "Troubleshooting", 25 Nov 2026 (#195).
+[^bt-17e]: Product Owner, 25 Nov 2026 ([POL-9](../policies.md)); the accepted-gaps sentences approved with BT-42 by the Product Owner and the Solution Architect, 26 Nov 2026.
+[^bt-42]: Product Owner, 25 Nov 2026 ([POL-9](../policies.md): a visit observation lasts for its build only). The smoke visit, the last-observed listing, the age limit, and a local installer counting as this release's build: approved with the control by the Product Owner and the Solution Architect, 26 Nov 2026.

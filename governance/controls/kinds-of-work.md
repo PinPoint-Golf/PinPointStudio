@@ -4,13 +4,13 @@ On top of the stages, each kind of work adds its own controls. A control written
 
 ## Feature
 
-**Extras:** [G3](plan.md) say what debt the feature adds · [UI-20](decide.md) the lighter design route · [UI-8](product/ui-behaviour.md) every register · [UI-9](product/ui-behaviour.md) This shot and Session views · [DC-6](product/diagnostics-and-coaching.md) new readings grade at once, no blanket warning · [AG-36](plan.md) what changes on screen, in every model plan.
+**Extras:** [G3](plan.md) say what debt the feature adds · [UI-20](decide.md) the lighter design route · [UI-8](product/ui-behaviour.md) every register · [UI-9](product/ui-behaviour.md) This shot and Session views · [DC-6](product/diagnostics-and-coaching.md) new readings grade at once, no blanket warning · [AG-36](plan.md) what changes on screen, in every model plan · [BT-38](plan.md) requirements and their evidence in the plan.
 
 **Guidance:** [AG-34](../guidance/advice.md) batch small UI follow-ups.
 
 ## Bug fix
 
-**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash · [AG-20](plan.md) two ready items per lane; the next issue at first review (agents).
+**Extras:** [AG-22](review.md) fix only blocking findings; file the rest · [AG-24](review.md) bugs need evidence; how to file · [AD-22](kinds-of-work.md) one swing for a hypothesis · [AG-38](review.md) a backtrace before diagnosing a crash · [AG-20](plan.md) two ready items per lane; the next issue at first review (agents) · [BT-41](review.md) the proof, red before the fix · [GIT-14](commit.md) the evidence in the commit.
 
 **Guidance, lessons that bite here:** [L-21](../guidance/lessons.md) sample intermittent failures · [L-36](../guidance/lessons.md) read the truth first.
 
@@ -28,7 +28,7 @@ Tests are re-pointed at the new owner, never deleted. Keep items small.
 
 The steps for a cut-over are [`procedures/cut-over.md`](../procedures/cut-over.md).
 
-**Extras:** [GIT-2](commit.md) a refactor's pre-approval · [AG-6](decide.md) architecture: design agreed before building · [AG-7](decide.md) an include check before a dependency rule · [AG-9](plan.md) every audit finding placed · [AG-12](plan.md) line counts are never a target.
+**Extras:** [GIT-2](commit.md) a refactor's pre-approval · [AG-6](decide.md) architecture: design agreed before building · [AG-7](decide.md) an include check before a dependency rule · [AG-9](plan.md) every audit finding placed · [AG-12](plan.md) line counts are never a target · [BT-21](test.md) parity for a second backing.
 
 ## Data and analysis work
 

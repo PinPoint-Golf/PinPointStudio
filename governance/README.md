@@ -6,7 +6,7 @@ This folder is the project's one home for the policies, controls, procedures and
 
 The ten rules broken most often, listed together. Each line points to the control or rule that holds it, which stays the one copy ([POL-3](policies.md))[^nn].
 
-1. **Nothing is called done, fixed or working without evidence:** a passing test, or an observation against a named build ([POL-6](policies.md), [AG-25](controls/test.md); the test strategy's evidence rule, once ruled) (proposed, for the Product Owner: the test strategy).
+1. **Nothing is called done, fixed or working without evidence:** a passing test, or an observation against a named build ([POL-9](policies.md); [BT-38](controls/plan.md), [BT-39](controls/test.md), [BT-40](controls/test.md), [BT-41](controls/review.md), [BT-42](controls/release.md); [AG-25](controls/test.md); the test strategy, [`test_strategy.md`](artefacts/test_strategy.md)).
 2. **Approval before building:** information-model changes need the Solution Architect, and design-system changes the Design Lead. Before recommending a cut or a change, grep the governed artefacts for what it touches ([POL-4](policies.md); [`information_model.md`](artefacts/information_model.md) §1.2).
 3. **No rule in QML;** rules are C++ ([AD-52](controls/build.md)).
 4. **An object's files are read and written only by their owner** ([`information_model.md`](artefacts/information_model.md) P11; lint A5).
@@ -40,7 +40,7 @@ This governance applies to PinPoint Studio only. Its sibling repositories (the p
 - [`controls/`](controls/), by stage of work, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work. [`controls/product/`](controls/product/) holds the controls on what the product must do: [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md), [`ui-behaviour.md`](controls/product/ui-behaviour.md) and [`capture-and-session.md`](controls/product/capture-and-session.md); the build and review stages point to them.
 - [`procedures/`](procedures/README.md): step-by-step procedures, including the release procedures and the capture and corpus collection protocols.
 - [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md).
-- [`artefacts/`](artefacts/README.md): the governing specifications (the information model, the lifecycle model, the design system, the sign conventions, the normative reference, the IMU frame contract), each with its owning role.
+- [`artefacts/`](artefacts/README.md): the governing specifications (the information model, the lifecycle model, the design system, the sign conventions, the normative reference, the IMU frame contract, the test strategy and its observations register), each with its owning role.
 - [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here.
 
 Each control is written once, in the first stage where it applies; later stages list it by id with a few plain words and a link, never a copy. Every control id appears in at least one stage or kind of work[^structure].
@@ -65,6 +65,7 @@ The lint allowlists are the register of approved exceptions. They stay where the
 | `src/Gui/tests/architecture_allowlist.txt` | `architecture_lint_test` | Solution Architect |
 | `src/Gui/tests/design_system_allowlist.txt` | `design_system_lint_test` | Design Lead |
 | `src/Gui/tests/qml_rule_allowlist.txt` | `session_setup_lint_test` (W12) | Solution Architect[^sa-w12] |
+| `governance/artefacts/rtm_accepted_gaps.txt` (once it lands) | `rtm_check` (once built) | Product Owner (the Solution Architect for a gap in a test's or a control's labelling)[^rtm-gaps] |
 
 Each line names the exception and its reason. A line is never added to make a test pass: the code is fixed, or the owning role approves the exception[^allow].
 
@@ -101,5 +102,6 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 [^agents]: `roles.md`, "Agent roles".
 [^scope]: Product Owner, 25 Nov 2026 (#195, OM-7).
 [^local]: Product Owner, 25 Nov 2026 (#195, OM-1; D5 revised).
-[^nn]: Product Owner, 26 Nov 2026: the list is approved, chosen for the misses that have actually happened, not for completeness; line 1 waits on the test strategy's ruling.
+[^nn]: Product Owner, 26 Nov 2026: the list is approved, chosen for the misses that have actually happened, not for completeness; line 1's evidence rule was ruled with the test strategy's controls (Product Owner and Solution Architect, 26 Nov 2026).
 [^sa-w12]: Product Owner and Solution Architect, 26 Nov 2026: the QML-rule check lands with a shrink-only exception list, each line pointing to an issue, and its owner is the Solution Architect.
+[^rtm-gaps]: Product Owner and Solution Architect, 26 Nov 2026, with [BT-42](controls/release.md) and the test strategy.

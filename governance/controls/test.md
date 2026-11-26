@@ -3,7 +3,7 @@
 Running the tests and checking that the change works. Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../README.md).
 
 **BT-16.** A change to hardware behaviour (cameras, sensors) must be checked on the real devices by the agent or developer making it, with a standalone device probe while the app is closed, after asking the owner each time;
-an in-app check also needs the owner's yes first (AG-15).
+an in-app check also needs the owner's yes first (AG-15). Each check is recorded as an observation ([`test_strategy.md`](../artefacts/test_strategy.md) §7). It supports a requirement; only an observation of the app at the capture rig proves one[^pol9-ptr].
 *Why:* the headless launcher reaches no device, and handing the owner debug builds to try cost repeated round trips.[^om-2]
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* none yet
 
@@ -38,7 +38,7 @@ In a round of small fixes, hold the suite and the commit until the list is done.
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* none yet
 
 **BT-7.** A test must find defects, not record today's behaviour: every assertion must be an independent oracle.
-Every assertion is an independent oracle: a stated invariant, two producers of one fact agreeing, a write-then-read round trip, or an input the arguments cannot reach. A test written by calling the code and recording its answer is not allowed in. For an untested area, write the tests first (deliberately red), then fix; never weaken an assertion to make it pass.
+Every assertion is an independent oracle: a stated invariant, two producers of one fact agreeing, a write-then-read round trip, or an input the arguments cannot reach. A test written by calling the code and recording its answer is not allowed in. For an untested area, write the tests first (deliberately red), then fix; never weaken an assertion to make it pass. The forms of "seen to fail" are [the test strategy's](../artefacts/test_strategy.md) §5.1[^pol9-ptr].
 *Why:* tests written first over the capture and session code found fourteen real defects, one of which discarded an extended session's swings.[^bt-7]
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* none yet
 
@@ -61,6 +61,16 @@ When a change writes anything at app start, point the render's settings at a scr
 *Why:* a runaway mock QML file reached 97 GB and filled swap; a render wrote into the live library and was then reported as untouched; windowed renders kept popping up over the owner's own work.[^ag-16]
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* none yet
 
+**BT-39.** Every new test, and every test whose assertions or set-up change, must name each requirement it proves, or each control it checks (`REQ-ANA-8`, `CTL-BT-7`), and must meet [`test_strategy.md`](../artefacts/test_strategy.md) §5.
+A mechanical edit (a path or name rewritten by a move) needs no new label. A test that proves neither a requirement nor a control (infrastructure: the profiler, logging, the work pool) is listed in the accepted gaps with its reason.[^bt-39d]
+*Why:* a test that names nothing can't be counted as proof, and one that was never red has not shown it can tell working from broken.[^bt-39]
+*Owner:* Solution Architect · *Stage:* Test · *Compliance:* `rtm_check` (a test with no requirement or control label), once built; a review until then
+
+**BT-40.** A test shown unable to fail (it stayed green with what it proves broken, on any platform) must be strengthened or retired; it must never be kept as proof.
+From the moment it is shown, it proves nothing: its requirement labels come off, or the RTM marks it, until it is strengthened, and a requirement it was the only proof for goes back to "built, not verified". A retirement, or a merge that deletes a test, goes to the Product Owner, with its reason, before the test is deleted. How to write one that can fail is [`test_strategy.md`](../artefacts/test_strategy.md) §5.2.
+*Why:* tests found in one day passed with nothing to catch: two of #244's forced save failures, whose refusal Windows ignored; and `swing_doc_test`'s folder scan, which silently skipped a renamed folder.[^bt-40]
+*Owner:* Solution Architect · *Stage:* Test · *Compliance:* a review; the catalogue's audit ([`test_strategy.md`](../artefacts/test_strategy.md) §9) for today's tests
+
 ## The checks
 
 These run under ctest ([BT-3](test.md): always through ctest). A rule with a check names it.
@@ -75,6 +85,7 @@ These run under ctest ([BT-3](test.md): always through ctest). A rule with a che
 | `namespace_collision_test` | One name defined at namespace scope in two files (an ODR violation the linker accepts) | the test's comment; [CODE-2](build.md) |
 | `store_isolation_lint_test` | Tests redirect the per-user settings stores before constructing anything that reads them | `docs/developer/testing_developer_guide.md`, "Per-user stores" |
 | `core_pack_test`, `diagnostics_catalogue_integrity_test` | Among their checks: no brand names in the diagnostics content | `docs/design/diagnostics_content_extension.md`, "Provenance discipline" |
+| `rtm_check` (once built) | The RTM is current; every id it reads exists; no gap outside the accepted list and the baseline (a row without the evidence it needs, a test with no label) | [`test_strategy.md`](../artefacts/test_strategy.md) §8; gaps in `governance/artefacts/rtm_accepted_gaps.txt` and `rtm_baseline.txt`, once they land |
 | `headless_probe_test`, `run_headless_selftest` | The app started with `PINPOINT_HEADLESS_PROBE=1` raises no permission prompt and reaches no device; the launcher refuses a real home, settings file or library | `src/Gui/tests/headless_probe_check.cmake`; `tools/probe/run_headless.sh` |
 
 Rules agreed but not yet checked by a test say "none yet" in their compliance; the checks for G1, G2 and G3 are build items[^po-g].
@@ -85,7 +96,7 @@ Coverage: every control in this folder appears in at least one stage or kind (a 
 *Why:* after the first visit, many of its steps needed no golf shot and could have been done at a desk, which cost the owner's time at the rig[^bt-43]; time at the rig is for hitting balls, not for checks that can be automated or done at a desk.[^bt-43b]
 *Owner:* Product Owner · *Stage:* Test · *Compliance:* a review of each visit procedure
 
-**Also at this stage (written elsewhere):** [AG-26](build.md) a watchdog on every long command (agents) · [AD-20](kinds-of-work.md) measure the pose noise floor · [AD-22](kinds-of-work.md) one swing for a hypothesis.
+**Also at this stage (written elsewhere):** [BT-38](plan.md) the plan names each requirement's evidence · [AG-26](build.md) a watchdog on every long command (agents) · [AD-20](kinds-of-work.md) measure the pose noise floor · [AD-22](kinds-of-work.md) one swing for a hypothesis.
 
 **Guidance for this stage:** [BT-23](../guidance/advice.md) the suite in under 3 minutes.
 
@@ -107,3 +118,7 @@ Coverage: every control in this folder appears in at least one stage or kind (a 
 [^po-g]: Product Owner, 25 Nov 2026 (#195).
 [^bt-43]: Product Owner, 25 Nov 2026 (after visit 1).
 [^bt-43b]: Product Owner, 26 Nov 2026: visits must need golf clubs and a ball being hit, and no time there is to be spent on checks that can be automated or done at the desk.
+[^bt-39]: Product Owner, 25 Nov 2026 ([POL-9](../policies.md)). The label form is the requirements traceability matrix's design (a `pp_requirement` call beside the registration; a `// REQ:` line in a QML test). The control, its wording and its owner approved by the Product Owner and the Solution Architect, 26 Nov 2026.
+[^bt-39d]: Infrastructure tests stay, as accepted gaps: approved with BT-39 by the Product Owner and the Solution Architect, 26 Nov 2026.
+[^bt-40]: Product Owner, 25 Nov 2026 (the catalogue's audit), naming #244's cases and `swing_doc_test` among the examples. #244's two were found by the item's review, by reading. The control, its wording and its owner approved by the Product Owner and the Solution Architect, 26 Nov 2026.
+[^pol9-ptr]: BT-7's pointer to the test strategy, and BT-16's observation sentences: approved with [POL-9](../policies.md) by the Product Owner and the Solution Architect, 26 Nov 2026.

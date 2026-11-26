@@ -28,6 +28,11 @@ The lifecycle model is [`governance/artefacts/lifecycle_model.md`](../artefacts/
 *Why:* a state nobody wrote down is a guarantee nobody can check: a shot that existed only inside its processor, and a Start that never switched to Capture, were both lost or broken by changes that never saw the lifecycle.[^ad-51]
 *Owner:* Solution Architect · *Stage:* Plan · *Compliance:* a review of the plan
 
+**BT-38.** A plan that builds or fixes something a user relies on must name the requirements it serves (their `REQ-…` ids, or "none", with why) and, for each, the evidence that will prove it: the kind ([`test_strategy.md`](../artefacts/test_strategy.md) §2), the test or observation, and, for a fix, how it will be seen to fail before the fix.
+A requirement that needs a visit says so, so the visit is planned with the work, not after it. A plan's verification section (BT-2) carries this list. A plan that serves no requirement (a tool, a lint, a refactor step) says so in one line and names its evidence instead: the parity run, the golden trace or the check it keeps green.
+*Why:* evidence decided after the build is chosen to fit what was built; the requirements draft found 91 needs "delivered" with nothing that would show it.[^bt-38]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* a review of the plan
+
 **G3.** Each feature's plan must say what debt it adds, before it is built.
 *Why (proposed, for the Product Owner):* debt named before building can be weighed with the feature; debt found afterwards is already paid for.[^g3]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* a statement in the plan; an automated check is a build item
@@ -104,3 +109,4 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 
 [^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is its own artefact, `governance/artefacts/lifecycle_model.md`, owned by the Solution Architect (option (a); DEC-204).
 [^ag-48]: Product Owner, 26 Nov 2026, after the overnight brief that omitted COMMON.md.
+[^bt-38]: Product Owner, 25 Nov 2026 (the evidence rule, [POL-9](../policies.md)); the control and its wording approved by the Product Owner and the Solution Architect, 26 Nov 2026.
