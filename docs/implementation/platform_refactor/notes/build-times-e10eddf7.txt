@@ -1,0 +1,8 @@
+build_times.sh: studio PC the studio PC, build\tests-vs18 (Debug, NMake JOM, tests/ umbrella), jom -j16, no compiler cache
+commit e10eddf7 (studio PC HEAD; origin/main on the Mac at the start: e10eddf7); run 2026-11-24 19:30; run dir the share exit 0
+step                                                  seconds  compiles  links  peak MB  notes
+clean (jom clean, then build)                            1082      5614    356        -  jom clean 3 s exit 0; studio-build exit 12 (pass 1 exit 8,pass 2 exit 8)
+header Core/pp_debug.h                                    228       785    129        -  studio-build exit 12 (pass 1 exit 8,pass 2 exit 8)
+header Vocabulary/Analysis/swing_analysis.h               762      3183    173        -  studio-build exit 12 (pass 1 exit 8,pass 2 exit 8)
+link (touch session_summary_test.cpp)                      11         1      1        -  studio-build exit 12 (pass 1 exit 8,pass 2 exit 8)
+header Vocabulary/Analysis/swing_analysis.h (repeat)      769      3183    173        -  drift +0.9% from the first; studio-build exit 12 (pass 1 exit 8,pass 2 exit 8)

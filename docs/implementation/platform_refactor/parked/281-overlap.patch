@@ -1,0 +1,1870 @@
+# The overlapping-capture change for #281, parked on 25 Nov 2026 until #394's step 85 lands it.
+# Apply from the repository root with `git apply --3way` (it was made against main of 25 Nov 2026).
+diff --git a/docs/design/event_buffer_design.md b/docs/design/event_buffer_design.md
+index 4b5d9095..a5dca204 100644
+--- a/docs/design/event_buffer_design.md
++++ b/docs/design/event_buffer_design.md
+@@ -57,7 +57,7 @@
+ | 15 | **Hard bounds enforcement in release builds** — defence in depth on the producer/consumer contract |
+ | 16 | **Formal `BufferState` machine** — `Idle → Capturing → Paused → Capturing → ...`; transitions are explicit, invalid transitions assert |
+ | 17 | **`pause()` does not tear down DMA** — producer capture threads quiesce via atomic flag; merger drains reorder heap; rings freeze. `resume()` reverses with no kernel calls |
+-| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; `swing_window_live_` atomic flag prevents deregistration while a window is live |
++| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; `swing_window_live_` atomic flag prevents deregistration while a window is live. A window built by `copySwingWindow()` / `copyPayloads()` owns a copy of its payloads and formats, holds no flag, and stays valid after `resume()`; live capture uses it, so the buffer resumes at each shot's freeze[^281] |
+ | 19 | **`WriteSlot::valid` flag** — `acquireWriteSlot()` returns `valid = false` when paused or when the source has been deregistered; capture threads check this flag and return early from callbacks; no blocking in capture path |
+ | 20 | **Buffer lifetime = app lifetime** — `start()` called once at app launch with zero sources; `stop()` called on app exit via `aboutToQuit`; `pause()`/`resume()` are the capture gate driven by swing/ball detection; `startAll()`/`stopAll()` control camera pipelines only |
+ | 21 | **Sparse slot array** — `sources_[MAX_SOURCES]` may contain null entries (deregistered slots); `slot_hwm_` is the iteration ceiling; `active_sources_` is the live count; null slots skipped atomically in all merger, watchdog, and diagnostics loops |
+@@ -1563,3 +1563,5 @@ Revisit when the listed condition is met. Do not implement speculatively.
+ | MJPEG / variable-payload validation path | First MJPEG-capable camera integrated |
+ | `SwingWindow::copyPayloads()` — materialise frames to owned memory | Multi-swing comparison feature requested |
+ | Thread-safe state transitions | Multiple application threads need to manage lifecycle |
++
++[^281]: #281 (visit 1, 25 Nov 2026): holding the buffer paused for a shot's analysis lost every swing hit meanwhile and cut the next one's window to the resume. The copy-out is proposed, for the Solution Architect.
+diff --git a/docs/developer/shot_detector_developer_guide.md b/docs/developer/shot_detector_developer_guide.md
+index 83bd0c0d..19afbb97 100644
+--- a/docs/developer/shot_detector_developer_guide.md
++++ b/docs/developer/shot_detector_developer_guide.md
+@@ -106,10 +106,13 @@ scoring) belongs to the shot analyzer — see
+ 5. **Commit**: at the deadline the arbiter fuses: two agreeing modalities (or one
+    strong one) → `commitShot()` writes the `shot_marker_v1` entry with the
+    **authoritative** timestamp (acoustic when present) and emits `shotDetected`.
+-6. **Pipeline**: `ShotProcessor` runs post-roll → pause → `captureSwingWindow(4 s)`
+-   → analysis ∥ export → replay. Its `busy` state disarms the trigger for the
+-   whole pipeline, and the arbiter's own refractory absorbs echoes around the
+-   edges.
++6. **Pipeline**: `ShotProcessor` runs post-roll → pause → copy the 4 s window out
++   (`EventBuffer::copyPayloads`) → resume → queue → analysis ∥ export → replay.
++   Capture never stops for a shot's analysis: a shot hit while an earlier one is
++   analysed is detected, captured whole and queued behind it, in order. Its
++   `captureBusy` state (a capture in its post-roll or gather, or two shots
++   already queued) disarms the trigger, and the arbiter's own refractory absorbs
++   echoes around the edges.[^281]
+ 
+ ---
+ 
+@@ -131,10 +134,13 @@ freely within their own gates and let the arbiter decide.
+ ### The armed gate
+ 
+ `ShotController::armed()` is true only while the buffer is Capturing, the
+-`ShotProcessor` is idle, and session review is not active. Every path —
+-`triggerShot()`, `reportCandidate()`, and the final `commitShot()` — checks it,
+-so all sources inherit the gate and a candidate that arrives mid-pipeline is
+-dropped, not queued.
++`ShotProcessor` can accept a shot (`captureBusy()` false: no capture in its
++post-roll or gather, and fewer than two captured shots waiting), and session
++review is not active. Every path — `triggerShot()`, `reportCandidate()`, and the
++final `commitShot()` — checks it, so all sources inherit the gate. A candidate
++that arrives during another shot's post-roll is dropped (it is that swing's echo,
++or a swing whose window would overlap it); one that arrives while an earlier shot
++is analysing is accepted.[^281]
+ 
+ ### The hold window
+ 
+@@ -156,9 +162,9 @@ while IMU/vision confirm (sampling-rate and transport-latency coarse). The
+ 
+ Three layers prevent double-fires: each detector has its own refractory
+ (IMU 200 ms, acoustic 35 ms — tuned to its physics), the arbiter has a
+-1.5 s post-commit refractory, and `ShotProcessor::busy` disarms everything for
+-the pipeline's duration. They overlap deliberately: the busy gate has edges
+-(post-roll start, replay end) the refractory covers.
++1.5 s post-commit refractory, and `ShotProcessor::captureBusy` disarms everything
++for the post-roll (and any gather). They overlap deliberately: the capture gate
++has an edge (post-roll start) the refractory covers.[^281]
+ 
+ ### The shot marker
+ 
+@@ -890,3 +896,5 @@ src/Pose/                       Vision — a live candidate producer (§7)
+ `docs/design/ball_detection_v2.md` (+ `docs/implementation/ball_detection_v2_impl_plan.md`).
+ Downstream of `shotDetected`, see
+ `docs/developer/shot_analyzer_developer_guide.md`.*
++
++[^281]: #281 (visit 1, 25 Nov 2026): the whole buffer used to stay paused for a shot's analysis, so a swing hit meanwhile was lost and the next one's window began at the resume. The copy-out, the two-shot queue and the capture-only gate are proposed, for the Solution Architect.
+diff --git a/src/Buffer/event_buffer.cpp b/src/Buffer/event_buffer.cpp
+index 4af8cebb..9637b5ed 100644
+--- a/src/Buffer/event_buffer.cpp
++++ b/src/Buffer/event_buffer.cpp
+@@ -29,6 +29,8 @@
+ #include <stdexcept>
+ #include <string>
+ #include <thread>
++#include <unordered_map>
++#include <cstring>
+ 
+ #if defined(PINPOINT_PLATFORM_WINDOWS)
+   #ifndef WIN32_LEAN_AND_MEAN
+@@ -377,6 +379,95 @@ std::unique_ptr<const SwingPayloadSource> EventBuffer::makeRingPayloadSource() {
+     return std::make_unique<RingPayloadSource>(this);   // sets swing_window_live_
+ }
+ 
++// The copy-out's backing (#281): every payload a window names, and every format it needs, owned.
++// One contiguous block per source, so a 4 s window of a 1 MB camera is one allocation, not 600.
++// Its bytes never move, so validate() is unconditionally true — there is no ring to race with.
++class OwnedPayloadSource final : public SwingPayloadSource {
++public:
++    struct Lane {
++        FormatDescriptor                                   format;
++        // Not a vector: resize() would zero-fill a gigabyte only for memcpy to overwrite it.
++        std::unique_ptr<std::byte[]>                       bytes;
++        size_t                                             size = 0;
++        std::unordered_map<uint64_t, std::pair<size_t, size_t>> at;   // sequence → {offset, length}
++        std::unordered_map<uint64_t, int64_t>              ts;         // sequence → timestamp_us
++    };
++    std::unordered_map<SourceId, Lane> lanes;
++
++    SourceRing::ReadHandle payloadOf(SourceId id, uint64_t sequence) const noexcept override {
++        const auto l = lanes.find(id);
++        if (l == lanes.end()) return {};
++        const auto it = l->second.at.find(sequence);
++        if (it == l->second.at.end()) return {};
++        SourceRing::ReadHandle h;
++        h.data  = l->second.bytes.get() + it->second.first;
++        h.bytes = it->second.second;
++        const auto t = l->second.ts.find(sequence);
++        h.timestamp_us = t == l->second.ts.end() ? 0 : t->second;
++        return h;
++    }
++    const FormatDescriptor& formatOf(SourceId id) const noexcept override {
++        const auto l = lanes.find(id);
++        if (l != lanes.end()) return l->second.format;
++        static const FormatDescriptor kEmpty{};
++        return kEmpty;
++    }
++    bool validate(SourceId, const SourceRing::ReadHandle&) const noexcept override {
++        return true;   // owned bytes — nothing can overwrite them
++    }
++};
++
++std::unique_ptr<const SwingPayloadSource> EventBuffer::copyPayloads(const std::vector<IndexEntry>& entries,
++                                                                    std::vector<IndexEntry>* copied,
++                                                                    size_t* bytes) {
++    assert(state_.load(std::memory_order_acquire) == BufferState::Paused
++           && "copyPayloads requires Paused state");
++    auto out = std::make_unique<OwnedPayloadSource>();
++    if (copied) { copied->clear(); copied->reserve(entries.size()); }
++    size_t total = 0;
++
++    // Two passes: size each source's block first, so the copy is one allocation per source and
++    // the handles taken in the second pass are the only reads of the rings.
++    std::unordered_map<SourceId, size_t> need;
++    for (const IndexEntry& e : entries) {
++        const SourceRing::ReadHandle h = acquireReadHandle(e.source_id, e.source_sequence);
++        if (h.data) need[e.source_id] += h.bytes;   // a zero-length payload still makes its lane
++    }
++    for (const auto& [id, n] : need) {
++        const int idx = findSlotIndex(id);
++        if (idx < 0) continue;
++        auto& lane  = out->lanes[id];
++        lane.format = sources_[idx]->desc.format;
++        lane.bytes.reset(new std::byte[n ? n : 1]);   // default-initialised: no zero fill
++        lane.size = n;
++    }
++    std::unordered_map<SourceId, size_t> used;
++    for (const IndexEntry& e : entries) {
++        const auto l = out->lanes.find(e.source_id);
++        if (l == out->lanes.end()) continue;
++        const SourceRing::ReadHandle h = acquireReadHandle(e.source_id, e.source_sequence);
++        if (!h.data) continue;   // overwritten before the pause: not in the window, as the ring would say
++        size_t& off = used[e.source_id];
++        if (off + h.bytes > l->second.size) continue;   // cannot happen while Paused
++        if (h.bytes) std::memcpy(l->second.bytes.get() + off, h.data, h.bytes);
++        l->second.at[e.source_sequence] = { off, h.bytes };
++        l->second.ts[e.source_sequence] = h.timestamp_us;
++        off   += h.bytes;
++        total += h.bytes;
++        if (copied) copied->push_back(e);
++    }
++    if (bytes) *bytes = total;
++    return out;
++}
++
++SwingWindow EventBuffer::copySwingWindow(int64_t t_start_us, int64_t t_end_us, size_t* bytes) {
++    assert(state_.load(std::memory_order_acquire) == BufferState::Paused
++           && "copySwingWindow requires Paused state");
++    std::vector<IndexEntry> kept;
++    auto source = copyPayloads(index_.snapshot(t_start_us, t_end_us), &kept, bytes);
++    return SwingWindow(std::move(source), std::move(kept), t_start_us, t_end_us);
++}
++
+ SwingWindow EventBuffer::captureSwingWindow(
+     std::chrono::milliseconds trailing_duration) {
+     int64_t end_us   = nowMicros();
+diff --git a/src/Buffer/event_buffer.h b/src/Buffer/event_buffer.h
+index 732910a4..7f4c97c2 100644
+--- a/src/Buffer/event_buffer.h
++++ b/src/Buffer/event_buffer.h
+@@ -174,6 +174,26 @@ public:
+     // exactly as it is today.
+     std::unique_ptr<const SwingPayloadSource> makeRingPayloadSource();
+ 
++    // THE COPY-OUT (#281). Every payload `entries` names, and the format of every source it
++    // names, copied into memory the returned source owns — so the window built on it no
++    // longer reads the rings, and the buffer can resume (and clear them) at once. Only
++    // callable while Paused. It raises NO resume guard: nothing it returns points into a ring.
++    //
++    // ⚠ WHY IT EXISTS. A window that reads the frozen ring zero-copy holds the WHOLE buffer
++    // Paused for as long as it lives — the shot's analysis, export and write, 10-40 s — and
++    // nothing is recorded meanwhile: a swing hit then has no frames at all, and the next one's
++    // window starts at the resume (visit 1, 25 Nov: swing 2 lost, swing 3 1.8 s of 4).
++    //
++    // An entry whose slot no longer holds it (overwritten before the pause) is left out of
++    // the copy; `copied` (when given) receives the entries kept and `bytes` the payload bytes.
++    std::unique_ptr<const SwingPayloadSource> copyPayloads(const std::vector<IndexEntry>& entries,
++                                                           std::vector<IndexEntry>* copied = nullptr,
++                                                           size_t* bytes = nullptr);
++
++    // A window over [t_start_us, t_end_us] backed by copyPayloads(): the snapshot and the copy
++    // in one call. Only callable while Paused; the buffer may resume as soon as it returns.
++    SwingWindow copySwingWindow(int64_t t_start_us, int64_t t_end_us, size_t* bytes = nullptr);
++
+     // --- Observability ---
+     const SourceStats&    statsFor(SourceId id) const;
+     std::vector<SourceId> stalledSources() const;
+diff --git a/src/Buffer/tests/CMakeLists.txt b/src/Buffer/tests/CMakeLists.txt
+index 1c73b718..2144260f 100644
+--- a/src/Buffer/tests/CMakeLists.txt
++++ b/src/Buffer/tests/CMakeLists.txt
+@@ -49,6 +49,13 @@ target_link_libraries(swing_window_test PRIVATE pinpoint_buffer GTest::gtest_mai
+ pinpoint_apply_sanitizers(swing_window_test)
+ add_test(NAME swing_window_test COMMAND swing_window_test)
+ 
++# capture_overlap_test — #281: a swing hit while the previous one analyses, on the real buffer with a
++# fake two-camera feed (the reproduction of visit 1, and the copy-out that fixes it)
++add_executable(capture_overlap_test capture_overlap_test.cpp)
++target_link_libraries(capture_overlap_test PRIVATE pinpoint_buffer GTest::gtest_main)
++pinpoint_apply_sanitizers(capture_overlap_test)
++add_test(NAME capture_overlap_test COMMAND capture_overlap_test)
++
+ # watchdog_test
+ add_executable(watchdog_test watchdog_test.cpp)
+ target_link_libraries(watchdog_test PRIVATE pinpoint_buffer GTest::gtest_main)
+diff --git a/src/Buffer/tests/capture_overlap_test.cpp b/src/Buffer/tests/capture_overlap_test.cpp
+new file mode 100644
+index 00000000..510317c2
+--- /dev/null
++++ b/src/Buffer/tests/capture_overlap_test.cpp
+@@ -0,0 +1,288 @@
++/*
++ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License as published by the Free
++ * Software Foundation; either version 2 of the License, or (at your option)
++ * any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along
++ * with this program; if not, write to the Free Software Foundation, Inc., 51
++ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++// #281 part A — a swing hit while the previous one is being analysed, on the REAL event buffer
++// with a fake two-camera feed (G1: capture code lands with its fake and a test).
++//
++// Visit 1 (25 Nov 2026, Wrist_02; build/platform/A/NOTES-281.md §1): three swings about 8 s apart.
++// Swing 2 was never recorded, and swing 3's window held 278 frames of 595. The cause: from the
++// freeze of one shot until its analysis, export and write are done, the window reads the frozen
++// ring zero-copy, so the WHOLE buffer stays Paused — nothing is recorded — and resume() then
++// clears every ring, so the next window starts at the resume.
++//
++//   • TodaysProtocol… pins that mechanism, step by step, as ShotProcessor drove the buffer until
++//     #281 (pause at the freeze, the ring held for the shot's life, resume clearing the rings).
++//     It passes on the old code: it IS the reproduction.
++//   • CopyOutProtocol… is the fix's protocol (EventBuffer::copySwingWindow, then resume at once):
++//     every swing gets its whole window, and the earlier shot's copy survives the rings wrapping.
++//
++// The fake feed: two camera lanes at the studio's 150.714 fps, every frame's payload stamped with
++// its lane and frame number so a copy can be checked byte for byte. The timeline is synthetic
++// (fixed instants on the buffer clock), so nothing here sleeps for the swings' 16 s.
++
++#include "event_buffer.h"
++#include "swing_window.h"
++#include "../../Analysis/capture_integrity_check.h"
++
++#include <gtest/gtest.h>
++
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++#include <thread>
++#include <vector>
++
++using namespace pinpoint;
++using namespace std::chrono_literals;
++
++namespace {
++
++constexpr double  kFps       = 150.714;                 // the studio Chameleon3s, visit 1
++constexpr double  kPeriodUs  = 1'000'000.0 / kFps;      // 6635 µs
++constexpr int64_t kWindowUs  = 4'000'000;               // ShotProcessor kWindowDuration
++constexpr int64_t kFreezeUs  = 1'450'000;               // post-roll 1250 ms + the arbiter's 200 ms hold
++constexpr size_t  kPayload   = 4096;                    // a 64×64 Mono8 frame
++
++SourceDescriptor camera(const char *serial)
++{
++    SourceDescriptor d;
++    d.name            = serial;
++    d.identifier      = serial;
++    d.window_duration = std::chrono::milliseconds(5000);   // CameraInstance's: 1024 slots at 150 fps
++    CameraFormat f;
++    f.pixel_format          = PixelFormat::Mono8;
++    f.width                 = 64;
++    f.height                = 64;
++    f.fps_numerator         = 150714;
++    f.fps_denominator       = 1000;
++    f.max_payload_bytes     = kPayload;
++    f.typical_payload_bytes = kPayload;
++    d.format.device = DeviceKind::Camera_UVC;
++    d.format.format = f;
++    return d;
++}
++
++EventBufferConfig config()
++{
++    EventBufferConfig c;
++    c.reorder_window_us = 0;   // synthetic instants: nothing to reorder
++    return c;
++}
++
++// The frame's stamp: its lane and number, so a byte-for-byte check knows which frame it is reading.
++void stamp(std::byte *dst, uint32_t lane, uint64_t frame)
++{
++    std::memset(dst, int(frame & 0xFF), kPayload);
++    std::memcpy(dst, &frame, sizeof frame);
++    std::memcpy(dst + sizeof frame, &lane, sizeof lane);
++}
++bool stamped(const SourceRing::ReadHandle &h, uint32_t lane, uint64_t frame)
++{
++    if (!h.data || h.bytes != kPayload) return false;
++    uint64_t f = 0; uint32_t l = 0;
++    std::memcpy(&f, h.data, sizeof f);
++    std::memcpy(&l, h.data + sizeof f, sizeof l);
++    return f == frame && l == lane && h.data[kPayload - 1] == std::byte(frame & 0xFF);
++}
++
++// The fake camera: every frame due in [fromUs, toUs) on the 150.714 fps grid, on each lane.
++// Returns how many the buffer accepted (acquireWriteSlot refuses every frame while Paused).
++struct Feed {
++    EventBuffer &buf;
++    SourceId     lane[2];
++    int64_t      originUs;
++    int published = 0, refused = 0;
++
++    uint64_t frameAt(int64_t tUs) const { return uint64_t(std::ceil(double(tUs - originUs) / kPeriodUs)); }
++    int64_t  timeOf(uint64_t n) const   { return originUs + int64_t(std::llround(double(n) * kPeriodUs)); }
++
++    int run(int64_t fromUs, int64_t toUs)
++    {
++        int accepted = 0;
++        for (uint64_t n = frameAt(fromUs); timeOf(n) < toUs; ++n)
++            for (uint32_t l = 0; l < 2; ++l) {
++                auto slot = buf.acquireWriteSlot(lane[l]);
++                if (!slot.valid) { ++refused; continue; }
++                stamp(slot.data, l, n);
++                *slot.bytes_written = uint32_t(kPayload);
++                *slot.timestamp_us  = timeOf(n);
++                buf.publish(lane[l], slot.sequence);
++                ++accepted;
++            }
++        published += accepted;
++        std::this_thread::sleep_for(30ms);   // let the merger index them before a pause
++        return accepted;
++    }
++};
++
++size_t framesOn(const SwingWindow &w, SourceId id) { return w.entriesFor(id).size(); }
++
++CaptureIntegrityVerdict judge(const SwingWindow &w, int64_t impactUs)
++{
++    CaptureCoverageSpec cov;
++    cov.judge         = true;
++    cov.windowStartUs = w.startTimestampUs();
++    cov.windowEndUs   = w.endTimestampUs();
++    return checkCaptureIntegrity(w, impactUs, cov);
++}
++
++// The three impacts, as visit 1 had them: swing 2 about 8.5 s after swing 1, swing 3 16.06 s after
++// (impact_ts_us 1239041925217 − 1239025861653). Anchored 60 s in the past on the buffer clock.
++struct Visit1 {
++    int64_t origin = EventBuffer::nowMicros() - 60'000'000;
++    int64_t i1 = origin + 3'000'000;
++    int64_t i2 = i1 + 8'500'000;
++    int64_t i3 = i1 + 16'060'000;
++    int64_t f1 = i1 + kFreezeUs, f2 = i2 + kFreezeUs, f3 = i3 + kFreezeUs;
++};
++
++} // namespace
++
++// ─────────────────────────────────────────────────── the reproduction (today's protocol) ──
++
++TEST(CaptureOverlap, TodaysProtocol_SwingTwoIsNeverRecordedAndSwingThreeStartsAtTheResume)
++{
++    EventBuffer buf(config());
++    Visit1 v;
++    Feed feed{ buf, { buf.registerSource(camera("faceOn")), buf.registerSource(camera("dtl")) }, v.origin };
++    buf.start();
++
++    // Swing 1: the session has run since `origin`; at the freeze its window is whole.
++    feed.run(v.origin, v.f1);
++    buf.pause();                                              // beginGather(): pauseBuffer()
++    auto ring = buf.makeRingPayloadSource();                  // …and the resume guard goes up
++    auto entries = buf.snapshot(v.f1 - kWindowUs, v.f1);
++    auto w1 = std::make_unique<SwingWindow>(std::move(ring), std::move(entries), v.f1 - kWindowUs, v.f1);
++    EXPECT_NEAR(double(framesOn(*w1, feed.lane[0])), 4.0 * kFps, 1.5) << "swing 1's 4 s window is whole";
++    EXPECT_TRUE(buf.swingWindowLive()) << "the window holds the buffer Paused: CameraManager::resumeBuffer refuses";
++
++    // Swing 2, while swing 1 analyses: the cameras run, but the paused buffer takes no frame.
++    const int during = feed.run(v.i2 - 2'750'000, v.f2);
++    EXPECT_EQ(during, 0) << "not one frame of swing 2 reaches a ring — there is nothing to detect or save";
++    EXPECT_GT(feed.refused, 1000);
++
++    // Swing 1's join: finishShot() destroys the window and resumes — which CLEARS the rings.
++    // The resume comes 278 frames before swing 3's freeze, as visit 1's log puts it.
++    const int64_t resumeUs = v.f3 - int64_t(std::llround(278 * kPeriodUs));
++    w1.reset();
++    EXPECT_FALSE(buf.swingWindowLive());
++    buf.resume();
++    feed.run(resumeUs, v.f3);
++
++    // Swing 3: the same 4 s window, but the rings only reach back to the resume.
++    buf.pause();
++    const SwingWindow w3 = buf.captureSwingWindow(v.f3 - kWindowUs, v.f3);
++    EXPECT_NEAR(double(framesOn(w3, feed.lane[0])), 278.0, 1.0) << "visit 1: 278 frames per camera";
++    EXPECT_NEAR(double(framesOn(w3, feed.lane[1])), 278.0, 1.0);
++
++    // The cut is at the START (the pre-roll), not the end, and the capture check flags it (#53).
++    const CaptureIntegrityVerdict c = judge(w3, v.i3);
++    EXPECT_TRUE(c.lateStart) << "the clip starts at the resume, 2.155 s into its window";
++    EXPECT_NEAR(c.missingStartMs, 4000.0 - 278 * kPeriodUs / 1000.0, 10.0);
++    EXPECT_FALSE(c.earlyEnd) << "the post-roll is whole";
++    EXPECT_TRUE(c.ok) << "frames before impact exist, so it warns rather than withholds";
++    EXPECT_GT(c.framesBeforeImpact, 0);
++    EXPECT_LT(c.framesBeforeImpact, int(0.5 * kFps)) << "under half a second before impact: no backswing";
++    EXPECT_TRUE(c.edgesShort()) << "the shot carries the ⚠ (shot.captureShort)";
++
++    buf.stop();
++}
++
++// ───────────────────────────────────────────────────────────── the fix (copy out, resume) ──
++
++TEST(CaptureOverlap, CopyOutProtocol_EverySwingGetsItsWholeWindowWhileAnEarlierOneAnalyses)
++{
++    EventBuffer buf(config());
++    Visit1 v;
++    Feed feed{ buf, { buf.registerSource(camera("faceOn")), buf.registerSource(camera("dtl")) }, v.origin };
++    buf.start();
++
++    // Swing 1: freeze, copy out, resume AT ONCE. Its analysis now holds a copy, not the buffer.
++    feed.run(v.origin, v.f1);
++    buf.pause();
++    size_t bytes1 = 0;
++    const SwingWindow w1 = buf.copySwingWindow(v.f1 - kWindowUs, v.f1, &bytes1);
++    EXPECT_FALSE(buf.swingWindowLive()) << "a copied window holds no guard: the buffer can resume";
++    EXPECT_EQ(bytes1, framesOn(w1, feed.lane[0]) * kPayload + framesOn(w1, feed.lane[1]) * kPayload)
++        << "every payload byte the window names was copied";
++    buf.resume();
++
++    // Swing 2, during swing 1's analysis: recorded, and its own window is whole.
++    EXPECT_GT(feed.run(v.f1, v.f2), 0);
++    buf.pause();
++    const SwingWindow w2 = buf.copySwingWindow(v.f2 - kWindowUs, v.f2);
++    buf.resume();
++    EXPECT_NEAR(double(framesOn(w2, feed.lane[0])), 4.0 * kFps, 1.5) << "swing 2 has its whole 4 s";
++    EXPECT_NEAR(double(framesOn(w2, feed.lane[1])), 4.0 * kFps, 1.5);
++    const CaptureIntegrityVerdict c2 = judge(w2, v.i2);
++    EXPECT_TRUE(c2.ok && !c2.edgesShort()) << "nothing missing: no ⚠";
++    EXPECT_EQ(feed.refused, 0) << "no frame was refused at any point";
++
++    // Swing 3: whole too.
++    feed.run(v.f2, v.f3);
++    buf.pause();
++    const SwingWindow w3 = buf.copySwingWindow(v.f3 - kWindowUs, v.f3);
++    buf.resume();
++    EXPECT_NEAR(double(framesOn(w3, feed.lane[0])), 4.0 * kFps, 1.5) << "swing 3 has its whole 4 s, not 278 frames";
++    const CaptureIntegrityVerdict c3 = judge(w3, v.i3);
++    EXPECT_TRUE(c3.ok && !c3.edgesShort());
++
++    // Swing 1's copy, read after the rings have wrapped (~1,700 frames a lane since, 1,024 slots):
++    // every frame is still its own, byte for byte — the analysis of an earlier shot is safe.
++    feed.run(v.f3, v.f3 + 2'000'000);
++    int wrong = 0;
++    for (uint32_t l = 0; l < 2; ++l)
++        for (const IndexEntry &e : w1.entriesFor(feed.lane[l])) {
++            const SourceRing::ReadHandle h = w1.payloadOf(e);
++            const uint64_t n = uint64_t(std::llround(double(e.timestamp_us - v.origin) / kPeriodUs));
++            if (!stamped(h, l, n)) ++wrong;
++        }
++    EXPECT_EQ(wrong, 0) << "swing 1's frames were overwritten under its analysis";
++    EXPECT_TRUE(std::holds_alternative<CameraFormat>(w1.formatOf(feed.lane[0]).format))
++        << "the copy keeps each source's format (the capture check finds the cameras by it)";
++    EXPECT_EQ(w1.formatOf(feed.lane[1]).device_serial, "dtl");
++
++    buf.stop();
++}
++
++// A copy needs no live buffer: the window outlives the rings entirely (a source deregistered,
++// the buffer stopped), which is what lets a queued shot survive whatever the capture does next.
++TEST(CaptureOverlap, ACopiedWindowOutlivesTheBuffer)
++{
++    Visit1 v;
++    std::unique_ptr<SwingWindow> w;
++    SourceId lane0 = kInvalidSourceId;
++    {
++        EventBuffer buf(config());
++        Feed feed{ buf, { buf.registerSource(camera("faceOn")), buf.registerSource(camera("dtl")) }, v.origin };
++        lane0 = feed.lane[0];
++        buf.start();
++        feed.run(v.origin, v.f1);
++        buf.pause();
++        w = std::make_unique<SwingWindow>(buf.copySwingWindow(v.f1 - kWindowUs, v.f1));
++        buf.stop();
++    }
++    ASSERT_GT(framesOn(*w, lane0), 0u);
++    int wrong = 0;
++    for (const IndexEntry &e : w->entriesFor(lane0)) {
++        const uint64_t n = uint64_t(std::llround(double(e.timestamp_us - v.origin) / kPeriodUs));
++        if (!stamped(w->payloadOf(e), 0, n)) ++wrong;
++    }
++    EXPECT_EQ(wrong, 0);
++}
+diff --git a/src/Gui/launchmonitor/launch_monitor_controller.cpp b/src/Gui/launchmonitor/launch_monitor_controller.cpp
+index 8b585c12..371b3b10 100644
+--- a/src/Gui/launchmonitor/launch_monitor_controller.cpp
++++ b/src/Gui/launchmonitor/launch_monitor_controller.cpp
+@@ -358,14 +358,30 @@ void LaunchMonitorController::onShotDetected(qint64 impactUtcMs)
+ {
+     m_destinationHasDoc = true;   // assume the pipeline will produce one, until it says otherwise
+     m_destinationShotId = -1;
+-    m_pairing.noteShotDetected(impactUtcMs > 0 ? std::optional<qint64>(impactUtcMs) : std::nullopt);
++    // A timed reading that arrived BEFORE this commit (the GUI thread was busy) is attached here
++    // when its contact time matches (#281; visit 1, swing 3).
++    if (const auto adopted = m_pairing.noteShotDetected(impactUtcMs > 0 ? std::optional<qint64>(impactUtcMs)
++                                                                        : std::nullopt))
++        ppInfo() << "LaunchMonitor: a reading that arrived before its shot was committed matches it (contact Δ"
++                 << *adopted << "ms); it goes with this swing";
++}
++
++void LaunchMonitorController::onShotsDropped()
++{
++    if (m_pairing.hasParked())
++        ppWarn() << "LaunchMonitor: the shots in flight were dropped; their readings go with them";
++    m_pairing.noteShotsDropped();
+ }
+ 
+ void LaunchMonitorController::onShotProcessed(int shotId, const QString &swingDir)
+ {
+     Q_UNUSED(shotId)
+-    if (swingDir.isEmpty())
++    if (swingDir.isEmpty()) {
++        // Not reached today (a processed shot always has its document), but with several swings in
++        // flight a slot left open would hand every later folder to the wrong swing (#281): close it.
++        m_pairing.noteShotFailed();
+         return;
++    }
+     m_destinationHasDoc = true;
+     if (const auto parked = m_pairing.noteSwingDir(swingDir))
+         applyToSwing(swingDir, *parked);
+@@ -418,6 +434,16 @@ void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &rea
+         // With standalone shots switched on it becomes a shot of its own instead.
+         if (createStandaloneShot(reading))
+             return;
++        // A timed reading can be the shot's own and simply have beaten its commit (the GUI thread
++        // busy with the previous shot's join: visit 1, swing 3). Held, it goes to the next shot
++        // committed if the contact time matches its impact (ShotPairing::holdUnclaimed). One from
++        // before our impact is an earlier shot's, and an untimed one cannot be placed by time.
++        if (reading.contactAtMs && offer.timeCheck != ShotPairing::TimeCheck::BeforeImpact) {
++            m_pairing.holdUnclaimed(reading);
++            ppInfo() << "LaunchMonitor: reading" << reading.deviceShotId
++                     << "arrived with no shot waiting; held for a shot not yet committed";
++            return;
++        }
+         ppInfo() << "LaunchMonitor: reading" << reading.deviceShotId
+                  << "arrived with no shot waiting; discarded";
+         return;
+diff --git a/src/Gui/launchmonitor/launch_monitor_controller.h b/src/Gui/launchmonitor/launch_monitor_controller.h
+index b7ffb440..9f28ac7e 100644
+--- a/src/Gui/launchmonitor/launch_monitor_controller.h
++++ b/src/Gui/launchmonitor/launch_monitor_controller.h
+@@ -171,6 +171,9 @@ public slots:
+     // still worth keeping: a ball WAS struck and the monitor measured it, so the folder
+     // becomes a device-only swing rather than being left empty.
+     void onShotFailed(const QString &swingDir, int shotId);
++    // Every shot in flight was dropped without a folder (ShotProcessor::shotsDropped): what they
++    // were waiting for, or had parked, goes with them (#281).
++    void onShotsDropped();
+ 
+     // ShotProcessor::busyChanged. A club update arriving while a shot is in flight is held
+     // until the pipeline is idle: it lands ~0.7 s after the NEXT shot's contact, exactly when
+diff --git a/src/Gui/main.cpp b/src/Gui/main.cpp
+index 74457983..882ad03a 100644
+--- a/src/Gui/main.cpp
++++ b/src/Gui/main.cpp
+@@ -1220,8 +1220,10 @@ int main(int argc, char *argv[])
+                      &shotController, &ShotController::reevaluateArmed);
+ 
+     // Detected shots drive the processor pipeline (post-roll → window capture
+-    // → analysis ∥ export → carousel → replay); the processor's busy state
+-    // disarms the trigger for the whole pipeline.
++    // → analysis ∥ export → carousel → replay). Since #281 the trigger is
++    // disarmed only while a capture is in its post-roll or gather, or the queue
++    // of captured shots is full (captureBusy, below) — not for the whole
++    // pipeline, which lost every swing hit while the previous one analysed.
+     QObject::connect(&shotController, &ShotController::shotDetected,
+                      &shotProcessor,  &ShotProcessor::onShotDetected);
+ 
+@@ -1234,9 +1236,14 @@ int main(int argc, char *argv[])
+     // device's own contact time (Foresight Premier): the pairing checks the two agree, which is
+     // what catches a shot the device silently dropped. impactUs is on EventBuffer's steady
+     // clock, so it is carried across by "how long ago", taken back to back with the UTC read.
+-    QObject::connect(&shotController, &ShotController::shotDetected,
++    //
++    // ⚠ FROM THE PROCESSOR'S shotAccepted, NOT THE CONTROLLER'S shotDetected (#281): with shots in
++    // flight at once the pairing keeps one slot per swing and hands folders out oldest first, so it
++    // must wait only on shots the pipeline will finish (shotProcessed / shotFailed) or drop
++    // (shotsDropped). The same instant: shotAccepted is emitted inside the shotDetected delivery.
++    QObject::connect(&shotProcessor, &ShotProcessor::shotAccepted,
+                      &launchMonitorController,
+-                     [&launchMonitorController](ShotController::Source, qint64 impactUs, int) {
++                     [&launchMonitorController](qint64 impactUs) {
+         const qint64 nowUtcMs = QDateTime::currentMSecsSinceEpoch();
+         const qint64 agoUs    = pinpoint::EventBuffer::nowMicros() - impactUs;
+         launchMonitorController.onShotDetected(impactUs > 0 ? nowUtcMs - agoUs / 1000 : 0);
+@@ -1268,10 +1275,12 @@ int main(int argc, char *argv[])
+         launchMonitorController.onShotFailed(shotProcessor.lastSwingDir(),
+                                             shotProcessor.lastShotId());
+     });
+-    QObject::connect(&shotProcessor,  &ShotProcessor::busyChanged,
++    QObject::connect(&shotProcessor,  &ShotProcessor::captureBusyChanged,
+                      &shotController, [&shotController, &shotProcessor] {
+-        shotController.setProcessorBusy(shotProcessor.busy());
++        shotController.setProcessorBusy(shotProcessor.captureBusy());
+     });
++    QObject::connect(&shotProcessor, &ShotProcessor::shotsDropped,
++                     &launchMonitorController, &LaunchMonitorController::onShotsDropped);
+     // Hold any in-progress re-analysis batch between swings while a live shot is
+     // processing — keeps two ViTPose passes from oversubscribing the CPU / OOMing.
+     QObject::connect(&shotProcessor,      &ShotProcessor::busyChanged,
+@@ -1877,6 +1886,8 @@ int main(int argc, char *argv[])
+                      &ppcpClipFiler, [](int, const QString &swingDir) {
+         ppcpClipFiler.onSwingReady(swingDir);
+     });
++    QObject::connect(&shotProcessor, &ShotProcessor::shotsDropped,
++                     &ppcpClipFiler, [] { ppcpClipFiler.onShotsDropped(); });
+     QObject::connect(&shotProcessor, &ShotProcessor::shotFailed,
+                      &ppcpClipFiler, [&shotProcessor](const QString &) {
+         // A shot can fail analysis and still have a folder — the clip belongs in
+diff --git a/src/Gui/shot/ppcp_clip_filer.cpp b/src/Gui/shot/ppcp_clip_filer.cpp
+index f9fa4a34..3a989359 100644
+--- a/src/Gui/shot/ppcp_clip_filer.cpp
++++ b/src/Gui/shot/ppcp_clip_filer.cpp
+@@ -73,9 +73,11 @@ PpcpClipFiler::Shot *PpcpClipFiler::find(const QString &shotId)
+ 
+ PpcpClipFiler::Shot *PpcpClipFiler::awaiting()
+ {
+-    // The one shot in flight: the most recent that has neither a folder nor a
+-    // verdict.  armed() guarantees there is at most one.
+-    for (auto it = m_shots.rbegin(); it != m_shots.rend(); ++it)
++    // The shot the pipeline finishes next: the OLDEST that has neither a folder
++    // nor a verdict.  Since #281 a shot can be committed while an earlier one is
++    // still in the pipeline, and ShotProcessor finishes them in order, so the
++    // folder that lands now is the earliest waiting shot's — never the newest's.
++    for (auto it = m_shots.begin(); it != m_shots.end(); ++it)
+         if (it->swingDir.isEmpty() && !it->abandoned) return &*it;
+     return nullptr;
+ }
+@@ -101,8 +103,13 @@ void PpcpClipFiler::onCaptureAsked(const QString &shotId, const QString &peerId,
+ 
+ void PpcpClipFiler::onSwingReady(const QString &swingDir)
+ {
++    if (swingDir.isEmpty()) {
++        // No folder after all: the shot is finished either way, or the next folder would go to it (#281).
++        onSwingFailed();
++        return;
++    }
+     Shot *s = awaiting();
+-    if (!s || swingDir.isEmpty()) return;
++    if (!s) return;
+     s->swingDir = swingDir;
+     // The edge (DEC-90): the folder the pipeline announced, translated to the shot's key once.
+     s->shot = m_repo ? m_repo->shotOfFolder(swingDir) : pinpoint::ShotRef();
+@@ -172,6 +179,14 @@ void PpcpClipFiler::onSwingFailed()
+     s->parked.clear();
+ }
+ 
++void PpcpClipFiler::onShotsDropped()
++{
++    // Each one exactly as a shot that produced no folder: abandoned, its parked
++    // clips discarded, every phone asked told `discarded` (MSG 8.5).
++    while (awaiting())
++        onSwingFailed();
++}
++
+ QString PpcpClipFiler::aliasFor(const Shot &s, const PpcpClip &clip) const
+ {
+     // Matched on the Stream the announce named, falling back to the Source: a
+diff --git a/src/Gui/shot/ppcp_clip_filer.h b/src/Gui/shot/ppcp_clip_filer.h
+index 3daa6860..5311f73a 100644
+--- a/src/Gui/shot/ppcp_clip_filer.h
++++ b/src/Gui/shot/ppcp_clip_filer.h
+@@ -57,14 +57,15 @@ namespace pinpoint { class RecordingRepository; struct StreamArrival; }
+ //   · the folder, when it lands, files everything parked for that shot;
+ //   · a shot that produced no folder discards what it parked, and says so.
+ //
+-// ── WHY ONE SHOT AT A TIME IS SOUND ───────────────────────────────────────
++// ── SEVERAL SHOTS IN FLIGHT (#281) ────────────────────────────────────────
+ //
+-// `ShotController::armed()` includes `!m_processorBusy`, so a second shot is
+-// refused while the first is in the pipeline — exactly one shot is ever
+-// in flight.  The correlation is still keyed on the PPCP shot id rather than on
+-// arrival order, because a clip for shot N can legitimately arrive while shot
+-// N+1 is being processed, and I27 makes the Capture's own anchor the honest
+-// answer to "which shot is this".
++// Until 25 Nov 2026 a second shot was refused while the first was in the
++// pipeline.  Now the capture keeps recording and ShotProcessor queues captured
++// shots and finishes them IN ORDER, so a folder that lands belongs to the
++// OLDEST shot still waiting for one (awaiting()).  A clip is still matched to
++// its shot by the PPCP shot id rather than by arrival order, because a clip for
++// shot N can legitimately arrive while shot N+1 is being processed, and I27
++// makes the Capture's own anchor the honest answer to "which shot is this".
+ class PpcpClipFiler : public QObject
+ {
+     Q_OBJECT
+@@ -119,6 +120,10 @@ public slots:
+     // The shot produced no folder — nothing can be filed against it.
+     void onSwingFailed();
+ 
++    // Every shot still in flight was dropped (ShotProcessor::shotsDropped: a camera deselected,
++    // the app closing): none of them will get a folder.
++    void onShotsDropped();
++
+     // A Capture finished arriving.  `absent` is an ANSWER, not a failure (I10).
+     void onClipReady(const PpcpClip &clip);
+ 
+diff --git a/src/Gui/shot/shot_processor.cpp b/src/Gui/shot/shot_processor.cpp
+index 79e673e3..beb3debf 100644
+--- a/src/Gui/shot/shot_processor.cpp
++++ b/src/Gui/shot/shot_processor.cpp
+@@ -240,7 +240,8 @@ ShotProcessor::~ShotProcessor()
+ 
+ QString ShotProcessor::stateName() const
+ {
+-    switch (m_state) {
++    // The headline: the shot processing, else the capture stage (#281: both can be live at once).
++    switch (m_state != State::Idle ? m_state : m_captureStage) {
+     case State::Idle:       return QStringLiteral("idle");
+     case State::PostRoll:   return QStringLiteral("postroll");
+     case State::Gathering:  return QStringLiteral("gathering");
+@@ -262,6 +263,33 @@ void ShotProcessor::setState(State s)
+         emit busyChanged();
+     if (replayBefore != isReplaying())
+         emit isReplayingChanged();
++    noteCaptureBusy();
++}
++
++void ShotProcessor::setCaptureStage(State s)
++{
++    if (m_captureStage == s)
++        return;
++    const bool busyBefore = busy();
++    const bool headline   = m_state == State::Idle;   // the capture stage is what stateName() says
++    m_captureStage = s;
++    if (headline)
++        emit stateChanged();
++    if (busyBefore != busy())
++        emit busyChanged();
++    noteCaptureBusy();
++}
++
++void ShotProcessor::noteCaptureBusy()
++{
++    const bool now = captureBusy();
++    if (now == m_lastCaptureBusy)
++        return;
++    m_lastCaptureBusy = now;
++    if (now && m_captureStage == State::Idle)
++        ppWarn() << "[ShotProcessor]" << m_captured.size()
++                 << "captured shots are waiting for analysis — a shot hit now is not detected until one starts";
++    emit captureBusyChanged();
+ }
+ 
+ void ShotProcessor::setAnalysisProgress(double p)
+@@ -281,11 +309,12 @@ void ShotProcessor::setAnalysisProgress(double p)
+ void ShotProcessor::onShotDetected(ShotController::Source source,
+                                    qint64 timestampUs, int sessionType)
+ {
+-    // ShotController's busy gate refuses triggers while we are non-Idle; this
+-    // guard is the belt-and-braces backstop.
+-    if (m_state != State::Idle) {
+-        ppWarn() << "[ShotProcessor] shot ignored — already processing (state"
+-                 << stateName() << ")";
++    // ShotController's gate (captureBusy, main.cpp) refuses triggers while a capture is in its
++    // post-roll or gather, or the queue is full; this guard is the belt-and-braces backstop. A shot
++    // PROCESSING no longer refuses one (#281): its window was copied out and the buffer resumed.
++    if (captureBusy()) {
++        ppWarn() << "[ShotProcessor] shot ignored — a capture is in progress or" << m_captured.size()
++                 << "shots are waiting (state" << stateName() << ")";
+         return;
+     }
+     if (!m_buffer || !m_buffer->isCapturing()) {
+@@ -293,10 +322,13 @@ void ShotProcessor::onShotDetected(ShotController::Source source,
+         return;
+     }
+ 
+-    m_shotSource     = source;
+-    m_impactUs       = timestampUs;
+-    m_sessionType    = sessionType;
+-    m_timestampLabel = QTime::currentTime().toString(QStringLiteral("hh:mm:ss"));
++    // Everything the shot needs later travels with it (ShotCapture), never in a member the next
++    // detection would rewrite while this one is still analysing.
++    m_cap = std::make_unique<ShotCapture>();
++    m_cap->source         = source;
++    m_cap->impactUs       = timestampUs;
++    m_cap->sessionType    = sessionType;
++    m_cap->timestampLabel = QTime::currentTime().toString(QStringLiteral("hh:mm:ss"));
+ 
+     // ⚠ RESERVE AT DETECTION, COLLECT AT THE GATHER (history.h C1). Retrieval
+     // cannot begin until the window's last sample exists, and it then costs
+@@ -308,14 +340,14 @@ void ShotProcessor::onShotDetected(ShotController::Source source,
+     for (HmInstance *hm : deferredSources())
+         hm->reserveHistory(timestampUs, timestampUs + kHistoryDeadlineUs);
+ 
+-    setAnalysisProgress(0.0);   // the ANALYSING bar starts empty for each shot
+-    setState(State::PostRoll);
++    setCaptureStage(State::PostRoll);
++    emit shotAccepted(timestampUs);   // the launch monitor arms for THIS shot (#281)
+     m_postRollTimer.start(postRollMsFor(source));
+ }
+ 
+ void ShotProcessor::onPostRollExpired()
+ {
+-    if (m_state != State::PostRoll)
++    if (m_captureStage != State::PostRoll || !m_cap)
+         return;   // finishNowBlocking() raced the timer
+     beginGather();
+ }
+@@ -349,31 +381,41 @@ void ShotProcessor::beginGather()
+         return;
+     }
+ 
+-    Q_ASSERT(!m_swingWindow);   // state machine forbids a second shot while busy
+-
+     // ⚠ THE WINDOW BOUNDS ARE FROZEN HERE, AT THE PAUSE. kWindowDuration is a
+     // TRAILING span, so resolving it against a post-gather `now` would slide the
+     // window several seconds past the swing it is meant to contain and the
+     // snapshot would come back empty — with nothing reporting an error.
+-    m_historyProvenance.clear();   // per shot — never inherited from the last one
+-    m_stitchCounts.clear();
+-
+-    m_windowEndUs   = pinpoint::EventBuffer::nowMicros();
++    ShotCapture &c = *m_cap;
++    c.windowEndUs   = pinpoint::EventBuffer::nowMicros();
+     // The same instant on the wall clock, read back to back with the line above. This — not
+     // the moment the save starts, which is after analysis and the pose pass, 2-37 s later —
+     // is when "wallclock ≈ endTimestampUs()" is true, and it is what clock.wallclock is
+     // computed from (buildSwingExportJob). Anchoring at save time put every swing's absolute
+     // time seconds late (docs/design/foresight_premier_connector.md §2.6.6).
+-    m_windowEndUtc  = QDateTime::currentDateTimeUtc();
+-    m_windowStartUs = m_windowEndUs - kWindowDuration.count() * 1000LL;
+-
+-    // ⚠ AND THE RESUME GUARD GOES UP HERE, for the same instant's reason (§3.5):
+-    // `resume_clear_rings` is true, so a resume arriving between the freeze and
+-    // the window's construction would clear the very rings we are about to
+-    // snapshot. CameraManager::resumeBuffer() is the hard backstop and it reads
+-    // exactly this flag, so raising it now is what makes the backstop cover the
+-    // whole gather.
+-    m_ringSource = m_buffer->makeRingPayloadSource();
++    c.windowEndUtc  = QDateTime::currentDateTimeUtc();
++    c.windowStartUs = c.windowEndUs - kWindowDuration.count() * 1000LL;
++
++    // ⭐ THE COPY-OUT, THEN THE RESUME (#281). Until 25 Nov 2026 the window read the frozen ring
++    // zero-copy, which held the WHOLE buffer Paused for the shot's analysis, export and write
++    // (10-40 s): nothing was recorded, the detector was disarmed, and the resume then cleared the
++    // rings — so a swing hit meanwhile was lost outright and the next one's window began at the
++    // resume (visit 1: swing 2 gone, swing 3 1.8 s of 4; #53's clip with no backswing). Now every
++    // payload the window names is copied into memory the shot owns, and capture resumes at once.
++    // The only gap is the copy itself (logged below), and no resume can clear what the gather is
++    // about to read, so no resume guard is held across it.
++    {
++        QElapsedTimer copyClock;
++        copyClock.start();
++        size_t bytes = 0;
++        c.payload = m_buffer->copyPayloads(m_buffer->snapshot(c.windowStartUs, c.windowEndUs),
++                                           &c.entries, &bytes);
++        const qint64 copyMs = copyClock.elapsed();
++        m_cameraManager->applyCaptureIntent();   // resume, unless the user pressed Stop
++        ppInfo() << "[ShotProcessor] window frozen —" << qint64(c.entries.size()) << "entries,"
++                 << qint64(bytes / (1024 * 1024)) << "MiB copied in" << copyMs
++                 << "ms; capture resumed (" << m_captured.size() << "shot(s) queued,"
++                 << (m_state == State::Idle ? "none" : "one") << "processing)";
++    }
+ 
+     int pending = 0;
+     for (HmInstance *hm : deferredSources())
+@@ -384,19 +426,19 @@ void ShotProcessor::beginGather()
+         // call site. Construct immediately, exactly as this pipeline did before
+         // deferred sources existed. ⚠ This is the ORDINARY path, not an error
+         // path, and it must stay byte-identical to the undeferred behaviour.
+-        finishGatherAndLaunch();
++        finishCapture();
+         return;
+     }
+ 
+     ppInfo() << "[ShotProcessor] gathering —" << pending << "deferred source(s)";
+-    setState(State::Gathering);
++    setCaptureStage(State::Gathering);
+     m_gatherDeadlineMs = QDateTime::currentMSecsSinceEpoch() + kGatherDeadlineMs;
+     m_gatherTimer.start(kGatherPollMs);
+ }
+ 
+ void ShotProcessor::onGatherPoll()
+ {
+-    if (m_state != State::Gathering)
++    if (m_captureStage != State::Gathering || !m_cap)
+         return;   // finishNowBlocking() raced the timer
+ 
+     int stillPending = 0;
+@@ -416,18 +458,19 @@ void ShotProcessor::onGatherPoll()
+     }
+ 
+     m_gatherTimer.stop();
+-    finishGatherAndLaunch();
++    finishCapture();
+ }
+ 
+-void ShotProcessor::finishGatherAndLaunch()
++void ShotProcessor::finishCapture()
+ {
+     m_gatherTimer.stop();
++    ShotCapture &c = *m_cap;
+ 
+-    // Compose the window's backing: the frozen ring for everything, overridden
++    // Compose the window's backing: the frozen copy for everything, overridden
+     // by an in-RAM stitched lane for any source whose high-rate samples only
+     // arrived after the freeze (design §3.2). With nothing deferred the
+     // composite is a single catch-all route and the window is what it always was.
+-    auto entries   = m_buffer->snapshot(m_windowStartUs, m_windowEndUs);
++    auto entries   = std::move(c.entries);
+     auto composite = std::make_unique<pinpoint::CompositePayloadSource>();
+     auto ram       = std::make_unique<pinpoint::RamPayloadSource>();
+     std::vector<pinpoint::SourceId> deferredIds;
+@@ -446,9 +489,9 @@ void ShotProcessor::finishGatherAndLaunch()
+ 
+             pinpoint::DeferredStitchInput in;
+             in.liveEntries     = entriesForIn(entries, sid);
+-            in.liveSample      = [this, sid](const pinpoint::IndexEntry &e)
++            in.liveSample      = [&c, sid](const pinpoint::IndexEntry &e)
+                                      -> const pinpoint::ImuSample * {
+-                const auto h = m_ringSource->payloadOf(sid, e.source_sequence);
++                const auto h = c.payload->payloadOf(sid, e.source_sequence);
+                 if (!h.data || h.bytes != sizeof(pinpoint::ImuSample))
+                     return nullptr;
+                 return reinterpret_cast<const pinpoint::ImuSample *>(h.data);
+@@ -481,17 +524,17 @@ void ShotProcessor::finishGatherAndLaunch()
+                 entries.push_back(pinpoint::IndexEntry{
+                     st.tUs[i], sid, uint64_t(i), 0, 0 });
+ 
+-            ram->addImu(sid, m_ringSource->formatOf(sid), st.samples);
++            ram->addImu(sid, c.payload->formatOf(sid), st.samples);
+             deferredIds.push_back(sid);
+ 
+-            m_stitchCounts.insert(sid, { st.usedLive, st.usedDeferred });
++            c.stitchCounts.insert(sid, { st.usedLive, st.usedDeferred });
+ 
+             ppInfo() << "[ShotProcessor] stitched lane" << sid
+                      << "— live" << st.usedLive
+                      << "deferred" << st.usedDeferred
+                      << "dropped" << st.droppedNonMonotonic;
+         }
+-        m_historyProvenance.insert(hm->deviceId(), hist);
++        c.historyProvenance.insert(hm->deviceId(), hist);
+     }
+ 
+     std::stable_sort(entries.begin(), entries.end(),
+@@ -501,18 +544,18 @@ void ShotProcessor::finishGatherAndLaunch()
+ 
+     if (!deferredIds.empty())
+         composite->add(std::move(ram), deferredIds);   // claimed first
+-    composite->add(std::move(m_ringSource), {});       // catch-all: the ring
++    composite->add(std::move(c.payload), {});          // catch-all: the frozen copy
+ 
+-    m_swingWindow.emplace(std::move(composite), std::move(entries),
+-                          m_windowStartUs, m_windowEndUs);
++    c.window = std::make_unique<pinpoint::SwingWindow>(std::move(composite), std::move(entries),
++                                                       c.windowStartUs, c.windowEndUs);
++    pinpoint::SwingWindow &window = *c.window;
+ 
+     // One replay track per live camera with captured frames.
+-    m_replayTracks.clear();
+     const std::vector<CameraInstance *> instances = m_cameraManager->liveCameraInstances();
+     for (CameraInstance *ctrl : instances) {
+         const pinpoint::SourceId sid = ctrl->sourceId();
+         if (sid == pinpoint::kInvalidSourceId) continue;
+-        auto entries = m_swingWindow->entriesFor(sid);
++        auto entries = window.entriesFor(sid);
+         if (entries.empty()) continue;
+         ReplayTrack track;
+         track.ctrl     = ctrl;
+@@ -535,16 +578,75 @@ void ShotProcessor::finishGatherAndLaunch()
+         // Accept it only when it falls inside this window.
+         qint64 lTUs = -1; double lx = 0.0, ly = 0.0;
+         if (ctrl->ballLaunchInfo(lTUs, lx, ly)
+-            && lTUs >= m_swingWindow->startTimestampUs()
+-            && lTUs <= m_swingWindow->endTimestampUs()) {
++            && lTUs >= window.startTimestampUs()
++            && lTUs <= window.endTimestampUs()) {
+             track.ball.hasLaunch = true;
+             track.ball.launchTUs = lTUs;
+             track.ball.launchX   = lx;
+             track.ball.launchY   = ly;
+         }
+-        m_replayTracks.push_back(std::move(track));
++        c.replayTracks.push_back(std::move(track));
++    }
++
++    // ── THE RECORDING, AT THE FREEZE (capture_context.h; refactor step 1.5) ──────────────────────
++    // The athlete, the session and the settings are read ONCE, here, into the shot's Recording: the
++    // analysis job, the export's athlete and club (12–37 s later), the seeded review club and the
++    // integrity verdicts all come from this one value, so what is on disk is what was analysed.
++    // (#281) Here, at the end of the CAPTURE, not when the pipeline takes the shot: a queued shot
++    // must record its own moment's club, not the one a later shot's reading switched to.
++    {
++        std::vector<pinpoint::capture::CaptureCamera> cams;
++        cams.reserve(c.replayTracks.size());
++        for (const ReplayTrack &track : c.replayTracks) {
++            pinpoint::capture::CaptureCamera cc;
++            cc.ctrl   = track.ctrl;
++            cc.source = track.sourceId;
++            // The accumulator snapshot frozen above (ReplayTrack::ball), on the ring clock.
++            for (const BallSnapshot::Sample &b : track.ball.samples)
++                cc.ball.frames.push_back({ b.tUs, b.found, QPointF(b.x, b.y), b.r, b.conf });
++            if (track.ball.hasLaunch) {
++                cc.ball.launchTUs    = track.ball.launchTUs;
++                cc.ball.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
++            }
++            cams.push_back(std::move(cc));
++        }
++        c.capture = std::make_unique<pinpoint::capture::CaptureSnapshot>(pinpoint::capture::snapshotAtFreeze(
++            window, cams, m_imuManager, m_appSettings,
++            pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
++            c.sessionType, static_cast<int>(c.source), c.impactUs));
+     }
+ 
++    // Queued, in order; the pipeline takes it now if it is free. The order of the three lines is
++    // what keeps busy() from blinking false between the capture and the processing.
++    m_captured.push_back(std::move(m_cap));
++    if (m_state == State::Idle)
++        launchNext();
++    setCaptureStage(State::Idle);
++}
++
++void ShotProcessor::launchNext()
++{
++    if (m_captured.empty())
++        return;
++    std::unique_ptr<ShotCapture> next = std::move(m_captured.front());
++    m_captured.pop_front();
++
++    // The shot's own values become the pipeline's (every reader below and in the export, the join
++    // and the replay reads these members, exactly as before #281).
++    m_shotSource        = next->source;
++    m_impactUs          = next->impactUs;
++    m_sessionType       = next->sessionType;
++    m_timestampLabel    = next->timestampLabel;
++    m_windowStartUs     = next->windowStartUs;
++    m_windowEndUs       = next->windowEndUs;
++    m_windowEndUtc      = next->windowEndUtc;
++    m_historyProvenance = std::move(next->historyProvenance);
++    m_stitchCounts      = std::move(next->stitchCounts);
++    m_swingWindow       = std::move(next->window);
++    m_replayTracks      = std::move(next->replayTracks);
++    m_capture           = std::move(next->capture);
++
++    setAnalysisProgress(0.0);   // the ANALYSING bar starts empty for each shot
+     m_exportOutcome   = Outcome::Pending;
+     m_analysisOutcome = Outcome::Pending;
+     m_analysisResult  = {};
+@@ -556,40 +658,17 @@ void ShotProcessor::finishGatherAndLaunch()
+     m_allocResult = {};
+     m_thumbnailPath.clear();
+     setState(State::Processing);
++    noteCaptureBusy();   // a place in the queue came free
+ 
+     ppInfo() << "[ShotProcessor] window captured —"
+              << static_cast<qint64>(m_swingWindow->entries().size()) << "entries,"
+              << m_replayTracks.size() << "camera track(s)";
+ 
+-    // ── THE RECORDING, AT THE FREEZE (capture_context.h; refactor step 1.5) ──────────────────────
+-    // The athlete, the session and the settings are read ONCE, here, into the shot's Recording: the
+-    // analysis job, the export's athlete and club (12–37 s later), the seeded review club and the
+-    // integrity verdicts all come from this one value, so what is on disk is what was analysed.
+-    {
+-        std::vector<pinpoint::capture::CaptureCamera> cams;
+-        cams.reserve(m_replayTracks.size());
+-        for (const ReplayTrack &track : m_replayTracks) {
+-            pinpoint::capture::CaptureCamera c;
+-            c.ctrl   = track.ctrl;
+-            c.source = track.sourceId;
+-            // The accumulator snapshot frozen above (ReplayTrack::ball), on the ring clock.
+-            for (const BallSnapshot::Sample &b : track.ball.samples)
+-                c.ball.frames.push_back({ b.tUs, b.found, QPointF(b.x, b.y), b.r, b.conf });
+-            if (track.ball.hasLaunch) {
+-                c.ball.launchTUs    = track.ball.launchTUs;
+-                c.ball.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
+-            }
+-            cams.push_back(std::move(c));
+-        }
+-        m_capture = std::make_unique<pinpoint::capture::CaptureSnapshot>(pinpoint::capture::snapshotAtFreeze(
+-            *m_swingWindow, cams, m_imuManager, m_appSettings,
+-            pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
+-            m_sessionType, static_cast<int>(m_shotSource), m_impactUs));
+-        // Per-shot club-length prior stash: empty/cold when this shot has no athlete/club/fixed-in-place
+-        // face-on camera, which onAnalysisFinished() reads as "nothing to persist".
+-        m_lengthPriorKey   = m_capture->lengthPriorKey;
+-        m_lengthPriorState = m_capture->lengthPriorState;
+-    }
++    // Per-shot club-length prior stash: empty/cold when this shot has no athlete/club/fixed-in-place
++    // face-on camera, which onAnalysisFinished() reads as "nothing to persist". (The Recording itself
++    // was taken at the end of the capture: finishCapture.)
++    m_lengthPriorKey   = m_capture->lengthPriorKey;
++    m_lengthPriorState = m_capture->lengthPriorState;
+ 
+     // Corpus capture: when saving raw frames with "skip analysis" on, export the
+     // frames only — bypass segmentation + analysis and suppress replay (see
+@@ -689,13 +768,13 @@ void ShotProcessor::onSegmentationFinished()
+     // export is launched once analysis completes (onAnalysisFinished). Analysis
+     // always launches a worker, so there is no synchronous-skip path to cover
+     // with maybeJoin() here. Both workers read the same frozen window — const,
+-    // zero-copy reads over stable memory (producers stopped while Paused).
++    // reads over the shot's own copy of the window (#281: copied out at the freeze).
+     startAnalysis();
+ }
+ 
+ void ShotProcessor::startAnalysis()
+ {
+-    // The analysis service runs the job the one builder made (finishGatherAndLaunch) on this shot's
++    // The analysis service runs the job the one builder made (launchNext) on this shot's
+     // Recording, and reaches its integrity verdicts with the one rule (integrityFor) — the same code
+     // re-analysis and SwingLab run. The Recording reads the frozen window (stable optional storage).
+     m_analysisInFlight = true;
+@@ -2094,30 +2173,52 @@ void ShotProcessor::finishShot()
+     m_swingWindow.reset();   // both workers returned, replay stopped
+     m_replayTracks.clear();
+ 
+-    // The window held the buffer Paused; now that it is gone, return the
+-    // buffer to whatever the user last chose (Capture/Stop). The unconditional
+-    // bufferStateChanged it emits re-arms ShotController.
++    // The buffer resumed at this shot's freeze (#281: the window is a copy). Re-applying the
++    // user's choice (Capture/Stop) here is what it always was and changes nothing while capture
++    // runs; its bufferStateChanged re-evaluates ShotController.
+     m_cameraManager->applyCaptureIntent();
+ 
++    // The next captured shot, in order, or idle.
++    if (!m_captured.empty()) {
++        launchNext();
++        return;
++    }
+     setState(State::Idle);
+ }
+ 
+ void ShotProcessor::abortToIdle()
+ {
++    // The CAPTURE stage only: a freeze the buffer could not make (it was torn down). The shot
++    // processing, if any, carries on; but the launch monitor and the clip filer were told of the
++    // aborted capture (shotAccepted), so they are told it was dropped (dropInFlight's signal).
+     m_postRollTimer.stop();
+     m_gatherTimer.stop();
+-    // ⚠ RELEASING THIS IS NOT OPTIONAL. It holds the resume guard from the pause
+-    // instant, and CameraManager::resumeBuffer() refuses while the guard is up —
+-    // so an abandoned gather that kept it would leave the buffer unable to
+-    // resume for the rest of the session, with capture silently dead.
+-    m_ringSource.reset();
+-    setState(State::Idle);
++    m_cap.reset();
++    setCaptureStage(State::Idle);
++    ppWarn() << "[ShotProcessor] the shots in flight lose their launch-monitor and phone pairing";
++    emit shotsDropped();
++}
++
++void ShotProcessor::dropInFlight()
++{
++    const int n = int(m_captured.size()) + (m_cap ? 1 : 0);
++    m_captured.clear();
++    m_cap.reset();
++    if (n > 0)
++        ppWarn() << "[ShotProcessor]" << n << "captured shot(s) dropped before analysis";
++    setCaptureStage(State::Idle);
+ }
+ 
+ void ShotProcessor::finishNowBlocking()
+ {
+     m_postRollTimer.stop();   // a pending shot is forfeited — acceptable on teardown
+     m_gatherTimer.stop();
++    // ⚠ #281: and so are the shots captured and queued behind the one processing, and the one in
++    // its capture stage. Their windows are copies and would outlive the buffer, but their cameras'
++    // CameraInstance pointers (ReplayTrack, the Recording) may not. End must therefore drain the
++    // pipeline (busy() false) BEFORE it reaches here, or it drops them (lane 1, #281 part B).
++    const bool anythingInFlight = m_state != State::Idle || m_captureStage != State::Idle || !m_captured.empty();
++    dropInFlight();
+ 
+     if (m_state == State::Replaying)
+         stopReplay(false);
+@@ -2146,11 +2247,10 @@ void ShotProcessor::finishNowBlocking()
+     m_capture.reset();
+     m_swingWindow.reset();
+     m_replayTracks.clear();
+-    // A gather abandoned on teardown: release the guard the window never adopted
+-    // (a no-op once the window exists, which took ownership of it).
+-    m_ringSource.reset();
+ 
+     // Deliberately no applyCaptureIntent(): callers (setSelected, destructors)
+     // own the buffer-state sequence around source registration.
+     setState(State::Idle);
++    if (anythingInFlight)
++        emit shotsDropped();   // the launch monitor and the clip filer drop what they held for them
+ }
+diff --git a/src/Gui/shot/shot_processor.h b/src/Gui/shot/shot_processor.h
+index 7b6fefed..59f764bd 100644
+--- a/src/Gui/shot/shot_processor.h
++++ b/src/Gui/shot/shot_processor.h
+@@ -31,6 +31,7 @@
+ #include <QHash>
+ #include <QVector>
+ 
++#include <deque>
+ #include <functional>
+ #include <memory>
+ #include <optional>
+@@ -63,24 +64,31 @@ class ShotListModel;
+ //
+ //   shotDetected ─► POSTROLL  per-source delay; the buffer keeps capturing so
+ //                             the follow-through lands in the ring
+-//                ─► pauseBuffer → captureSwingWindow(4 s trailing ring)
++//                ─► pauseBuffer → copyPayloads(4 s trailing ring) → resume AT ONCE
++//                             (#281: the window is the shot's own copy; capture
++//                             never stops for the shot's analysis)
+ //                ─► the RECORDING of the shot, read once at the freeze
+ //                             (capture_context.h: the live facts → the Recording)
++//                ─► QUEUED    captured shots wait, in order, behind the one
++//                             processing (at most kMaxQueuedShots)
+ //                ─► PROCESSING analysis (the analysis service, on the ONE job
+ //                             builder) then export (SwingExporter) — QtConcurrent
+-//                             workers reading the frozen window (const, zero-copy)
++//                             workers reading the copied window (const)
+ //                ─► join      the first write through RecordingRepository::create;
+ //                             ShotListModel::landShot() always (5.2); then
+ //                ─► REPLAYING ¼× on-screen replay iff analysis AND export
+ //                             both succeeded
+-//                ─► finish    window destroyed → applyCaptureIntent() → Idle
+-//                             (bufferStateChanged re-arms ShotController)
++//                ─► finish    window destroyed → the next queued shot, or Idle
++//
++// The capture stage (POSTROLL, GATHERING) and the processing (PROCESSING,
++// REPLAYING) are separate since #281: a shot can be captured while an earlier
++// one processes. ShotController is disarmed only by captureBusy().
+ //
+ // Owns the SwingWindow for its entire lifetime (migrated from CameraManager).
+-// The window is only valid while the buffer stays Paused: every resume path
+-// funnels through CameraManager::resumeBuffer(), which is blocked while
+-// EventBuffer::swingWindowLive() — and the window is destroyed only in
+-// finishShot() or after the blocking joins in finishNowBlocking().
++// Since #281 the window is the shot's own copy (EventBuffer::copyPayloads), so it
++// holds no resume guard and stays valid whatever the buffer does; it is still
++// destroyed only in finishShot() or after the blocking joins in finishNowBlocking(),
++// because the workers borrow it.
+ class ShotProcessor : public QObject
+ {
+     Q_OBJECT
+@@ -121,8 +129,8 @@ public:
+     // Gathering sits between PostRoll and Processing — deferred_sources_design.md
+     // §4.1. The rings freeze at the SAME instant as before; what moves is when
+     // the window is CONSTRUCTED, which now waits for any deferred source to
+-    // report or time out. busy() is already `m_state != Idle`, so ShotController
+-    // stays disarmed across it for free.
++    // report or time out. Since #281 PostRoll and Gathering are the CAPTURE stage's
++    // (m_captureStage) and Processing and Replaying the pipeline's (m_state).
+     enum class State { Idle, PostRoll, Gathering, Processing, Replaying };
+ 
+     // What the swing-document worker did. The data-integrity checks and the write of swing.json all run
+@@ -180,7 +188,16 @@ public:
+     void shotDocumentWritten(const pinpoint::ShotRef &shot);
+ 
+     QString stateName()   const;
+-    bool    busy()        const { return m_state != State::Idle; }
++    // Anything in flight: a capture in its post-roll or gather, a shot processing or replaying, or a
++    // captured shot queued behind it (#281). What the ANALYSING badge, the launch monitor's held club
++    // data and the re-analysis hold read — unchanged in meaning: the pipeline has work.
++    bool    busy()        const { return m_state != State::Idle || m_captureStage != State::Idle
++                                         || !m_captured.empty(); }
++    // A shot cannot be ACCEPTED now (#281): a capture is in its post-roll or gather (the same swing,
++    // or one whose window would overlap it), or the queue of captured shots is full. What disarms
++    // ShotController — no longer the whole pipeline, which held the detector off for 10-40 s.
++    bool    captureBusy() const { return m_captureStage != State::Idle
++                                         || int(m_captured.size()) >= kMaxQueuedShots; }
+     bool    isReplaying() const { return m_state == State::Replaying; }
+     qint64  replayPositionUs() const { return m_replayPositionUs    - m_replayT0Us; }   // window time
+     qint64  replayStartUs()    const { return m_replayWindowStartUs - m_replayT0Us; }
+@@ -241,6 +258,15 @@ public slots:
+ signals:
+     void stateChanged();
+     void busyChanged();
++    void captureBusyChanged();
++    // A detected shot was accepted for capture (#281): what arms the launch monitor's pairing for it,
++    // so every swing the pairing waits on is one the pipeline will finish (shotProcessed / shotFailed)
++    // or drop (shotsDropped). `impactUs` on the EventBuffer clock, as ShotController::shotDetected.
++    void shotAccepted(qint64 impactUs);
++    // Every shot in flight — the one processing, the queued ones, the one capturing — was dropped
++    // without a folder (finishNowBlocking: a camera deselected, the app closing; or a capture the
++    // buffer could not freeze). Nothing they were owed may go to the shots that follow.
++    void shotsDropped();
+     void isReplayingChanged();
+     void analysisProgressChanged();
+     void replayPositionChanged();
+@@ -333,15 +359,49 @@ private:
+ 
+     int  m_lastShotId = -1;
+ 
++    // ── The capture stage and the queue (#281) ───────────────────────────────────────────────────
++    // A shot's window is FROZEN AND COPIED OUT at its freeze (EventBuffer::copyPayloads) and the
++    // buffer resumes at once, so the capture keeps recording while earlier shots analyse. A captured
++    // shot waits here, in order, until the pipeline takes it (launchNext). Everything the processing
++    // half reads 12-37 s later travels WITH the shot, never in a member a second detection rewrites.
++    struct ShotCapture {
++        ShotController::Source source = ShotController::Source::Manual;
++        qint64    impactUs    = -1;
++        int       sessionType = -1;
++        QString   timestampLabel;
++        int64_t   windowStartUs = 0;
++        int64_t   windowEndUs   = 0;
++        QDateTime windowEndUtc;
++        std::vector<pinpoint::IndexEntry>                   entries;   // the copied slice
++        std::unique_ptr<const pinpoint::SwingPayloadSource> payload;   // its owned copy
++        QHash<QString, HmInstance::HistoryResult>       historyProvenance;
++        QHash<pinpoint::SourceId, std::pair<int, int>>  stitchCounts;
++        // Built at the end of the capture stage (finishCapture):
++        std::unique_ptr<pinpoint::SwingWindow>               window;
++        std::vector<ReplayTrack>                             replayTracks;
++        std::unique_ptr<pinpoint::capture::CaptureSnapshot>  capture;   // points into `window`
++    };
++    // Two shots wait behind the one processing: about 1.2 GB each on the studio's two cameras
++    // (595 frames of ~1 MB). Past that a detection is refused (captureBusy) and said at ppWarn.
++    static constexpr int kMaxQueuedShots = 2;
++    State                                      m_captureStage = State::Idle;   // Idle, PostRoll or Gathering
++    std::unique_ptr<ShotCapture>              m_cap;        // the shot in its capture stage
++    std::deque<std::unique_ptr<ShotCapture>>  m_captured;   // captured, waiting for the pipeline
++    bool                                       m_lastCaptureBusy = false;
++    void setCaptureStage(State s);
++    void noteCaptureBusy();          // emits captureBusyChanged when captureBusy() flipped
++    void finishCapture();            // compose the window, take the Recording, queue the shot
++    void launchNext();               // the pipeline takes the oldest captured shot
++    void dropInFlight();             // every captured, queued or capturing shot, gone (shotsDropped)
++
+     void setState(State s);
+     void setAnalysisProgress(double p);
+     // The two halves of what captureWindowAndLaunch() used to do in one breath.
+     // Every deferred source bound to this capture. One wG3 is ONE peripheral
+     // with one reservation, even though it feeds two lanes.
+     QVector<HmInstance *> deferredSources() const;
+-    void beginGather();             // pause the rings, raise the guard, start the wait
++    void beginGather();             // pause, copy the window out, resume, start the wait
+     void onGatherPoll();            // deferred sources reported, or the deadline passed
+-    void finishGatherAndLaunch();   // compose the backing, construct the window, take the Recording, launch
+     void startAnalysis();
+     void startSwingSave();
+     pinpoint::SwingExportJob buildSwingExportJob();
+@@ -372,12 +432,9 @@ private:
+     QTimer  m_postRollTimer;    // single-shot post-trigger capture continuation
+ 
+     // ── Deferred gather (design §4.1) ───────────────────────────────────────
+-    // ⚠ m_ringSource HOLDS THE RESUME GUARD from the pause instant until the
+-    // window that adopts it dies. It is built at pause rather than at window
+-    // construction because `resume_clear_rings` is true, so a resume landing in
+-    // between would CLEAR THE RINGS THIS SHOT IS ABOUT TO SNAPSHOT (§3.5). Any
+-    // path that abandons a gather must reset it, or the buffer can never resume.
+-    std::unique_ptr<const pinpoint::SwingPayloadSource> m_ringSource;
++    // (#281) No resume guard is held across the gather any more: the window's payloads are copied
++    // out at the pause (ShotCapture::payload) and the buffer resumes at once, so a resume can no
++    // longer clear what the gather is about to read.
+     QTimer  m_gatherTimer;          // polls the deferred sources during Gathering
+ 
+     // ⏱ THE UI-THREAD STALL WATCHDOG (2026-09-16). A repeating timer on the GUI thread: if a tick
+@@ -408,7 +465,9 @@ private:
+     QHash<pinpoint::SourceId, std::pair<int, int>> m_stitchCounts;
+ 
+     // Window + replay (migrated from CameraManager).
+-    std::optional<pinpoint::SwingWindow> m_swingWindow;
++    // Held by pointer since #281: the shot's Recording points into it, and it moves from the
++    // queue (ShotCapture::window) to here without changing address.
++    std::unique_ptr<pinpoint::SwingWindow> m_swingWindow;
+     std::vector<ReplayTrack> m_replayTracks;
+     int64_t       m_replayWindowStartUs = 0;
+     int64_t       m_replayWindowEndUs   = 0;
+diff --git a/src/LaunchMonitor/shot_pairing.h b/src/LaunchMonitor/shot_pairing.h
+index 480be686..6b10e093 100644
+--- a/src/LaunchMonitor/shot_pairing.h
++++ b/src/LaunchMonitor/shot_pairing.h
+@@ -21,6 +21,8 @@
+ 
+ #include <QString>
+ 
++#include <cstdlib>
++#include <deque>
+ #include <optional>
+ 
+ namespace pinpoint::lm {
+@@ -49,12 +51,20 @@ namespace pinpoint::lm {
+ // flushed by noteSwingDir(). It can equally arrive after — during first replay —
+ // in which case the destination is already known and it is claimed outright.
+ //
+-// WHY A SINGLE SLOT IS ENOUGH. ShotProcessor handles exactly one shot at a time,
+-// and ShotController::armed requires the processor to be idle, so no new shot can
+-// be detected while one is processing or replaying. Every shotProcessed therefore
+-// refers to the most recent shotDetected, and there can never be two swings
+-// waiting at once. If that invariant is ever relaxed, this class needs a map and
+-// this comment needs deleting.
++// SEVERAL SWINGS CAN BE IN FLIGHT (#281). Until 25 Nov 2026 a shot could not be detected while the
++// previous one was processing, so one slot was enough. Now the capture keeps recording and
++// ShotProcessor queues the captured shots, processing them IN ORDER. So each detected swing has
++// its own slot, oldest first:
++//   • a reading goes to the NEWEST swing, if it is still armed (the rule above, unchanged);
++//   • a swingDir (shotProcessed / shotFailed) goes to the OLDEST swing that has none yet — the
++//     pipeline finishes them in the order they were detected;
++//   • detecting a swing stops the previous one WAITING, but keeps what it already parked.
++//
++// A TIMED READING THAT BEAT ITS SHOT. The commit can come after the reading when the GUI thread is
++// busy (visit 1, swing 3: swing 1's join held the arbiter's hold timer). A timed reading that found
++// nothing armed is HELD (holdUnclaimed), and the next shot committed takes it if the contact time
++// matches its impact within kContactWindowMs. An untimed reading is never held: order alone cannot
++// say which shot it describes.
+ //
+ // WHEN THE DEVICE STATES A CONTACT TIME, ORDER IS CHECKED AGAINST IT. Foresight Premier stamps
+ // every shot (LaunchMonitorReading::contactAtMs) and also SILENTLY DROPS a shot hit before it is
+@@ -99,86 +109,158 @@ public:
+         std::optional<qint64> contactDeltaMs;   // reading contact − our impact, when both known
+     };
+ 
+-    // A shot was committed. Arms for it, displacing any swing still waiting — that
+-    // swing gets no launch monitor data, deliberately. `impactUtcMs` is our impact on the
+-    // wall clock (epoch ms), when the caller knows it.
+-    void noteShotDetected(std::optional<qint64> impactUtcMs = std::nullopt)
++    // A shot was committed. Arms for it; the swing before it stops waiting for a reading but keeps
++    // any it parked (it is still in the pipeline). `impactUtcMs` is our impact on the wall clock
++    // (epoch ms), when the caller knows it. Returns the contact Δ (ms) when a held reading that beat
++    // the commit matched this impact and was attached to it.
++    std::optional<qint64> noteShotDetected(std::optional<qint64> impactUtcMs = std::nullopt)
+     {
+-        m_armed = true;
+-        m_impactUtcMs = impactUtcMs;
+-        m_swingDir.clear();
+-        // A parked reading here means the previous swing never reached a swingDir
+-        // (its analysis or export failed). It has nowhere to go.
+-        m_parked.reset();
++        if (!m_swings.empty())
++            m_swings.back().armed = false;
++        // The finished ones (a folder, and no longer waiting) are only history now.
++        while (!m_swings.empty() && m_swings.front().dirKnown && !m_swings.front().armed)
++            m_swings.pop_front();
++        while (m_swings.size() >= kMaxInFlight)
++            m_swings.pop_front();   // a bound, not a rule: more than this are never in flight
++
++        Swing s;
++        s.armed       = true;
++        s.impactUtcMs = impactUtcMs;
++        std::optional<qint64> adopted;
++        if (m_unclaimed && impactUtcMs && m_unclaimed->contactAtMs) {
++            const qint64 delta = *m_unclaimed->contactAtMs - *impactUtcMs;
++            if (std::llabs(delta) <= kContactWindowMs) {
++                s.parked = std::move(m_unclaimed);
++                s.armed  = false;
++                adopted  = delta;
++            }
++            // A held reading from before this impact belongs to no later shot either.
++            if (delta < -kContactWindowMs || adopted)
++                m_unclaimed.reset();
++        }
++        m_swings.push_back(std::move(s));
++        return adopted;
+     }
+ 
+     // A reading turned up. Returns what should happen to it.
+     Offer offerReading(const LaunchMonitorReading &reading)
+     {
+-        if (!m_armed)
++        if (m_swings.empty() || !m_swings.back().armed)
+             return {};                          // Discarded
++        Swing &newest = m_swings.back();
+ 
+         TimeCheck check = TimeCheck::None;
+         std::optional<qint64> delta;
+-        if (m_impactUtcMs && reading.contactAtMs) {
+-            delta = *reading.contactAtMs - *m_impactUtcMs;
++        if (newest.impactUtcMs && reading.contactAtMs) {
++            delta = *reading.contactAtMs - *newest.impactUtcMs;
+             if (*delta < -kContactWindowMs)
+                 return { Disposition::Discarded, QString(), TimeCheck::BeforeImpact, delta };
+             if (*delta > kContactWindowMs) {
+-                m_armed = false;                // this swing's reading is never coming
++                newest.armed = false;           // this swing's reading is never coming
+                 return { Disposition::Discarded, QString(), TimeCheck::AfterWindow, delta };
+             }
+             check = TimeCheck::Matched;
+         }
+-        m_armed = false;
++        newest.armed = false;
+ 
+-        if (!m_swingDir.isEmpty())
+-            return { Disposition::Claimed, m_swingDir, check, delta };
++        if (newest.dirKnown && !newest.swingDir.isEmpty())
++            return { Disposition::Claimed, newest.swingDir, check, delta };
+ 
+-        m_parked = reading;
++        newest.parked = reading;
+         return { Disposition::Parked, QString(), check, delta };
+     }
+ 
+-    // A later, fuller statement of the reading already parked (the same deviceShotId —
+-    // Premier's club data, which lands a shot late). Replaces it in place so the swing gets
+-    // the whole reading when it reaches disk. False when nothing parked matches.
++    // A timed reading nothing was armed for (offerReading said Discarded): held for a shot whose
++    // commit it beat. Only the latest is held; an untimed reading is not held at all.
++    void holdUnclaimed(const LaunchMonitorReading &reading)
++    {
++        if (reading.contactAtMs)
++            m_unclaimed = reading;
++    }
++
++    // A later, fuller statement of a reading already parked (the same deviceShotId — Premier's club
++    // data, which lands a shot late), for whichever swing in flight parked it, or the held one.
++    // Replaces it in place so the swing gets the whole reading when it reaches disk. False when
++    // nothing parked matches.
+     bool replaceParked(const LaunchMonitorReading &reading)
+     {
+-        if (!m_parked || m_parked->deviceShotId.isEmpty()
+-            || m_parked->deviceShotId != reading.deviceShotId)
++        if (reading.deviceShotId.isEmpty())
+             return false;
+-        m_parked = reading;
+-        return true;
++        for (Swing &s : m_swings)
++            if (s.parked && s.parked->deviceShotId == reading.deviceShotId) {
++                s.parked = reading;
++                return true;
++            }
++        if (m_unclaimed && m_unclaimed->deviceShotId == reading.deviceShotId) {
++            m_unclaimed = reading;
++            return true;
++        }
++        return false;
+     }
+ 
+-    // The armed swing reached disk. Returns a reading if one was parked for it.
++    // The oldest swing still without a folder reached disk. Returns a reading if one was parked for it.
+     std::optional<LaunchMonitorReading> noteSwingDir(const QString &swingDir)
+     {
+-        m_swingDir = swingDir;
+-        if (!m_parked)
++        Swing *s = oldestPending();
++        if (!s)
+             return std::nullopt;
+-        auto out = m_parked;
+-        m_parked.reset();
++        s->swingDir = swingDir;
++        s->dirKnown = true;
++        auto out = std::move(s->parked);
++        s->parked.reset();
+         return out;
+     }
+ 
+-    // The shot failed before producing a swingDir. Anything held for it is dropped.
++    // The oldest swing still without a folder failed before producing one. Anything held for it
++    // is dropped; the swings after it keep theirs.
+     void noteShotFailed()
+     {
+-        m_armed = false;
+-        m_impactUtcMs.reset();
+-        m_parked.reset();
+-        m_swingDir.clear();
++        for (auto it = m_swings.begin(); it != m_swings.end(); ++it)
++            if (!it->dirKnown) {
++                m_swings.erase(it);
++                return;
++            }
++    }
++
++    // Every swing in flight was dropped without a folder (ShotProcessor::shotsDropped): nothing
++    // they parked, nor any held reading, may reach the folders of the shots that follow.
++    void noteShotsDropped()
++    {
++        m_swings.clear();
++        m_unclaimed.reset();
+     }
+ 
+-    bool armed()      const { return m_armed; }
+-    bool hasParked()  const { return m_parked.has_value(); }
++    // The newest swing is waiting for its reading.
++    bool armed()     const { return !m_swings.empty() && m_swings.back().armed; }
++    // The oldest swing still without a folder has a reading parked (what noteSwingDir would return).
++    bool hasParked() const
++    {
++        for (const Swing &s : m_swings)
++            if (!s.dirKnown) return s.parked.has_value();
++        return false;
++    }
+ 
+ private:
+-    bool    m_armed = false;
+-    std::optional<qint64> m_impactUtcMs;           // our impact, wall clock, when known
+-    QString m_swingDir;                             // "" until shotProcessed
+-    std::optional<LaunchMonitorReading> m_parked;   // claimed, awaiting a destination
++    struct Swing {
++        bool    armed = false;
++        std::optional<qint64> impactUtcMs;           // our impact, wall clock, when known
++        bool    dirKnown = false;                    // shotProcessed (or a failure with a folder) came
++        QString swingDir;                            // "" until then
++        std::optional<LaunchMonitorReading> parked;  // claimed, awaiting a destination
++    };
++    // More swings than this are never in flight (ShotProcessor queues two behind the one it
++    // processes); the bound only keeps a swing that never hears back from growing the list.
++    static constexpr std::size_t kMaxInFlight = 8;
++
++    Swing *oldestPending()
++    {
++        for (Swing &s : m_swings)
++            if (!s.dirKnown) return &s;
++        return nullptr;
++    }
++
++    std::deque<Swing> m_swings;                       // oldest first; back() is the newest
++    std::optional<LaunchMonitorReading> m_unclaimed;  // a timed reading that beat its shot's commit
+ };
+ 
+ } // namespace pinpoint::lm
+diff --git a/src/LaunchMonitor/tests/gcquad_pairing_test.cpp b/src/LaunchMonitor/tests/gcquad_pairing_test.cpp
+index fd640d91..c8dbc250 100644
+--- a/src/LaunchMonitor/tests/gcquad_pairing_test.cpp
++++ b/src/LaunchMonitor/tests/gcquad_pairing_test.cpp
+@@ -110,13 +110,16 @@ TEST(ShotPairing, ANewShotDisplacesASwingStillWaiting)
+ {
+     // THE RULE. If a second ball is struck before the first one's row appeared, the
+     // first swing gets nothing — because any subsequent write describes the second.
++    //
++    // #281: both swings are now processed, A first — so A's folder arrives first and gets nothing.
+     ShotPairing p;
+     p.noteShotDetected();          // swing A
+-    p.noteShotDetected();          // swing B — A is abandoned here
++    p.noteShotDetected();          // swing B — A stops waiting here
+ 
+     const auto offer = p.offerReading(readingWithId(QStringLiteral("77")));
+     ASSERT_EQ(offer.disposition, ShotPairing::Disposition::Parked);
+ 
++    EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/lib/a/s1/swing_A")).has_value());   // A: nothing
+     const auto flushed = p.noteSwingDir(QStringLiteral("/lib/a/s1/swing_B"));
+     ASSERT_TRUE(flushed.has_value());
+     EXPECT_EQ(flushed->deviceShotId.toStdString(), "77");   // it went to B
+@@ -163,18 +166,130 @@ TEST(ShotPairing, DropsAParkedReadingWhenTheShotFails)
+ 
+ TEST(ShotPairing, AParkedReadingDoesNotLeakIntoTheNextSwing)
+ {
+-    // Same hazard by the other route: the shot never reported failure, it just never
+-    // produced a swingDir before the next ball was struck.
++    // Same hazard by the other route. Until #281 a second ball could not be detected while the
++    // first was in the pipeline, so "the next shot arrived" meant "the first produced no swingDir"
++    // and its parked reading was dropped. Now the next ball IS struck while the first analyses:
++    // the reading stays with ITS swing, and the next swing's folder gets none of it.
+     ShotPairing p;
+     p.noteShotDetected();
+     ASSERT_EQ(p.offerReading(readingWithId(QStringLiteral("4"))).disposition,
+               ShotPairing::Disposition::Parked);
+ 
+-    p.noteShotDetected();                                  // next swing
+-    EXPECT_FALSE(p.hasParked());
++    p.noteShotDetected();                                  // next swing, the first still analysing
++    EXPECT_TRUE(p.hasParked()) << "the first swing's reading is still waiting for its folder";
++    const auto first = p.noteSwingDir(QStringLiteral("/lib/a/s1/swing_first"));
++    ASSERT_TRUE(first.has_value());
++    EXPECT_EQ(first->deviceShotId.toStdString(), "4");
+     EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/lib/a/s1/swing_next")).has_value());
+ }
+ 
++// ═══════════════════════════════ ShotPairing, two swings in flight at once (#281) ══
++// Visit 1 (25 Nov 2026, Wrist_02; build/platform/A/NOTES-281.md): swing 2 was hit while swing 1
++// analysed, and swing 3's reading arrived before its shot was committed (the GUI thread was busy
++// with swing 1's join). Premier readings are timed (contactAtMs), as there.
++
++namespace {
++LaunchMonitorReading premier(const QString &id, qint64 contactMs)
++{
++    LaunchMonitorReading r = readingWithId(id);
++    r.contactAtMs = contactMs;
++    return r;
++}
++constexpr qint64 kVisitT1 = 1'795'000'000'000;   // swing 1's impact, wall clock ms
++} // namespace
++
++TEST(ShotPairingInFlight, EachSwingKeepsItsOwnReadingWhileAnEarlierOneAnalyses)
++{
++    ShotPairing p;
++    p.noteShotDetected(kVisitT1);                                         // swing 1
++    ASSERT_EQ(p.offerReading(premier(QStringLiteral("36e08446"), kVisitT1 + 34)).disposition,
++              ShotPairing::Disposition::Parked);
++
++    p.noteShotDetected(kVisitT1 + 8'500);                                 // swing 2, swing 1 analysing
++    const auto two = p.offerReading(premier(QStringLiteral("8a790d49"), kVisitT1 + 8'520));
++    EXPECT_EQ(two.disposition, ShotPairing::Disposition::Parked) << "visit 1: 'no shot waiting; discarded'";
++    EXPECT_EQ(two.timeCheck, ShotPairing::TimeCheck::Matched);
++
++    // Premier's club data for swing 1 lands with swing 2's reading: it still finds swing 1's.
++    LaunchMonitorReading fuller = premier(QStringLiteral("36e08446"), kVisitT1 + 34);
++    fuller.faceAngle = 1.5;
++    EXPECT_TRUE(p.replaceParked(fuller));
++
++    // The pipeline finishes them in order.
++    const auto r1 = p.noteSwingDir(QStringLiteral("/swings/0001"));
++    ASSERT_TRUE(r1.has_value());
++    EXPECT_EQ(r1->deviceShotId.toStdString(), "36e08446") << "swing 1's reading, not swing 2's";
++    ASSERT_TRUE(r1->faceAngle);
++    EXPECT_DOUBLE_EQ(*r1->faceAngle, 1.5);
++    const auto r2 = p.noteSwingDir(QStringLiteral("/swings/0002"));
++    ASSERT_TRUE(r2.has_value());
++    EXPECT_EQ(r2->deviceShotId.toStdString(), "8a790d49");
++}
++
++TEST(ShotPairingInFlight, AReadingThatArrivesBeforeItsShotIsCommittedIsAttachedByItsContactTime)
++{
++    // Swing 3: Premier's reading came before the arbiter committed the shot, so nothing was armed.
++    // Held (it is timed), it is attached when the shot it matches is committed.
++    ShotPairing p;
++    const qint64 t3 = kVisitT1 + 16'060;
++    const auto early = p.offerReading(premier(QStringLiteral("82f81b3a"), t3 + 40));
++    ASSERT_EQ(early.disposition, ShotPairing::Disposition::Discarded);
++    p.holdUnclaimed(premier(QStringLiteral("82f81b3a"), t3 + 40));
++
++    const auto adopted = p.noteShotDetected(t3);
++    ASSERT_TRUE(adopted.has_value()) << "the held reading matches this impact";
++    EXPECT_EQ(*adopted, 40);
++    EXPECT_FALSE(p.armed()) << "the swing has its reading";
++    const auto r3 = p.noteSwingDir(QStringLiteral("/swings/0003"));
++    ASSERT_TRUE(r3.has_value());
++    EXPECT_EQ(r3->deviceShotId.toStdString(), "82f81b3a");
++}
++
++TEST(ShotPairingInFlight, AHeldReadingIsNeverGivenToAShotItDoesNotMatch)
++{
++    ShotPairing p;
++    p.holdUnclaimed(premier(QStringLiteral("stray"), kVisitT1));        // a ball we never detected
++    EXPECT_FALSE(p.noteShotDetected(kVisitT1 + 8'000).has_value()) << "8 s off: another ball";
++    EXPECT_TRUE(p.armed()) << "this swing still waits for its own";
++    EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/swings/x")).has_value());
++
++    ShotPairing q;
++    q.holdUnclaimed(readingWithId(QStringLiteral("untimed")));          // no contact time: order only
++    EXPECT_FALSE(q.noteShotDetected(kVisitT1).has_value());
++    EXPECT_FALSE(q.noteSwingDir(QStringLiteral("/swings/y")).has_value());
++}
++
++TEST(ShotPairingInFlight, ShotsDroppedInFlightTakeTheirReadingsWithThem)
++{
++    // finishNowBlocking() (a camera deselected, the app closing) drops every shot in flight
++    // without a folder: nothing they parked may reach the folders of the shots that follow.
++    ShotPairing p;
++    p.noteShotDetected(kVisitT1);
++    p.offerReading(premier(QStringLiteral("a"), kVisitT1 + 10));
++    p.noteShotDetected(kVisitT1 + 8'000);
++    p.offerReading(premier(QStringLiteral("b"), kVisitT1 + 8'010));
++    p.noteShotsDropped();
++    EXPECT_FALSE(p.hasParked());
++    EXPECT_FALSE(p.armed());
++
++    p.noteShotDetected(kVisitT1 + 30'000);
++    EXPECT_FALSE(p.noteSwingDir(QStringLiteral("/swings/next")).has_value());
++}
++
++TEST(ShotPairingInFlight, AFailedShotTakesOnlyItsOwnReading)
++{
++    ShotPairing p;
++    p.noteShotDetected(kVisitT1);
++    p.offerReading(premier(QStringLiteral("a"), kVisitT1 + 10));
++    p.noteShotDetected(kVisitT1 + 8'000);
++    p.offerReading(premier(QStringLiteral("b"), kVisitT1 + 8'010));
++
++    p.noteShotFailed();                                                  // swing 1: no folder
++    const auto r2 = p.noteSwingDir(QStringLiteral("/swings/0002"));
++    ASSERT_TRUE(r2.has_value());
++    EXPECT_EQ(r2->deviceShotId.toStdString(), "b");
++}
++
+ // ════════════════════════════════════════ ShotPairing, with a stated contact time ══
+ // Foresight Premier stamps each shot, and drops a shot hit before it is ready; the contact time
+ // is what keeps the next reading from going to the wrong swing (shot_pairing.h).
+diff --git a/src/Ppcp/tests/ppcp_clip_filer_test.cpp b/src/Ppcp/tests/ppcp_clip_filer_test.cpp
+index 2f7015a6..f0234761 100644
+--- a/src/Ppcp/tests/ppcp_clip_filer_test.cpp
++++ b/src/Ppcp/tests/ppcp_clip_filer_test.cpp
+@@ -314,6 +314,65 @@ int main(int argc, char **argv)
+         check(led.captureCount() == 0, "and not admitted — there is no swing to link it to");
+     }
+ 
++    // ── #281: two shots in flight — the pipeline finishes them in order ───────
++    {
++        std::printf("\n-- #281: a second shot asked while the first analyses: each folder gets its own clip --\n");
++        QTemporaryDir tmp;
++        Ppcp::PpcpImportLedger led;
++        led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
++        PpcpClipFiler filer;
++        filer.setRecordingRepository(&pinpoint::testdoc::repo());
++        filer.setShotCommands(&clipDoor());
++        filer.setLedger(&led);
++        QStringList filedInto;
++        QObject::connect(&filer, &PpcpClipFiler::clipFiled,
++                         [&](const QString &dir, const QString &) { filedInto << dir; });
++
++        filer.onCaptureAsked(QStringLiteral("shot:A"), QStringLiteral("peer:phone-1"),
++                             QStringLiteral("src:cam-wide"), QStringLiteral("st:abcdef0123456789:video"), kAlias);
++        filer.onClipReady(makeClip(QStringLiteral("shot:A"), QStringLiteral("cap:A"), QByteArray(256, 'A')));
++        // Shot B is committed while A is still in the pipeline (ShotController no longer waits).
++        filer.onCaptureAsked(QStringLiteral("shot:B"), QStringLiteral("peer:phone-1"),
++                             QStringLiteral("src:cam-wide"), QStringLiteral("st:abcdef0123456789:video"), kAlias);
++        filer.onClipReady(makeClip(QStringLiteral("shot:B"), QStringLiteral("cap:B"), QByteArray(256, 'B')));
++
++        const QString dirA = makeSwing(tmp.path(), QStringLiteral("swing_0001"));
++        filer.onSwingReady(dirA);                      // A's folder comes first: A was first
++        check(filedInto == QStringList{ dirA }, "A's folder takes A's clip, and only A's");
++        const auto *recA = led.capture(Ppcp::CaptureKey{ "peer:phone-1", "ses:live-1", "cap:A" });
++        check(recA && recA->swingRef.swingId == "swing_0001", "…linked to swing_0001 in the ledger");
++
++        const QString dirB = makeSwing(tmp.path(), QStringLiteral("swing_0002"));
++        filer.onSwingReady(dirB);
++        check(filedInto == (QStringList{ dirA, dirB }), "B's folder then takes B's");
++        const auto *recB = led.capture(Ppcp::CaptureKey{ "peer:phone-1", "ses:live-1", "cap:B" });
++        check(recB && recB->swingRef.swingId == "swing_0002", "…linked to swing_0002");
++    }
++    {
++        std::printf("\n-- #281: shots dropped in flight leave nothing for the next folder --\n");
++        QTemporaryDir tmp;
++        Ppcp::PpcpImportLedger led;
++        led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
++        PpcpClipFiler filer;
++        filer.setRecordingRepository(&pinpoint::testdoc::repo());
++        filer.setShotCommands(&clipDoor());
++        filer.setLedger(&led);
++        int filed = 0;
++        QObject::connect(&filer, &PpcpClipFiler::clipFiled,
++                         [&](const QString &, const QString &) { ++filed; });
++        for (const char *id : { "shot:C", "shot:D" }) {
++            filer.onCaptureAsked(QString::fromLatin1(id), QStringLiteral("peer:phone-1"),
++                                 QStringLiteral("src:cam-wide"), QStringLiteral("st:abcdef0123456789:video"), kAlias);
++            filer.onClipReady(makeClip(QString::fromLatin1(id), QStringLiteral("cap:") + QLatin1String(id + 5),
++                                       QByteArray(128, 'C')));
++        }
++        filer.onShotsDropped();                        // finishNowBlocking(): both gone, no folder
++        filer.onCaptureAsked(QStringLiteral("shot:E"), QStringLiteral("peer:phone-1"),
++                             QStringLiteral("src:cam-wide"), QStringLiteral("st:abcdef0123456789:video"), kAlias);
++        filer.onSwingReady(makeSwing(tmp.path(), QStringLiteral("swing_0003")));
++        check(filed == 0, "neither dropped shot's clip lands in the next shot's folder");
++    }
++
+     // ── Identity: a clip anchored to no shot, and one for a shot we never asked about
+     {
+         std::printf("\n-- a clip is matched by the Capture's own anchor (I27), never by order --\n");

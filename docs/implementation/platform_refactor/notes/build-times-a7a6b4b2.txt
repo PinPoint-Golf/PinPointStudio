@@ -1,0 +1,5 @@
+build_times.sh: studio PC the studio PC, build\tests-vs18 (Debug, NMake JOM, tests/ umbrella), jom -j16, no compiler cache
+commit a7a6b4b2 (studio PC HEAD; origin/main on the Mac at the start: a7a6b4b2); run 2026-11-24 19:55; run dir the share exit 0
+step                                                  seconds  compiles  links  peak MB  notes
+header Core/pp_debug.h                                    226       785    129        -  studio-build exit 0
+link (touch session_summary_test.cpp)                      10         1      1        -  studio-build exit 0
