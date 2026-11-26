@@ -29,7 +29,7 @@ A quantity keeps a bare key if it has any non-launch-monitor route; never add a 
 *Owner:* Solution Architect · *Stage:* Build; checked at Review · *Compliance:* a review
 
 **AD-4.** Pose, ball or shaft inference must never be re-run to get launch-monitor values.
-Read the stored launch-monitor reading (backfill, or compute at read time). Where the device didn't report a descent angle or apex, model it with the launch-monitor panel's flight model (`src/LaunchMonitor/lm_flight_path.h`), marked as modelled; a measured value always wins.
+Read the stored launch-monitor reading (backfill, or compute at read time). Where the device didn't report a descent angle or apex, model it with the launch-monitor panel's flight model (`src/LaunchMonitor/inferred/lm_flight_path.h`), marked as modelled; a measured value always wins.
 *Why:* those numbers live in each shot's stored reading; pose inference takes about 11 s a swing and has nothing to do with them.[^ad-4]
 *Owner:* Product Owner · *Stage:* Build; checked at Review · *Compliance:* a review
 

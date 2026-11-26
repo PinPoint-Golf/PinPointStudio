@@ -24,7 +24,7 @@
 #include "pp_debug.h"
 #include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
 #include "session_controller.h"
-#include "standalone_gate.h"
+#include "../../LaunchMonitor/inferred/standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../Export/swing_paths.h"

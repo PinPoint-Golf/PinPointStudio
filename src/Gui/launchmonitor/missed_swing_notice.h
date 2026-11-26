@@ -19,7 +19,7 @@
 #pragma once
 
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
-#include "../../LaunchMonitor/shot_pairing.h"
+#include "../../LaunchMonitor/inferred/shot_pairing.h"
 
 #include <QString>
 #include <QStringList>

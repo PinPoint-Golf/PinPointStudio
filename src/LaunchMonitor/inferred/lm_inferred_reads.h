@@ -41,7 +41,7 @@
 // Unit-tested standalone in src/Analysis/tests/lm_inferred_reads_test.cpp.
 
 #include "lm_session_reductions.h"
-#include "../Diagnostics/derived/handedness_gloss.h"   // the one handedness gloss (refactor 6.3b)
+#include "../../Diagnostics/derived/handedness_gloss.h"   // the one handedness gloss (refactor 6.3b)
 
 #include <QString>
 

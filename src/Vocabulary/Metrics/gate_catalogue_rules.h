@@ -276,21 +276,21 @@ inline void appendRules(std::vector<GateEntry> &c)
     // ── Launch monitor: the session board ──
     rule(c, "rule.lm.spreadMin", lmArea, "Too few shots for a spread", "too few shots",
          QStringLiteral("A spread (how much the shots vary) is shown only from three shots. Two shots give a number "
-                        "that means nothing."), "src/LaunchMonitor/lm_session_reductions.h", lmDesign)
+                        "that means nothing."), "src/LaunchMonitor/inferred/lm_session_reductions.h", lmDesign)
         .tuning = { tune("lm.minShotsForSpread", 3, "shots") };
     rule(c, "rule.lm.clubVotes", lmArea, "Club undecided", "club undecided",
          QStringLiteral("The numbers are said to read like a wood or an iron only when at least two of the signs "
                         "(smash, spin, launch) agree, and more of them point that way than the other."),
-         "src/LaunchMonitor/lm_club_evidence.h", lmDesign)
+         "src/LaunchMonitor/inferred/lm_club_evidence.h", lmDesign)
         .tuning = { tune("lm.clubVotesToDecide", 2, "") };
     rule(c, "rule.lm.flightShape", lmArea, "No flight shape", "no flight shape",
          QStringLiteral("A shot shape (push-draw, pull-fade …) needs the start direction and something that speaks to "
                         "the curve — the spin axis, or failing that face to path. Half a shot stated confidently is "
-                        "worse than none."), "src/LaunchMonitor/lm_inferred_reads.h", lmDesign)
+                        "worse than none."), "src/LaunchMonitor/inferred/lm_inferred_reads.h", lmDesign)
         .tuning = { tune("lm.startT", 1.0, "°"), tune("lm.curveT", 2.0, "°") };
     rule(c, "rule.lm.strikeQuality", lmArea, "No strike read", "no strike read",
          QStringLiteral("Where the ball was struck on the face is named only when the device measured both the "
-                        "heel-to-toe and the low-to-high position."), "src/LaunchMonitor/lm_inferred_reads.h", lmDesign)
+                        "heel-to-toe and the low-to-high position."), "src/LaunchMonitor/inferred/lm_inferred_reads.h", lmDesign)
         .tuning = { tune("lm.centreMm", 3.0, "mm") };
 }
 

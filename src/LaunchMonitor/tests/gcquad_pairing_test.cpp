@@ -11,7 +11,7 @@
 // waiting on the QTimer, so no event loop and no sleeping.
 
 #include "gcquad_monitor.h"
-#include "shot_pairing.h"
+#include "../inferred/shot_pairing.h"
 
 #include <gtest/gtest.h>
 

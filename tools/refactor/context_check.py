@@ -45,9 +45,10 @@ DIRS = {
     'Analysis/': DIA,
     'DomainModel/': HUB, 'App/': HUB, 'Gui/': HUB, 'Export/': HUB,
     'Buffer/': ACQ, 'Video/': ACQ, 'Ppcp/': ACQ,
+    'LaunchMonitor/': ACQ,                                     # the connectors (R5, ruled)
+    'LaunchMonitor/inferred/': DIA,                            # the inferred reads: rules that derive measurements from a reading (R5)
     # ---- "to place in Stage B": THIS SCRIPT'S placements (each stated in REPORT.md) ----
     'Body/': DIA, 'Wrist/': DIA, 'Skeleton3d/': DIA,          # measurement algorithms over the analysis
-    'LaunchMonitor/': ACQ,                                     # connectors; inferred reads below
     'Audio/': ACQ,                                             # microphone input and the acoustic shot detector; output below
     'LLM/': HUB, 'STT/': HUB, 'TTS/': HUB, 'Secrets/': HUB, 'Update/': HUB,
 }
@@ -59,10 +60,6 @@ FILES = {
     'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
     'Pose/motion_capture_probe': HUB,       # the hardware probe behind a setting
     'Audio/audio_output': HUB, 'Audio/audio_output_base': HUB, 'Audio/ting_player': HUB,   # feedback sound, presentation
-    # to place: rules that derive measurements from a reading
-    'LaunchMonitor/lm_inferred_reads': DIA, 'LaunchMonitor/lm_flight_path': DIA,
-    'LaunchMonitor/lm_enclosing_ellipse': DIA, 'LaunchMonitor/lm_club_evidence': DIA, 'LaunchMonitor/lm_gates': DIA,
-    'LaunchMonitor/lm_session_reductions': DIA, 'LaunchMonitor/shot_pairing': DIA, 'LaunchMonitor/standalone_gate': DIA,
     # to place: device back-ends
     'IMU/ble_adapter_pool': ACQ, 'IMU/ble_imu_transport': ACQ, 'IMU/imu_base': ACQ, 'IMU/imu_capabilities': ACQ,
     'IMU/imu_factory': ACQ, 'IMU/imu_io_worker': ACQ, 'IMU/imu_sample_tap': ACQ, 'IMU/hm_session_worker': ACQ,

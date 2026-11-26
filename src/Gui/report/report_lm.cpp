@@ -25,7 +25,7 @@
 #include "../../Diagnostics/derived/handedness_gloss.h"           // the one handedness gloss (refactor 6.3b)
 #include "../../Vocabulary/Common/figure_format.h"
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h" // lm::fieldDefs()
-#include "../../LaunchMonitor/lm_session_reductions.h"  // lmDecimals
+#include "../../LaunchMonitor/inferred/lm_session_reductions.h"  // lmDecimals
 
 #include <QDir>
 

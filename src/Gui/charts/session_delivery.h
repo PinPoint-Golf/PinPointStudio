@@ -82,7 +82,7 @@
 //      (its own resolution, and the design's words: "path went 4.3° left"); our camera's whole degrees;
 //      a fit's slope one decimal, r two, scatter one; a middle half's ± one decimal. U+2212 minus.
 //  10. SHOT SHAPE (§4.6) is the monitor's alone, and CLASSIFIED BY THE ONE DIRECTION RULE,
-//      pa::lmShapeClass (LaunchMonitor/lm_inferred_reads.h) on the pack's corridors (DeliveryShotInput::direction,
+//      pa::lmShapeClass (LaunchMonitor/inferred/lm_inferred_reads.h) on the pack's corridors (DeliveryShotInput::direction,
 //      refactor 6.3b), so this section, its grid and the report's Delivery page name every shot the way the launch
 //      monitor card, the factors and Tendencies do, and in the golfer's hand (leftHanded, off the swing) (they once
 //      kept thresholds of their own and drifted: a 1.8° spin axis was a fade here and straight there). Only
@@ -114,7 +114,7 @@
 //      changes (its fingerprint), so that count has gone.
 
 #include "session_series_types.h"
-#include "../../LaunchMonitor/lm_inferred_reads.h"   // ShotDirectionBounds: the one direction rule's (refactor 6.3b)
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h"   // ShotDirectionBounds: the one direction rule's (refactor 6.3b)
 #include "../typeset/box_stats.h"
 
 #include <QJsonObject>

@@ -81,7 +81,7 @@
 //       Solution Architect, 24 Nov 2026). The named files are matched by name, whatever their ring.
 //
 // THE RING TABLE. A file's ring is its directory's (dirRings(), longest prefix wins) unless it is
-// named in fileRings(), which exists because four directories straddle rings today (03 §2) — Analysis,
+// named in fileRings(), which exists because four directories straddled rings (03 §2) — Analysis,
 // Core, LaunchMonitor, Export — and three more hold a device half or a Recording-contract half
 // (Buffer, IMU, Pose); and 03 §2 puts the capture and session services in src/Gui/shot in
 // Application (ShotProcessor, ShotController, ReanalysisController). Files are named by their path under src/ without the extension, so the .h and
@@ -90,6 +90,8 @@
 // placed on purpose. Platform (ring 0) is a decision of this test, not of 03: logging and profiling
 // are used by every ring and no step removes them, so they sit inside Vocabulary. src/Core is
 // Platform by its directory rule (R4), so a new file in Core is Platform unless it is named.
+// LaunchMonitor's inferred reads are in their own folder, LaunchMonitor/inferred/, Rules by its directory
+// rule (R5), so src/LaunchMonitor itself holds only the connectors.
 //
 // THE ALLOW-LIST. Today's violations live in architecture_allowlist.txt beside this file, generated
 // once from the tree at the start of Step G — one line per file and rule, with the number of findings
@@ -185,7 +187,8 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Video/"), Adapters },
         { QStringLiteral("Audio/"), Adapters },
         { QStringLiteral("Export/"), Adapters },          // the Recording store; frame decode below
-        { QStringLiteral("LaunchMonitor/"), Adapters },   // connectors; readings and inferred reads below
+        { QStringLiteral("LaunchMonitor/"), Adapters },   // the connectors (the readings are in Vocabulary/LaunchMonitor/)
+        { QStringLiteral("LaunchMonitor/inferred/"), Rules },  // the inferred reads, gates, pairing and reductions (R5)
         { QStringLiteral("Ppcp/"), Adapters },
         { QStringLiteral("LLM/"), Adapters },
         { QStringLiteral("STT/"), Adapters },
@@ -218,16 +221,6 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/camera_pose_sticks"), Rules },
         { QStringLiteral("Analysis/frame_store"), Rules },
         { QStringLiteral("Analysis/mp4_frame_reader"), Adapters },
-        // LaunchMonitor: the inferred reads, gates, pairing and reductions are rules; the connectors stay
-        // adapters (a reading as delivered and what measured it are in Vocabulary/LaunchMonitor/).
-        { QStringLiteral("LaunchMonitor/lm_inferred_reads"), Rules },
-        { QStringLiteral("LaunchMonitor/lm_flight_path"), Rules },
-        { QStringLiteral("LaunchMonitor/lm_enclosing_ellipse"), Rules },
-        { QStringLiteral("LaunchMonitor/lm_club_evidence"), Rules },
-        { QStringLiteral("LaunchMonitor/lm_gates"), Rules },
-        { QStringLiteral("LaunchMonitor/lm_session_reductions"), Rules },
-        { QStringLiteral("LaunchMonitor/shot_pairing"), Rules },
-        { QStringLiteral("LaunchMonitor/standalone_gate"), Rules },
         // Buffer: the streams a Recording carries are vocabulary; the ring itself is an adapter.
         { QStringLiteral("Buffer/types"), Vocabulary },
         { QStringLiteral("Buffer/format_descriptor"), Vocabulary },
@@ -864,6 +857,7 @@ void selfTest()
               && ringOf(QStringLiteral("Core/pp_settings.h")) == Platform && ringOf(QStringLiteral("Core/version.h")) == Platform
               && ringOf(QStringLiteral("Core/zz_new_file.h")) == Platform && ringOf(QStringLiteral("Core/device_enumerator.h")) == Adapters
               && ringOf(QStringLiteral("Kinematics/kf3_smoother.h")) == Rules && ringOf(QStringLiteral("Gui/app/app_info.cpp")) == Adapters
+              && ringOf(QStringLiteral("LaunchMonitor/inferred/lm_gates.h")) == Rules && ringOf(QStringLiteral("LaunchMonitor/gcquad_monitor.cpp")) == Adapters
               && ringOf(QStringLiteral("NoSuchDir/x.h")) == -1 && ringOf(QStringLiteral("Gui/shot/shot_processor.cpp")) == Application,
           QStringLiteral("the ring table: per-file entries over directory defaults; unknown directories have no ring"));
 }

@@ -22,7 +22,7 @@
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid: THE sampler
 #include "../../Diagnostics/measures/delivery_grid_numbers.h"   // the grid → numbers rule (refactor 5.5d)
 #include "../../Diagnostics/measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
-#include "../../LaunchMonitor/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
 
 #include <QHash>
 #include <QJsonArray>

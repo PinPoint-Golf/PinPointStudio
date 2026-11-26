@@ -66,7 +66,7 @@
 #include "../swing_exporter.h"                    // SwingExportJob (Test 14)
 #include "../../Vocabulary/Club/club_standards.h"            // standardClub (Test 12)
 #include "../../Vocabulary/Club/club_vocabulary.h"           // the one club rule (Test 6, refactor 6.2)
-#include "../../LaunchMonitor/lm_inferred_reads.h" // lmLowPointFromAttack (Test 12)
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h" // lmLowPointFromAttack (Test 12)
 #include "../swing_doc.h"
 #include "../swing_paths.h"
 #include "../swing_store.h"

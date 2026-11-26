@@ -26,7 +26,7 @@
 #include "../derived/tendencies.h"
 #include "../derived/work_ons_pack.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
-#include "../../LaunchMonitor/lm_session_reductions.h"
+#include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 
 #include <algorithm>
 #include <cmath>

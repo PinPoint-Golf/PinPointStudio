@@ -19,7 +19,7 @@
 
 #include "launch_monitor_base.h"
 #include "missed_swing_notice.h"
-#include "shot_pairing.h"
+#include "../../LaunchMonitor/inferred/shot_pairing.h"
 #include "../../Vocabulary/Identity/identity.h"   // ShotRef: the standalone shot the capture service adds
 
 #include <QHash>

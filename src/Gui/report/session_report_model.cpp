@@ -73,7 +73,7 @@
 #include "../../DomainModel/shot.h"                  // a kept shot's folder (5.6b)
 #include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
-#include "../../LaunchMonitor/lm_session_reductions.h"
+#include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>

@@ -31,7 +31,7 @@ namespace pinpoint::gates::detail {
 inline void appendLaunchMonitorGates(std::vector<GateEntry> &c)
 {
     const QString area = QStringLiteral("Launch monitor");
-    const char *prod = "src/LaunchMonitor/lm_gates.h";
+    const char *prod = "src/LaunchMonitor/inferred/lm_gates.h";
     const char *design = "docs/design/trust_stage6_plan.md (Launch monitor); src/LaunchMonitor/gcquad_csv_parser.cpp kNoData";
 
     {

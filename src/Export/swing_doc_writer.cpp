@@ -48,8 +48,8 @@
 #include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
 #include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
-#include "../LaunchMonitor/lm_inferred_reads.h"
-#include "../LaunchMonitor/lm_gates.h"              // the import's dropped fields → analysis.gates
+#include "../LaunchMonitor/inferred/lm_inferred_reads.h"
+#include "../LaunchMonitor/inferred/lm_gates.h"              // the import's dropped fields → analysis.gates
 #include "../Vocabulary/LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Vocabulary/Metrics/measurement.h"            // lmDerivedKeys: the vocabulary's one list (6.1a)

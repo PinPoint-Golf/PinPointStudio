@@ -45,7 +45,7 @@
 #include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../engine/excludes_rule.h"
 #include "../measures/club_baseline_provider.h"
-#include "../../LaunchMonitor/lm_session_reductions.h"
+#include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 
 #include <QDate>
 #include <QHash>

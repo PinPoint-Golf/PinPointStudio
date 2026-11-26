@@ -7,7 +7,7 @@
 //   cmake --build build/tests --target lm_flight_path_test
 //   ctest --test-dir build/tests -R lm_flight_path --output-on-failure
 
-#include "../../LaunchMonitor/lm_flight_path.h"
+#include "../../LaunchMonitor/inferred/lm_flight_path.h"
 
 #include <algorithm>
 #include <cmath>

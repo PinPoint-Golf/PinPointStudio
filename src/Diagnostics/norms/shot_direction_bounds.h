@@ -20,7 +20,7 @@
 
 // THE PACK'S DIRECTION BOUNDARIES, RESOLVED (refactor 6.3b, audit F-05 / G-01). Header-only, Rules ring.
 //
-// The one direction rule (lmShapeClass, LaunchMonitor/lm_inferred_reads.h) names a shot's start and curve by the
+// The one direction rule (lmShapeClass, LaunchMonitor/inferred/lm_inferred_reads.h) names a shot's start and curve by the
 // boundaries the diagnostic pack fires its direction conditions by. This reads them off the pack and the norms the
 // way the engine does (characteristic_engine.cpp): an outsideCorridor signal fires beyond the LATER of its measure's
 // deviation edge (deviationEdges, at the grade policy) and its Ideal edge (bandEdgesOf), strictly; a threshold signal
@@ -30,7 +30,7 @@
 // Each boundary the pack does not state (a signal missing, of another test, or a measure with no norm) keeps the
 // shipped default (ShotDirectionBounds), which is the shipped pack under the standard policy (lm_corridor_test).
 
-#include "../../LaunchMonitor/lm_inferred_reads.h"
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h"
 #include "../packs/characteristic_pack.h"
 #include "context_tree.h"
 #include "norm_provider.h"

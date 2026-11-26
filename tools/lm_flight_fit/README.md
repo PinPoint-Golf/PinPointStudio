@@ -1,6 +1,6 @@
 # lm_flight_fit
 
-Refits the aero constants in `LmFlightModel` (`src/LaunchMonitor/lm_flight_path.h`): `cd0`, `cdS`,
+Refits the aero constants in `LmFlightModel` (`src/LaunchMonitor/inferred/lm_flight_path.h`): `cd0`, `cdS`,
 `clS`, `clS2` and `clMax`. The target is every GC Quad shot in the corpus that reports carry,
 peak height and descent.
 

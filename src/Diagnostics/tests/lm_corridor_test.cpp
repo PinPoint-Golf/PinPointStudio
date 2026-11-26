@@ -49,7 +49,7 @@
 
 // The panel's own tuning, so the numbers the pack authored can be checked against it rather than
 // against a second copy written here — see "one classifier, two readers" at the end of main().
-#include "../../LaunchMonitor/lm_inferred_reads.h"
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h"
 #include "../engine/characteristic_engine.h"     // evaluateSignal: the engine's own verdict (refactor 6.3b)
 #include "../norms/norm_measure_source.h"
 #include "../norms/shot_direction_bounds.h"      // the one direction rule's boundaries, off the pack

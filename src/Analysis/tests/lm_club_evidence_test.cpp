@@ -10,7 +10,7 @@
 //   cmake --build build/tests --target lm_club_evidence_test
 //   ctest --test-dir build/tests -R lm_club_evidence --output-on-failure
 
-#include "../../LaunchMonitor/lm_club_evidence.h"
+#include "../../LaunchMonitor/inferred/lm_club_evidence.h"
 
 #include <cstdio>
 #include <limits>

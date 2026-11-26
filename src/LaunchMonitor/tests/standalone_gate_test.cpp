@@ -10,7 +10,7 @@
 // The rescue path is deliberately absent from here: a shot the app detected but could not
 // record needs no permission beyond storage being on.
 
-#include "standalone_gate.h"
+#include "../inferred/standalone_gate.h"
 
 #include <gtest/gtest.h>
 

@@ -1,0 +1,14 @@
+# B1.12 · LaunchMonitor's inferred reads leave the connectors' folder (build/platform/B1/BRIEF-B1.12.md).
+# The Solution Architect, 24 Nov 2026 (docs/implementation/platform_b1_placements.md R5, option (a), C9): the eight
+# inferred-read stems go to src/LaunchMonitor/inferred/, Rules, context Diagnostics; the connectors left in
+# src/LaunchMonitor are Acquisition. The ring comes from a directory entry for the new folder; deleting fileRings()'s
+# eight entries and context_check.py's eight FILES entries is a hand edit.
+src/LaunchMonitor/lm_inferred_reads -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/lm_flight_path -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/lm_enclosing_ellipse -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/lm_club_evidence -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/lm_gates -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/lm_session_reductions -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/shot_pairing -> src/LaunchMonitor/inferred/
+src/LaunchMonitor/standalone_gate -> src/LaunchMonitor/inferred/
+keep: tools/lm_flight_fit/README.md:51

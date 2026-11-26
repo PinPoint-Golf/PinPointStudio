@@ -276,7 +276,7 @@ Physics, not grading. Each line appears only when its inputs exist; the monitor'
 ### 4.6 Shot shape
 
 A 3×3 grid: start line (push / straight / pull) against curve (fade / straight / draw). The classification is
-the launch monitor card's own — `lmShapeClass` in `src/LaunchMonitor/lm_inferred_reads.h`, thresholds in
+the launch monitor card's own — `lmShapeClass` in `src/LaunchMonitor/inferred/lm_inferred_reads.h`, thresholds in
 `LmInferenceTuning` — so this section and the card name every shot alike; only the words are this section's.
 One pair, never mixed: the ball's (start from `lm.launchDirection`, curve from `lm.spinAxis`, and how far it
 actually curved from `lm.carryDistance` and `lm.offline` when both are there), else the club's (start from

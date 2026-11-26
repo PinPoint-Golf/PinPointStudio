@@ -22,12 +22,12 @@
 #include "../../LaunchMonitor/launch_monitor_factory.h"
 #include "../../Vocabulary/LaunchMonitor/lm_device.h"
 
-#include "../../LaunchMonitor/lm_club_evidence.h"
+#include "../../LaunchMonitor/inferred/lm_club_evidence.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"                  // effectiveClub: the one club rule (refactor 6.2)
-#include "../../LaunchMonitor/lm_enclosing_ellipse.h"
-#include "../../LaunchMonitor/lm_flight_path.h"
-#include "../../LaunchMonitor/lm_inferred_reads.h"
-#include "../../LaunchMonitor/lm_session_reductions.h"
+#include "../../LaunchMonitor/inferred/lm_enclosing_ellipse.h"
+#include "../../LaunchMonitor/inferred/lm_flight_path.h"
+#include "../../LaunchMonitor/inferred/lm_inferred_reads.h"
+#include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 #include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Vocabulary/Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
 #include "../../Vocabulary/Metrics/metric_catalogue.h"                 // the low point from the attack angle: its label

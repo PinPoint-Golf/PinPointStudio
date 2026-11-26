@@ -17,7 +17,7 @@
 //
 // See README.md beside this file.
 
-#include "../../src/LaunchMonitor/lm_flight_path.h"
+#include "../../src/LaunchMonitor/inferred/lm_flight_path.h"
 
 #include <algorithm>
 #include <array>

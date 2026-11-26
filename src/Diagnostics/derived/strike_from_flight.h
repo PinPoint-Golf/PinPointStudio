@@ -40,7 +40,7 @@
 
 #include "diagnostic_ledger.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
-#include "../../LaunchMonitor/lm_flight_path.h"
+#include "../../LaunchMonitor/inferred/lm_flight_path.h"
 
 #include <QByteArray>
 #include <QCryptographicHash>
