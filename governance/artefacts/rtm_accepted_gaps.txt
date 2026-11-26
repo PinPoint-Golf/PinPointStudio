@@ -1,0 +1,8 @@
+# rtm_accepted_gaps.txt: the gaps the traceability matrix accepts as permanent, an exceptions register like the lint
+# allowlists (governance/README.md, the register of exceptions). rtm_check (tools/method/make_rtm.py --check) passes a
+# flag listed here. One line per gap:
+#   <flag> <gap> | <reason> | <approving role> | <date>
+# <flag> <gap> is the gap's kind (its flag's number) and its id, spelt exactly as rtm.md and rtm_baseline.txt spell
+# it, for example "4 pp_profiler_concurrency_test" or "3 REQ-CAP-11 E6". The approving role is the Product Owner, or
+# the Solution Architect for a gap in a test's or a control's labelling; the date is 2026-11-26 or 26 Nov 2026.
+# Each line is approved by that role before it is added: never add one to make the check pass.

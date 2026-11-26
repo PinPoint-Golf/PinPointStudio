@@ -56,3 +56,4 @@ pp_add_test(secret_store_test
             ${SRC}/Secrets/mail_credentials.cpp
     INCLUDE ${SRC})
 set_tests_properties(secret_store_test PROPERTIES TIMEOUT 60)
+pp_requirement(secret_store_test REQ-PRIV-3)

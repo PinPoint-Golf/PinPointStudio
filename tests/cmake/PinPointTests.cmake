@@ -444,3 +444,30 @@ function(pp_add_test name)
     pp_apply_sanitizers(${name})
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
+
+# --- Requirement and control labels (the traceability matrix) -----------------
+# pp_requirement(<test> <ID>...)
+#
+# Names what a test proves (governance/artefacts/test_strategy.md §5, condition 1;
+# BT-39): each requirement (REQ-ANA-8) or control (CTL-UI-1, CTL-BT-7) it checks.
+# Call it beside the test's pp_add_test or add_test, in the same CMakeLists.txt and
+# inside the same guards, AFTER the registration and after any
+# set_tests_properties(... LABELS ...), which replaces a test's labels. It APPENDS,
+# so a label already set (qml_ui) survives, and `ctest -L REQ-ANA-8` then runs the
+# requirement's tests. A test this configuration does not register is skipped
+# here: tools/method/make_rtm.py, which greps these calls from the source whatever
+# the guards, fails on a name no registration makes. A QML test (tst_*.qml) names
+# its ids with `// REQ:` lines instead (src/Gui/CMakeLists.txt, the QML loop).
+function(pp_requirement test)
+    if(NOT ARGN)
+        message(FATAL_ERROR "pp_requirement(${test}): name at least one REQ-<AREA>-n or CTL-<control id>")
+    endif()
+    foreach(_id IN LISTS ARGN)
+        if(NOT _id MATCHES "^(REQ-[A-Z]+-[0-9]+|CTL-[A-Z]+-[0-9]+[a-z]?)$")
+            message(FATAL_ERROR "pp_requirement(${test}): '${_id}' is not REQ-<AREA>-n or CTL-<control id>")
+        endif()
+    endforeach()
+    if(TEST ${test})
+        set_property(TEST ${test} APPEND PROPERTY LABELS ${ARGN})
+    endif()
+endfunction()

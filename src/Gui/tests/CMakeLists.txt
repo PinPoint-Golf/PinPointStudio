@@ -691,6 +691,17 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME im_changelog_merge_selftest
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/im_changelog_merge.py --self-test)
     set_tests_properties(im_excerpt_selftest im_changelog_merge_selftest PROPERTIES TIMEOUT 60)
+    # The requirements traceability matrix, governance/artefacts/rtm.md (test_strategy.md §8): rtm_check fails when it
+    # is stale, or on a flag that is neither an accepted gap (rtm_accepted_gaps.txt) nor in the baseline
+    # (rtm_baseline.txt); rtm_selftest proves every flag, red then green, on fixtures in a temporary directory. Both
+    # run offline, from committed files only (the issue snapshot is rtm_issues.json, refreshed with --refresh-issues).
+    add_test(NAME rtm_check
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/make_rtm.py --check)
+    add_test(NAME rtm_selftest
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/make_rtm.py --self-test)
+    set_tests_properties(rtm_check rtm_selftest PROPERTIES TIMEOUT 120)
+    pp_requirement(rtm_check CTL-BT-39)
+    pp_requirement(rtm_selftest CTL-BT-39)
     # tools/refactor/move_files.py (platform refactor B1.2), the move tool every scripted move rests on: its rules,
     # refusals and --verify, proved on a fixture git repository it builds in a temporary directory (never this tree).
     # Exit 77, a skip, where there is no git.
