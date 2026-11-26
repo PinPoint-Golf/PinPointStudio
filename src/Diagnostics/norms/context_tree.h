@@ -18,12 +18,15 @@
 
 #pragma once
 
-#include "../packs/characteristic_pack.h" // ValidationReport
+#include "../engine/characteristic.h" // Condition, ContextBinding
+#include "../engine/pack_io.h"        // ValidationReport
 
+#include <QByteArray>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
 
+#include <utility>
 #include <vector>
 
 // The context tree — what kind of shot a norm applies to.
