@@ -58,6 +58,11 @@ The coordinator never re-pastes reports, reads a notes file only when a decision
 *Why:* reports entering the coordinator's context twice, and clerical work, used up the context needed for judgement.[^ag-19]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
 
+**AG-48.** A coordinator session must hand over to a fresh session once about half its context is used, and must tell the Product Owner when its estimate passes that point.
+It keeps the handover file current as items land, so the change loses nothing: the briefs' rules, each lane's state, what waits on a role, and where each brief and note is. It reports at once if its context has been summarised. An agent can't see its own usage, so it estimates, early rather than late; the exact figure is the session's own context command.
+*Why:* a rule read hours earlier in a long session is no longer in front of the agent when it decides, so it gets missed: the overnight coordinator wrote one brief without the standing block, and a lane started a cabin run it hadn't been asked for.[^ag-48]
+*Owner:* Product Owner · *Stage:* Plan · *Compliance:* none yet
+
 **AG-46.** A run's dashboard (the file where the Product Owner reads the run's state) must be kept current: at every item's start and finish, every field of its summary is rewritten, not only a log line added; times come from the clock, never estimated; completion is a percentage weighted by effort, with an overall figure computed as done ÷ (done + left) and its range; and what blocks the run is kept apart from what does not.
 The columns themselves are the programme's own files' business.
 *Why:* a dashboard updated only in its log said a finished step was still running, and an estimated time misled the Product Owner after time away.[^ag-46]
@@ -98,3 +103,4 @@ A plan that holds data copies in the ownership section, `governance/artefacts/in
 [^bt-2]: Product Owner, 28 Oct and 21 Nov 2026.
 
 [^ad-51]: Product Owner and Solution Architect, 25 Nov 2026 (the lifecycle model's scope rule, from the #280, #281 and #283 losses). The lifecycle model is its own artefact, `governance/artefacts/lifecycle_model.md`, owned by the Solution Architect (option (a); DEC-204).
+[^ag-48]: Product Owner, 26 Nov 2026, after the overnight brief that omitted COMMON.md.
