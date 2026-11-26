@@ -64,6 +64,7 @@ The lint allowlists are the register of approved exceptions. They stay where the
 |---|---|---|
 | `src/Gui/tests/architecture_allowlist.txt` | `architecture_lint_test` | Solution Architect |
 | `src/Gui/tests/design_system_allowlist.txt` | `design_system_lint_test` | Design Lead |
+| `src/Gui/tests/qml_rule_allowlist.txt` | `session_setup_lint_test` (W12) | Solution Architect[^sa-w12] |
 
 Each line names the exception and its reason. A line is never added to make a test pass: the code is fixed, or the owning role approves the exception[^allow].
 
@@ -101,3 +102,4 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 [^scope]: Product Owner, 25 Nov 2026 (#195, OM-7).
 [^local]: Product Owner, 25 Nov 2026 (#195, OM-1; D5 revised).
 [^nn]: Product Owner, 26 Nov 2026: the list is approved, chosen for the misses that have actually happened, not for completeness; line 1 waits on the test strategy's ruling.
+[^sa-w12]: Product Owner and Solution Architect, 26 Nov 2026: the QML-rule check lands with a shrink-only exception list, each line pointing to an issue, and its owner is the Solution Architect.

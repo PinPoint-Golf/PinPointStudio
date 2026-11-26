@@ -54,6 +54,64 @@
 //       setPlacementForDevice, appSettings.imuPlacement), except the site in kW9Allowed
 //       (PpDataViewer.qml:96, which labels old swings). Enforced (kEnforceW9); the shims were
 //       deleted from ImuManager at Stage 5c.
+//   W12 No rule is built in QML (AD-52, governance/controls/build.md; R-QML-4): a production QML or JS
+//       file (every .qml and .js under src/Gui outside tests/) holds no decision. R-QML-4 has three
+//       exceptions: the calibration screens (calibration/, #291), the Consistency grade words (#219,
+//       the Design Lead's) and the frozen files on the list. Every file this check
+//       counts rules in is frozen at its count in the exception list beside this file,
+//       qml_rule_allowlist.txt (its owner is the Solution Architect), each line naming the issues that
+//       empty it (`path | W12 | count | WHY  # #issue [#issue …]`; a calibration line names #291). A
+//       count above its line fails; one below is reported so the line can be lowered; the list only
+//       shrinks. A file with no line is allowed none.
+//       WHAT COUNTS: a relational comparison (<, <=, >, >=; never part of <<, >>, >>>, => or a shift-
+//       assign) in script (a function, a handler, a property binding, a .js file's top level) whose one
+//       side is a constant (numbers and arithmetic only: 15.0, -900, 10 * 1024) or a named literal (a
+//       `readonly property int|real|double|var NAME: <number>` or a `const NAME = <number>` in the same
+//       file, read bare or as `id.NAME`), and whose other side is not a constant. The script is the
+//       binding, handler or named function that holds the comparison; an anonymous function or a
+//       plain block belongs to the script it sits in.
+//       WHAT DOES NOT COUNT, in this order (each is reported as a total under its name):
+//         layout binding   the script is a layout binding: width, height, x, y, z, opacity, spacing,
+//                          radius, rotation, scale, implicit and content sizes, margins and padding,
+//                          anchors.*, Layout.*, font sizes, border.width, rows, columns, cell sizes,
+//                          sourceSize, the alignments; or any binding named …Width, …Height, …PixelSize,
+//                          …FontSize, …IconSize, …Margin, …Padding, …Spacing, …Gap, …Radius, …Inset
+//         layout script    a function or binding named lay, layout, geom, geometry, place, paginate,
+//                          ticks, or …Layout, …Geom, …Geometry, …Place, …Scale, …Ticks
+//         paint            a Canvas onPaint handler, or a function in the same file it reaches by calls
+//         pointer          a pointer handler (onPressed, onReleased, onPositionChanged, onClicked,
+//                          onDoubleClicked, onWheel, onPressAndHold, onEntered, onExited, onTapped, the
+//                          drag and hover changes), or a function it reaches: hit-testing
+//         selection        a selected / checked / current / currentIndex / highlighted binding: which
+//                          option a control shows
+//         sentinel         the constant is 0, 1 or -1: emptiness, sign and index tests
+//         numerical guard  |constant| < 1e-3, or within 1e-2 of ±1 (a divide-by-zero or unit-vector
+//                          guard: 1e-9, 0.9995)
+//         loop bound       the comparison sits in a for (…) or while (…) condition on its line
+//         unit boundary    1000, 1024, 3600, 10000, or 999 < constant / 1000^k < 1000: where a number's
+//                          unit or rounding changes as it is written
+//         size             the other side ends in .length or .count: a collection's size
+//         index            every variable on the other side is i, j, k, index, idx, row, col, column
+//         geometry         a name on the other side is a size or a position (…Width, …Height, …W, …H,
+//                          width, height, x, y, z, W, H, em, px, py, cx, cy, dx, dy, mx, my, rx, ry, rw,
+//                          rh, w, h, x0…y9, mouseX, mouseY, contentX, contentY, avail, room, zoom, scale,
+//                          opacity): a comparison used only for layout
+//       Equality (==, !=, ===, !==) is not counted: against a literal it is an enum, state or index check
+//       (the routines mirror C++ enums as named ints). Math.* calls are not counted: measured on the
+//       tree, after the exclusions above, about nine in ten outside the calibration files were drawing,
+//       easing, nearest-sample search or float matching, not maths on a reading
+//       (build/platform/E/NOTES-AD52.md).
+//       KNOWN LIMITS: maths on a reading with no threshold in it (a smoothing filter, a slerp) is not
+//       seen; a threshold held in a mutable property, read from another file, or compared with == is not
+//       seen; a rule inside a function named like layout, or with a geometry-named operand, is not seen;
+//       an `x > 0` sign test on a reading is not seen; a threshold inside paint code (a Canvas that colours
+//       by a band) is not seen. A call is matched by name alone, so a handler calling `timer.start()`
+//       also marks a same-file function named `start` as pointer code. A review still catches them
+//       (AD-52's review).
+//       Before the scan, planted cases run: each shape counts once and each exclusion keeps its case
+//       out, so a scanner that stops matching fails rather than passing everything; and a planted list
+//       checks the ratchet itself (a frozen file that gains a rule fails, one that loses one is
+//       reported, a file with no line that gains one fails, a line with no issue is refused).
 // Each rule is one function in kRules.
 //
 //   cmake --build build/gui-tests --target session_setup_lint_test
@@ -69,9 +127,14 @@
 #include <QStringList>
 #include <QVector>
 
+#include <QHash>
+#include <QMap>
+#include <QSet>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 
 #include "Vocabulary/Common/pp_tuned_constants.h"
 
@@ -1415,6 +1478,640 @@ void ruleW11()
     }
 }
 
+// ── W12 — no rule is built in QML (AD-52, R-QML-4) ─────────────────────────────────────────────
+//
+// The rule is written down in this file's header. The scanner reads the stripped text (comments and
+// string literals blanked, offsets kept), finds the script that holds each relational comparison
+// (the binding, handler or function it sits in), and keeps a comparison against a literal or a named
+// literal unless one of the header's exclusions says it is not a decision.
+
+namespace w12 {
+
+const QString kId = QStringLiteral("[A-Za-z_$][\\w$]*");
+const QString kNum = QStringLiteral("(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?");
+
+struct Scope
+{
+    enum Kind { Obj, Group, Bind, Func, Anon, Js };
+    int     open = 0, close = 0, parent = -1;
+    Kind    kind = Js;
+    QString name;
+};
+
+struct Owner
+{
+    enum Kind { None, Bind, Func, File };
+    Kind    kind = None;
+    QString name;
+};
+
+struct Hit
+{
+    int     line = 0;
+    QString text;   // the comparison as written (strings blanked)
+    QString why;    // empty: counted; else the exclusion that removed it
+};
+
+QString lastSegment(const QString &dotted) { return dotted.section(QLatin1Char('.'), -1); }
+
+// The brace scopes of a file, each classified by the text between it and the previous statement.
+QVector<Scope> scopesOf(const QString &c)
+{
+    static const QRegularExpression funcRe(QStringLiteral("\\bfunction\\b(?:\\s+(%1))?\\s*\\([^()]*\\)\\s*$").arg(kId));
+    static const QRegularExpression arrowRe(QStringLiteral("=>\\s*$"));
+    static const QRegularExpression bindRe(QStringLiteral("(?:^|[^\\w$.?])(%1(?:\\.%1)*)\\s*:\\s*$").arg(kId));
+    static const QRegularExpression ternaryRe(QStringLiteral("\\?[^:]*:\\s*$"));
+    static const QRegularExpression objRe(QStringLiteral("(?:^|[\\s:])(?:%1\\.)*[A-Z][\\w$]*\\s*$|\\bon\\s+%1(?:\\.%1)*\\s*$").arg(kId));
+    static const QRegularExpression groupRe(QStringLiteral("^\\s*([a-z][\\w$]*)\\s*$"));
+    static const QStringList keywords = { QStringLiteral("else"), QStringLiteral("try"), QStringLiteral("finally"),
+                                          QStringLiteral("do"), QStringLiteral("return"), QStringLiteral("default") };
+    QVector<Scope> out;
+    QVector<int>   stack;
+    for (int i = 0; i < c.size(); ++i) {
+        const QChar ch = c.at(i);
+        if (ch == QLatin1Char('{')) {
+            int h = i - 1;
+            while (h >= 0 && !QStringLiteral("\n{};").contains(c.at(h))) --h;
+            const QString head = c.mid(h + 1, i - h - 1);
+            Scope s;
+            s.open   = i;
+            s.close  = c.size();
+            s.parent = stack.isEmpty() ? -1 : stack.last();
+            const Scope::Kind pk = s.parent < 0 ? Scope::Obj : out.at(s.parent).kind;
+            const bool qmlParent = s.parent < 0 || pk == Scope::Obj || pk == Scope::Group;
+            QRegularExpressionMatch m;
+            if ((m = funcRe.match(head)).hasMatch()) {
+                s.kind = m.captured(1).isEmpty() ? Scope::Anon : Scope::Func;
+                s.name = m.captured(1);
+            } else if (arrowRe.match(head).hasMatch()) {
+                s.kind = Scope::Anon;
+            } else if (qmlParent && s.parent >= 0 && (m = bindRe.match(head)).hasMatch()
+                       && !ternaryRe.match(head).hasMatch() && !keywords.contains(m.captured(1))) {
+                s.kind = Scope::Bind;
+                s.name = m.captured(1);
+            } else if ((qmlParent || pk == Scope::Bind) && objRe.match(head).hasMatch()) {
+                s.kind = Scope::Obj;
+            } else if (qmlParent && s.parent >= 0 && (m = groupRe.match(head)).hasMatch()
+                       && !keywords.contains(m.captured(1))) {
+                s.kind = Scope::Group;
+                s.name = m.captured(1);
+            }
+            out.append(s);
+            stack.append(out.size() - 1);
+        } else if (ch == QLatin1Char('}') && !stack.isEmpty()) {
+            out[stack.takeLast()].close = i;
+        }
+    }
+    return out;
+}
+
+class FileModel
+{
+public:
+    FileModel(const QString &code, bool js) : c(code), m_js(js), sc(scopesOf(code))
+    {
+        for (int k = 0; k < sc.size(); ++k) {
+            m_openOf.insert(sc.at(k).close, sc.at(k).open);
+            if (sc.at(k).kind == Scope::Func)
+                m_calls.append({ k, QRegularExpression(QStringLiteral("(?<![\\w$])%1\\s*\\(").arg(QRegularExpression::escape(sc.at(k).name))) });
+        }
+    }
+
+    int innermost(int pos) const
+    {
+        int best = -1;
+        for (int k = 0; k < sc.size(); ++k)
+            if (sc.at(k).open < pos && pos < sc.at(k).close && (best < 0 || sc.at(k).open > sc.at(best).open)) best = k;
+        return best;
+    }
+
+    // The binding, handler or function whose script holds `pos`. An anonymous function or a plain
+    // block is transparent: its owner is the script it sits in. A statement directly in an object
+    // body is owned by the binding that starts the statement.
+    Owner ownerAt(int pos) const
+    {
+        static const QRegularExpression stmtRe(
+            QStringLiteral("[ \\t]*(?:(?:readonly|required|default)[ \\t]+)*(?:property[ \\t]+[\\w$.<>]+[ \\t]+)?(%1(?:\\.%1)*)[ \\t]*:(?!:)")
+                .arg(kId));
+        int idx = innermost(pos), anchor = pos;
+        while (true) {
+            if (idx < 0) return m_js ? Owner{ Owner::File, QString() } : Owner{};
+            const Scope &s = sc.at(idx);
+            const QString prefix = s.parent >= 0 && sc.at(s.parent).kind == Scope::Group
+                ? sc.at(s.parent).name + QLatin1Char('.') : QString();
+            switch (s.kind) {
+            case Scope::Func: return { Owner::Func, s.name };
+            case Scope::Bind: return { Owner::Bind, prefix + s.name };
+            case Scope::Anon:
+            case Scope::Js:
+                anchor = s.open;
+                idx    = s.parent;
+                continue;
+            case Scope::Obj:
+            case Scope::Group: {
+                const QString group = s.kind == Scope::Group ? s.name + QLatin1Char('.') : QString();
+                auto tryAt = [&](int at, Owner *o) {
+                    const auto m = stmtRe.match(c, at, QRegularExpression::NormalMatch,
+                                                QRegularExpression::AnchorAtOffsetMatchOption);
+                    if (!m.hasMatch()) return false;
+                    *o = { Owner::Bind, group + m.captured(1) };
+                    return true;
+                };
+                Owner o;
+                for (int j = anchor - 1; j > s.open; --j) {
+                    const QChar ch = c.at(j);
+                    if (ch == QLatin1Char('}') && m_openOf.contains(j)) { j = m_openOf.value(j); continue; }
+                    if ((ch == QLatin1Char('\n') || ch == QLatin1Char(';')) && tryAt(j + 1, &o)) return o;
+                }
+                if (tryAt(s.open + 1, &o)) return o;
+                return {};
+            }
+            }
+        }
+    }
+
+    // The named functions reachable, by a call `name(`, from the handlers `isRoot` names.
+    QSet<QString> reachableFrom(const std::function<bool(const QString &)> &isRoot) const
+    {
+        static const QRegularExpression lineHandlerRe(QStringLiteral("^[ \\t]*(on[A-Z][\\w$]*)[ \\t]*:(?![ \\t]*\\{)"),
+                                                      QRegularExpression::MultilineOption);
+        QVector<QPair<int, int>> todo;
+        for (const Scope &s : sc) {
+            if (s.kind == Scope::Bind && isRoot(lastSegment(s.name))) todo.append({ s.open, s.close });
+            if (s.kind == Scope::Anon) {
+                const Owner o = ownerAt(s.open);
+                if (o.kind == Owner::Bind && isRoot(lastSegment(o.name))) todo.append({ s.open, s.close });
+            }
+        }
+        auto it = lineHandlerRe.globalMatch(c);
+        while (it.hasNext()) {
+            const auto m = it.next();
+            if (!isRoot(m.captured(1))) continue;
+            const int eol = c.indexOf(QLatin1Char('\n'), m.capturedEnd());
+            todo.append({ m.capturedStart(), eol < 0 ? int(c.size()) : eol });
+        }
+        QSet<QString> seen;
+        while (!todo.isEmpty()) {
+            const auto span = todo.takeLast();
+            const QString body = c.mid(span.first, span.second - span.first);
+            for (const auto &f : m_calls) {
+                if (seen.contains(sc.at(f.first).name) || !f.second.match(body).hasMatch()) continue;
+                seen.insert(sc.at(f.first).name);
+                todo.append({ sc.at(f.first).open, sc.at(f.first).close });
+            }
+        }
+        return seen;
+    }
+
+    const QString &c;
+
+private:
+    bool           m_js;
+    QVector<Scope> sc;
+    QHash<int, int> m_openOf;
+    QVector<QPair<int, QRegularExpression>> m_calls;   // each named function, and the call that reaches it
+};
+
+// The operand on one side of an operator: out to the nearest , ; ? : = ! { } newline, && or ||, or an
+// unmatched bracket, at this bracket depth.
+QString operandLeft(const QString &c, int end)
+{
+    int i = end, d = 0;
+    while (i > 0) {
+        const QChar ch = c.at(i - 1);
+        if (ch == QLatin1Char(')') || ch == QLatin1Char(']')) ++d;
+        else if (ch == QLatin1Char('(') || ch == QLatin1Char('[')) { if (d == 0) break; --d; }
+        else if (d == 0 && (QStringLiteral(",;?:=!{}\n").contains(ch)
+                            || (i >= 2 && (c.mid(i - 2, 2) == QLatin1String("&&") || c.mid(i - 2, 2) == QLatin1String("||")))))
+            break;
+        --i;
+    }
+    static const QRegularExpression kw(QStringLiteral("^\\s*(?:return|typeof|case|else)\\b"));
+    QString s = c.mid(i, end - i);
+    s.remove(kw);
+    return s.trimmed();
+}
+
+QString operandRight(const QString &c, int start)
+{
+    int j = start, d = 0;
+    while (j < c.size()) {
+        const QChar ch = c.at(j);
+        if (ch == QLatin1Char('(') || ch == QLatin1Char('[')) ++d;
+        else if (ch == QLatin1Char(')') || ch == QLatin1Char(']')) { if (d == 0) break; --d; }
+        else if (d == 0 && (QStringLiteral(",;?:=!{}\n").contains(ch) || c.mid(j, 2) == QLatin1String("&&")
+                            || c.mid(j, 2) == QLatin1String("||")))
+            break;
+        ++j;
+    }
+    return c.mid(start, j - start).trimmed();
+}
+
+// A constant: numbers and arithmetic only. Its value is its first number, with a leading sign.
+bool constantValue(const QString &s, double *v)
+{
+    static const QRegularExpression num(kNum);
+    static const QRegularExpression rest(QStringLiteral("^[\\s+\\-*/%()]*$"));
+    QString r = s;
+    r.replace(num, QStringLiteral(" "));
+    if (!rest.match(r).hasMatch()) return false;
+    const auto m = num.match(s);
+    if (!m.hasMatch()) return false;
+    *v = m.captured(0).toDouble();
+    if (s.trimmed().startsWith(QLatin1Char('-'))) *v = -*v;
+    return true;
+}
+
+// Identifiers in an expression, last segment of a dotted name; calls (`f(`) left out on request.
+QStringList identsOf(const QString &e, bool skipCalls)
+{
+    static const QRegularExpression re(QStringLiteral("(?<![\\w$.])(?:%1\\.)*(%1)(\\s*\\()?").arg(kId));
+    QStringList out;
+    auto it = re.globalMatch(e);
+    while (it.hasNext()) {
+        const auto m = it.next();
+        if (skipCalls && !m.captured(2).isEmpty()) continue;
+        out << m.captured(1);
+    }
+    return out;
+}
+
+bool layoutBinding(const QString &name)
+{
+    static const QRegularExpression exact(QStringLiteral(
+        "^(?:width|height|x|y|z|opacity|spacing|rowSpacing|columnSpacing|radius|rotation|scale|implicitWidth|implicitHeight"
+        "|contentWidth|contentHeight|contentX|contentY|margins|padding|(?:left|right|top|bottom|horizontal|vertical)(?:Margin|Padding|Inset)"
+        "|anchors\\..*|Layout\\..*|font\\.(?:pixelSize|pointSize|letterSpacing|wordSpacing)|lineHeight|border\\.width"
+        "|columns|rows|cellWidth|cellHeight|sourceSize(?:\\..*)?|horizontalAlignment|verticalAlignment)$"));
+    static const QRegularExpression suffix(QStringLiteral("(?:Width|Height|PixelSize|FontSize|IconSize|Margin|Padding|Spacing|Gap|Radius|Inset)$"));
+    return exact.match(name).hasMatch() || suffix.match(lastSegment(name)).hasMatch();
+}
+
+bool layoutScript(const QString &name)   // a function or binding whose name says it lays out
+{
+    static const QRegularExpression re(QStringLiteral(
+        "^_*(?:lay|layout|geom|geometry|place|paginate|ticks)$|(?:Layout|Geom|Geometry|Place|Scale|Ticks)$"));
+    return re.match(lastSegment(name)).hasMatch();
+}
+
+bool pointerHandler(const QString &n)
+{
+    static const QRegularExpression re(QStringLiteral(
+        "^on(?:Pressed|Released|PositionChanged|Clicked|DoubleClicked|Wheel|PressAndHold|Entered|Exited|Tapped"
+        "|TranslationChanged|CentroidChanged|PointChanged|ActiveChanged|HoveredChanged)$"));
+    return re.match(n).hasMatch();
+}
+
+bool selectionBinding(const QString &n)
+{
+    static const QRegularExpression re(QStringLiteral("^(?:selected|checked|current|currentIndex|highlighted|isCurrent|isSelected)$"));
+    return re.match(n).hasMatch();
+}
+
+bool geometryIdent(const QString &id)
+{
+    static const QRegularExpression re(QStringLiteral(
+        "^_*(?:[A-Za-z][\\w$]*(?:Width|Height|W|H)|width|height|x|y|z|W|H|em|px|py|cx|cy|dx|dy|mx|my|rx|ry|rw|rh|w|h"
+        "|[xy][0-9]|mouseX|mouseY|contentX|contentY|avail|room|zoom|userZoom|scale|opacity)$"));
+    return re.match(id).hasMatch();
+}
+
+bool indexIdent(const QString &id)
+{
+    static const QRegularExpression re(QStringLiteral("^_*(?:i|j|k|index|idx|row|col|column)$"));
+    return re.match(id).hasMatch();
+}
+
+bool unitBoundary(double v)
+{
+    const double a = std::abs(v);
+    if (a == 1000 || a == 1024 || a == 3600 || a == 10000) return true;
+    if (a < 999) return false;
+    double r = a;
+    while (r >= 1000) r /= 1000;
+    return r > 999 && r < 1000;
+}
+
+bool inLoopHead(const QString &c, int pos)
+{
+    static const QRegularExpression re(QStringLiteral("\\b(?:for|while)\\s*\\("));
+    const int ls = c.lastIndexOf(QLatin1Char('\n'), pos - 1) + 1;
+    const QString head = c.mid(ls, pos - ls);
+    int at = -1;
+    auto it = re.globalMatch(head);
+    while (it.hasNext()) at = it.next().capturedEnd();
+    if (at < 0) return false;
+    int d = 1;
+    for (int k = at; k < head.size(); ++k) {
+        if (head.at(k) == QLatin1Char('(')) ++d;
+        else if (head.at(k) == QLatin1Char(')') && --d == 0) return false;
+    }
+    return true;
+}
+
+// The literals a file names: `readonly property <int|real|double|var> NAME: <number>` and
+// `const NAME = <number>`.
+QHash<QString, double> namedLiterals(const QString &c)
+{
+    static const QRegularExpression prop(QStringLiteral(
+        "\\breadonly\\s+property\\s+(?:real|int|double|var)\\s+(%1)\\s*:\\s*(-?%2)[ \\t]*(?=[;}\\n]|$)").arg(kId, kNum));
+    static const QRegularExpression cnst(QStringLiteral("\\bconst\\s+(%1)\\s*=\\s*(-?%2)[ \\t]*(?=[;}\\n]|$)").arg(kId, kNum));
+    QHash<QString, double> out;
+    for (const QRegularExpression *re : { &prop, &cnst }) {
+        auto it = re->globalMatch(c);
+        while (it.hasNext()) {
+            const auto m = it.next();
+            out.insert(m.captured(1), m.captured(2).toDouble());
+        }
+    }
+    return out;
+}
+
+// Every relational comparison in a file's script, each counted or excluded with its reason.
+QVector<Hit> scan(const QString &rel, const QString &raw)
+{
+    static const QRegularExpression relRe(QStringLiteral("(?<![<>=!])(<=|>=|<|>)(?![<>=])"));
+    static const QRegularExpression sizeRe(QStringLiteral("\\.(?:length|count)\\s*$"));
+    const bool    js = rel.endsWith(QLatin1String(".js"));
+    const QString c  = strip(raw, Lang::Qml);
+    const LineIndex lines(c);
+    const FileModel fm(c, js);
+    const QSet<QString> paint   = fm.reachableFrom([](const QString &n) { return n == QLatin1String("onPaint"); });
+    const QSet<QString> pointer = fm.reachableFrom(pointerHandler);
+    const QHash<QString, double> named = namedLiterals(c);
+    const QRegularExpression namedRe(QStringLiteral("^(?:%1\\.)*(%1)$").arg(kId));
+    auto namedValue = [&](const QString &s, double *v) {
+        const auto m = namedRe.match(s);
+        if (!m.hasMatch() || !named.contains(m.captured(1))) return false;
+        *v = named.value(m.captured(1));
+        return true;
+    };
+
+    QVector<Hit> out;
+    auto it = relRe.globalMatch(c);
+    while (it.hasNext()) {
+        const auto m  = it.next();
+        const QString L = operandLeft(c, m.capturedStart());
+        const QString R = operandRight(c, m.capturedEnd());
+        double  v = 0;
+        QString other;
+        if (constantValue(R, &v) || namedValue(R, &v)) other = L;
+        else if (constantValue(L, &v) || namedValue(L, &v)) other = R;
+        else continue;   // no literal on either side: not this rule's shape
+        double ignored = 0;
+        if (other.isEmpty() || constantValue(other, &ignored)) continue;   // two constants: not a decision
+
+        Hit h;
+        h.line = lines.line(m.capturedStart());
+        h.text = (L + QLatin1Char(' ') + m.captured(1) + QLatin1Char(' ') + R).simplified();
+        const Owner o = fm.ownerAt(m.capturedStart());
+        const QString shortName = lastSegment(o.name);
+        const QStringList ids = identsOf(other, false), vars = identsOf(other, true);
+        if (o.kind == Owner::None) h.why = QStringLiteral("not script");
+        else if (o.kind == Owner::Bind && layoutBinding(o.name)) h.why = QStringLiteral("layout binding");
+        else if (o.kind != Owner::File && layoutScript(o.name)) h.why = QStringLiteral("layout script");
+        else if ((o.kind == Owner::Bind && shortName == QLatin1String("onPaint")) || (o.kind == Owner::Func && paint.contains(o.name)))
+            h.why = QStringLiteral("paint");
+        else if ((o.kind == Owner::Bind && pointerHandler(shortName)) || (o.kind == Owner::Func && pointer.contains(o.name)))
+            h.why = QStringLiteral("pointer");
+        else if (o.kind == Owner::Bind && selectionBinding(shortName)) h.why = QStringLiteral("selection");
+        else if (v == 0 || v == 1 || v == -1) h.why = QStringLiteral("sentinel");
+        else if ((std::abs(v) < 1e-3) || std::abs(std::abs(v) - 1) < 1e-2) h.why = QStringLiteral("numerical guard");
+        else if (inLoopHead(c, m.capturedStart())) h.why = QStringLiteral("loop bound");
+        else if (unitBoundary(v)) h.why = QStringLiteral("unit boundary");
+        else if (sizeRe.match(other).hasMatch()) h.why = QStringLiteral("size");
+        else if (!vars.isEmpty() && std::all_of(vars.cbegin(), vars.cend(), indexIdent)) h.why = QStringLiteral("index");
+        else if (std::any_of(ids.cbegin(), ids.cend(), geometryIdent)) h.why = QStringLiteral("geometry");
+        out.append(h);
+    }
+    return out;
+}
+
+int counted(const QVector<Hit> &hits)
+{
+    return int(std::count_if(hits.cbegin(), hits.cend(), [](const Hit &h) { return h.why.isEmpty(); }));
+}
+
+// The exception list (qml_rule_allowlist.txt): one line per file, `path | W12 | count | WHY  # #issue`,
+// or `# #a #b` when the file's count spreads over more than one issue. It freezes every file the check
+// counted rules in on 26 Nov 2026 (R-QML-4's exceptions: the calibration screens, #291; the Consistency
+// grade words, #219; the other files); every line names the issues that empty it.
+const char kCalibrationDir[] = "calibration/";
+const int  kCalibrationIssue = 291;
+
+struct Allowed
+{
+    int        count = 0;
+    int        line  = 0;
+    QList<int> issues;
+};
+
+// Parses the list. A line that is not `path | W12 | count (> 0) | WHY  # #issue [#issue …]`, once per
+// file, goes to `bad`; so does a calibration line that does not name #291, and (when `mustExist`) a file
+// that is gone.
+QHash<QString, Allowed> parseAllow(const QString &text, bool mustExist, QStringList *bad)
+{
+    static const QRegularExpression tagRe(QStringLiteral("^(.*\\S)\\s+#\\s*((?:#\\d+\\s*)+)$"));
+    static const QRegularExpression numRe(QStringLiteral("#(\\d+)"));
+    QHash<QString, Allowed> allow;
+    const QStringList ls = text.split(QLatin1Char('\n'));
+    for (int k = 0; k < ls.size(); ++k) {
+        const QString l = ls.at(k).trimmed();
+        if (l.isEmpty() || l.startsWith(QLatin1Char('#'))) continue;
+        const QRegularExpressionMatch tm = tagRe.match(l);
+        const QStringList parts = tm.hasMatch() ? tm.captured(1).split(QLatin1Char('|')) : QStringList();
+        bool okCount = false;
+        const int n = parts.size() == 4 ? parts.at(2).trimmed().toInt(&okCount) : 0;
+        QList<int> issues;
+        const QString tags = tm.captured(2);
+        for (auto it = numRe.globalMatch(tags); it.hasNext();) {
+            const int i = it.next().captured(1).toInt();
+            if (i > 0 && !issues.contains(i)) issues << i;
+        }
+        const QString file = parts.value(0).trimmed();
+        if (!(parts.size() == 4 && parts.at(1).trimmed() == QLatin1String("W12") && okCount && n > 0
+              && !parts.at(3).trimmed().isEmpty() && !issues.isEmpty() && !allow.contains(file)))
+            *bad << QStringLiteral("line %1 is not path | W12 | count (> 0) | WHY  # #issue, once per file").arg(k + 1);
+        else if (file.startsWith(QLatin1String(kCalibrationDir)) && !issues.contains(kCalibrationIssue))
+            *bad << QStringLiteral("line %1 (%2): a calibration screen's line names #%3").arg(k + 1).arg(file).arg(kCalibrationIssue);
+        else if (mustExist && !QFileInfo::exists(absPath(file)))
+            *bad << QStringLiteral("line %1 names a file that does not exist (%2)").arg(k + 1).arg(file);
+        else
+            allow.insert(file, { n, k + 1, issues });
+    }
+    return allow;
+}
+
+// Each file's count against its line: above it fails (`over`, or `unlisted` for a file with no line,
+// which is allowed none); below it is reported so the line can be lowered (`slack`).
+struct Tally
+{
+    QStringList over, slack, unlisted;
+    int frozen = 0, unlistedHits = 0;
+};
+
+Tally tally(const QMap<QString, int> &counts, const QHash<QString, Allowed> &allow)
+{
+    Tally t;
+    for (auto c = counts.cbegin(); c != counts.cend(); ++c) {
+        const QString &rel = c.key();
+        const int n = c.value();
+        const bool listed = allow.contains(rel);
+        const int a = allow.value(rel).count;
+        if (listed) t.frozen += qMin(n, a);
+        if (n > a) {
+            (listed ? t.over : t.unlisted) << rel;
+            if (!listed) t.unlistedHits += n;
+        } else if (listed && n < a) {
+            t.slack << rel;
+        }
+    }
+    return t;
+}
+
+} // namespace w12
+
+void ruleW12()
+{
+    using namespace w12;
+
+    // 1. Planted cases: each shape counts once, and each exclusion keeps its case out, so a scanner that
+    //    stops matching fails here instead of passing the tree.
+    struct Plant { const char *rel; const char *text; int want; const char *what; };
+    const Plant plants[] = {
+        { "plant/A.qml", "Item {\n    function ok(r) { return r.deviationDeg <= 15.0 }\n}\n", 1,
+          "a literal threshold in a function" },
+        { "plant/B.qml", "Item {\n    visible: 20 < imu.batteryPct\n}\n", 1, "a literal on the left, in a binding" },
+        { "plant/C.qml", "Item {\n    readonly property real _gateDeg: 12.0\n    function f(t) { if (t > _gateDeg) go() }\n"
+                         "    property bool b: t.tiltDeg >= root._gateDeg\n}\n", 2,
+          "a named threshold, bare and qualified" },
+        { "plant/D.qml", "Item {\n    Timer { onTriggered: { if (s.gyroDps > 10) pass() } }\n}\n", 1, "a threshold in a handler" },
+        { "plant/E.qml", "Item {\n    readonly property bool passed: reading.score >= 75\n"
+                         "    property color tone: pct > 60 ? \"green\"\n                       : pct > 20 ? \"amber\" : \"red\"\n}\n", 3,
+          "a pass/fail binding, and a two-line colour band" },
+        { "plant/f.js", ".pragma library\nfunction grade(s) { return s < 25 ? \"poor\" : \"ok\" }\n", 1,
+          "a threshold in a .js library" },
+        { "plant/G.qml", "Item {\n    Rectangle { visible: kf.score > 3; width: 4 }\n}\n", 1, "a binding on one line with others" },
+        { "plant/Layout.qml",
+          "Item {\n    width: parent.width > 600 ? 300 : 200\n    Layout.preferredWidth: n > 3 ? 120 : 80\n"
+          "    font { pixelSize: n > 9 ? 12 : 14 }\n    property int cols: root.width / Theme.sp(40) > 4 ? 4 : 2\n"
+          "    function shotLayout(n) { return n > 70 ? 2 : 1 }\n}\n", 0,
+          "layout (layout bindings, a size operand, a layout function) must not count" },
+        { "plant/Other.qml",
+          "Item {\n    visible: list.length > 0 && rows.length >= 3\n    property bool a: state === 3 && (n >> 2) > k\n"
+          "    function f() { for (var i = 0; i < 48; i++) {}  if (Math.abs(d) < 1e-9) return; q.forEach((x) => x) }\n"
+          "    function fmt(ms) { return ms < 1000 ? ms + \" ms\" : ms / 1000 + \" s\" }\n"
+          "    property bool b: index < 2\n    Canvas { onPaint: { if (v > 2) draw() } }\n"
+          "    MouseArea { onPositionChanged: if (Math.abs(mouse.x - cx) < 8) hit() }\n"
+          "    Chip { selected: Math.abs(setting - modelData) < 0.5 }\n    property bool c: dot > 0.9995\n}\n", 0,
+          "sentinels, sizes, equality, shifts, loop bounds, guards, unit boundaries, indices, paint, pointer, selection" },
+    };
+    for (const Plant &p : plants) {
+        const QVector<Hit> hits = scan(QString::fromLatin1(p.rel), QString::fromUtf8(p.text));
+        const int n = counted(hits);
+        check(n == p.want, QStringLiteral("W12 planted %1: %2 counted (want %3)").arg(QString::fromLatin1(p.what)).arg(n).arg(p.want));
+        if (n != p.want)
+            for (const Hit &h : hits) detail(QStringLiteral("%1:%2 %3 [%4]").arg(QString::fromLatin1(p.rel)).arg(h.line).arg(h.text, h.why.isEmpty() ? QStringLiteral("counted") : h.why));
+    }
+
+    // 2. Planted exception lists: the ratchet itself. A frozen file that gains a rule fails, one that
+    //    loses one is reported, a file with no line that gains a rule fails, and a line with no issue,
+    //    or a calibration line naming another issue, is refused.
+    {
+        const char *frozenText = "Item {\n    property color tone: pct > 60 ? \"green\" : pct > 20 ? \"amber\" : \"red\"\n"
+                                 "    function ok(r) { return r.sigmaMs > 5.0 }\n}\n";               // 3 counted
+        const char *newText    = "Item {\n    visible: imu.batteryPct < 30\n}\n";                    // 1 counted
+        QStringList bad;
+        const QHash<QString, Allowed> list = parseAllow(QStringLiteral(
+            "# planted\n"
+            "plant/Grew.qml | W12 | 2 | two bands, frozen  # #1\n"
+            "plant/Shrank.qml | W12 | 4 | four rules, frozen  # #1\n"
+            "plant/Held.qml | W12 | 3 | three rules on two issues, frozen  # #1 #2\n"), false, &bad);
+        check(bad.isEmpty() && list.size() == 3 && list.value(QStringLiteral("plant/Held.qml")).issues == QList<int>{ 1, 2 },
+              QStringLiteral("W12 planted list: three good lines read, one naming two issues (%1)").arg(list.size()));
+        QMap<QString, int> counts;
+        counts.insert(QStringLiteral("plant/Grew.qml"), counted(scan(QStringLiteral("plant/Grew.qml"), QString::fromLatin1(frozenText))));
+        counts.insert(QStringLiteral("plant/Shrank.qml"), counted(scan(QStringLiteral("plant/Shrank.qml"), QString::fromLatin1(frozenText))));
+        counts.insert(QStringLiteral("plant/Held.qml"), counted(scan(QStringLiteral("plant/Held.qml"), QString::fromLatin1(frozenText))));
+        counts.insert(QStringLiteral("plant/New.qml"), counted(scan(QStringLiteral("plant/New.qml"), QString::fromLatin1(newText))));
+        const Tally t = tally(counts, list);
+        check(t.over == QStringList{ QStringLiteral("plant/Grew.qml") },
+              QStringLiteral("W12 planted: a new rule in a frozen file fails (%1)").arg(t.over.join(QStringLiteral(", "))));
+        check(t.slack == QStringList{ QStringLiteral("plant/Shrank.qml") },
+              QStringLiteral("W12 planted: a lowered count is reported (%1)").arg(t.slack.join(QStringLiteral(", "))));
+        check(t.unlisted == QStringList{ QStringLiteral("plant/New.qml") } && t.unlistedHits == 1,
+              QStringLiteral("W12 planted: a new file with a rule fails (%1)").arg(t.unlisted.join(QStringLiteral(", "))));
+        QStringList refused;
+        parseAllow(QStringLiteral("plant/NoIssue.qml | W12 | 2 | no issue named\n"
+                                  "calibration/Plant.qml | W12 | 2 | a calibration screen on another issue  # #7\n"
+                                  "plant/Zero.qml | W12 | 0 | an empty line  # #1\n"), false, &refused);
+        check(refused.size() == 3, QStringLiteral("W12 planted list: a line with no issue, a calibration line off #%1 and a zero count are refused (%2 of 3)")
+                                      .arg(kCalibrationIssue).arg(refused.size()));
+    }
+
+    // 3. The exception list.
+    QHash<QString, Allowed> allow;
+    {
+        QString text;
+        const QString path = QStringLiteral(PP_QML_RULE_ALLOWLIST);
+        if (!readText(path, &text)) {
+            check(false, QStringLiteral("W12 read the exception list (%1)").arg(path));
+            return;
+        }
+        QStringList bad;
+        allow = parseAllow(text, true, &bad);
+        for (const QString &b : bad) detail(b);
+        int calibration = 0;
+        for (auto a = allow.cbegin(); a != allow.cend(); ++a)
+            if (a.key().startsWith(QLatin1String(kCalibrationDir))) ++calibration;
+        check(bad.isEmpty() && calibration > 0,
+              QStringLiteral("W12 the exception list: each line a file, a count, a reason and an issue (%1 lines, %2 calibration)")
+                  .arg(allow.size()).arg(calibration));
+    }
+
+    // 4. The tree: every production .qml and .js under src/Gui.
+    QStringList files;
+    for (const QString &f : filesUnder(QString(), { QStringLiteral("*.qml"), QStringLiteral("*.js") }, true)) {
+        const QString rel = relPath(f);
+        if (rel.startsWith(QLatin1String("tests/")) || rel.contains(QLatin1String("/tests/"))) continue;
+        files << rel;
+    }
+    check(files.size() >= 300, QStringLiteral("W12 read the production QML (%1 files)").arg(files.size()));
+
+    QMap<QString, int> excluded;
+    QMap<QString, int> counts;
+    QHash<QString, QVector<Hit>> hitsOf;
+    for (const QString &rel : files) {
+        QString raw;
+        if (!readText(absPath(rel), &raw)) {
+            check(false, QStringLiteral("W12 read %1").arg(rel));
+            continue;
+        }
+        const QVector<Hit> hits = scan(rel, raw);
+        for (const Hit &h : hits)
+            if (!h.why.isEmpty()) ++excluded[h.why];
+        counts.insert(rel, counted(hits));
+        hitsOf.insert(rel, hits);
+    }
+    const Tally t = tally(counts, allow);
+    const auto listHits = [&](const QString &rel) {
+        detail(QStringLiteral("%1: %2 counted, %3 allowed").arg(rel).arg(counts.value(rel)).arg(allow.value(rel).count));
+        for (const Hit &h : hitsOf.value(rel))
+            if (h.why.isEmpty()) detail(QStringLiteral("    %1:%2  %3").arg(rel).arg(h.line).arg(h.text));
+    };
+    for (const QString &o : t.over) listHits(o);
+    check(t.over.isEmpty(), QStringLiteral("W12 no listed file holds more rules than its line allows (%1 frozen in %2 files)")
+                                .arg(t.frozen).arg(allow.size()));
+    for (const QString &s : t.slack)
+        info(QStringLiteral("%1 allows %2, counts %3 — lower the count (exception list line %4)")
+                 .arg(s).arg(allow.value(s).count).arg(counts.value(s)).arg(allow.value(s).line));
+    for (const QString &u : t.unlisted) listHits(u);
+    check(t.unlisted.isEmpty(), QStringLiteral("W12 no rule in a QML file without a line (%1 found)").arg(t.unlistedHits));
+    QStringList ex;
+    for (auto e = excluded.cbegin(); e != excluded.cend(); ++e) ex << QStringLiteral("%1 %2").arg(e.key()).arg(e.value());
+    info(QStringLiteral("W12 comparisons against a literal not counted: %1").arg(ex.join(QStringLiteral(", "))));
+}
+
 struct Rule
 {
     const char *id;
@@ -1434,6 +2131,7 @@ const Rule kRules[] = {
     { "W9", "no QML outside the allow-list uses the slot-letter API", ruleW9 },
     { "W10", "the shell and the indicator name no step", ruleW10 },
     { "W11", "the routines' mirrored gates equal their C++ constants", ruleW11 },
+    { "W12", "no rule is built in QML; the exception list's files are frozen", ruleW12 },
 };
 
 } // namespace

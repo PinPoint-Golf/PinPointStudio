@@ -104,9 +104,9 @@ it is downloaded on demand at runtime, only when the user opts in, after a size 
 *Owner:* Product Owner · *Stage:* Build · *Compliance:* none yet
 
 **AD-52.** A rule must be built in C++, never in QML: a threshold, a tolerance, maths on a reading, or a pass/fail decision on a measured value ([R-QML-4](../artefacts/information_model.md), "QML contains no domain rules"). QML binds, lays out and sequences what C++ decides. A new routine or flow puts its rules in C++ from its first commit.
-In a review, a QML change that adds a rule is a blocking finding ([AG-22](review.md): a breach of a HARD rule). The calibration routines' QML is an accepted exception, recorded on #291; it may shrink and must not grow. It is not the only QML that holds rules today: a check of the tree on 25 Nov found about 73 more in other screens (battery, sync and quality bands, the framing page's gates and others), whose treatment is not yet decided (proposed, for the Product Owner and the Solution Architect).
+In a review, a QML change that adds a rule is a blocking finding ([AG-22](review.md): a breach of a HARD rule). R-QML-4 names three exceptions: the calibration screens (#291), the Consistency grade words (#219, by the Design Lead's ruling) and the frozen files on the list. Each may shrink and must not grow: every file the check counts rules in is frozen at its count on the check's exception list (`src/Gui/tests/qml_rule_allowlist.txt`), each line with its issue.[^ad-52-w12]
 *Why:* 3,978 lines of calibration logic built up in QML because nothing checked for it; moving it now is a 22-hour rework of proven routines.[^ad-52]
-*Owner:* Solution Architect · *Stage:* Build and Review · *Compliance:* a review today; a lint ratchet is built but not committed, waiting on that decision
+*Owner:* Solution Architect · *Stage:* Build and Review · *Compliance:* a review; the check `session_setup_lint_test` W12, which counts the threshold comparisons in every production QML and JS file under `src/Gui`: a file above its line on the exception list fails, and a file with no line is allowed none
 
 **AG-37.** Before analysis or metrics work, the analysis pipeline guide (`docs/developer/analysis_pipeline_developer_guide.md`) must be read and its new-stage checklist followed; before diagnostics work, the diagnostics guide (`docs/developer/diagnostics_developer_guide.md`).
 *Why:* each guide's checklist holds the steps a new stage or condition needs.[^om-13]
@@ -148,5 +148,6 @@ In a review, a QML change that adds a rule is a blocking finding ([AG-22](review
 [^bt-15]: Product Owner, 23 Nov 2026.
 [^om-10]: Product Owner, 25 Nov 2026 (#195, OM-10).
 [^ad-52]: Product Owner and Solution Architect, 25 Nov 2026: the calibration QML stays as technical debt (lever C-V1, #291), "so long as we don't repeat the same mistake in the future".
+[^ad-52-w12]: Product Owner and Solution Architect, 26 Nov 2026: the check lands with every file outside calibration frozen at its count on a shrink-only exception list, each line pointing to an issue; the list's owner is the Solution Architect; R-QML-4's exceptions are the calibration screens, the Consistency grade words and the frozen files, and AD-52 matches.
 [^ag-41]: Product Owner, 25 Nov 2026 (the stash incident in lane 2).
 [^bt-44]: Product Owner, 25 Nov 2026.

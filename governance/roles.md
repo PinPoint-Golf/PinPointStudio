@@ -20,7 +20,7 @@ A decision is attributed to the role whose domain it is in. Where a decision spa
 | Role | Documents |
 |---|---|
 | Product Owner | The plan: `docs/implementation/swe-audit/04-remediation-plan.md` (and the audit's deferred work list, `05-deferred-worklist.md`) |
-| Solution Architect | The information model and its decision register: `governance/artefacts/information_model.md`; the target architecture, `docs/implementation/swe-audit/03-target-architecture.md`; the lint rules (`architecture_lint_test` A1–A8) and `src/Gui/tests/architecture_allowlist.txt` |
+| Solution Architect | The information model and its decision register: `governance/artefacts/information_model.md`; the target architecture, `docs/implementation/swe-audit/03-target-architecture.md`; the lint rules (`architecture_lint_test` A1–A8) and `src/Gui/tests/architecture_allowlist.txt`; the QML-rule check's exception list, `src/Gui/tests/qml_rule_allowlist.txt` (`session_setup_lint_test` W12, [AD-52](controls/build.md))[^sa-w12] |
 | Design Lead | The design system: `governance/artefacts/design_system/` (README, component pages, variability page, generated `tokens.json`); `src/Gui/theme/Theme.qml`; the design-system lint (`design_system_lint_test` D1–D5) and `src/Gui/tests/design_system_allowlist.txt` |
 | Coaching Lead | The norms and the coaching content: the norms and fault edges the diagnostics grade against, `governance/artefacts/normative_reference.md`, and the words a golfer reads |
 
@@ -36,3 +36,5 @@ Agents do the work. These are agent roles, not human roles, and **an agent never
 | **Implementer** | Builds one brief: code, tests and docs. |
 | **Reviewer** | Reviews an implementer's work independently against its brief and the rules, and signs off or sends it back. |
 | **Advisor** | Gives a second opinion on a plan or a finding when asked. Decides nothing. |
+
+[^sa-w12]: Product Owner and Solution Architect, 26 Nov 2026: the QML-rule check lands with a shrink-only exception list, each line pointing to an issue, and its owner is the Solution Architect.

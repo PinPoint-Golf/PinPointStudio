@@ -1,0 +1,81 @@
+# QML rule exception list (session_setup_lint_test.cpp, W12; AD-52 in governance/controls/build.md; R-QML-4 in
+# governance/artefacts/information_model.md). Owner: the Solution Architect (governance/roles.md).
+#
+# One line per file:   path under src/Gui | W12 | rules allowed | WHY  # #issue [#issue …]
+# Every file the check counted rules in on 26 Nov 2026, when it landed, is frozen here at its count (the Product
+# Owner and the Solution Architect, 26 Nov 2026). They fall under R-QML-4's three exceptions:
+#   - the calibration screens (calibration/), until #291 moves their rules to C++; a calibration line names #291;
+#   - the Consistency grade words (#219), kept in QML by the Design Lead's ruling;
+#   - the frozen files, each pointing to the issue, grouped by area, that moves its rules or clears its line.
+# A file whose count rises fails the check; one whose count falls is reported so its line can be lowered, in the same
+# commit (delete the line at 0). The list only shrinks: never raise a count, never add a line. A file with no line is
+# allowed none. What counts as a rule is written in the test's header (W12). Line numbers in a WHY are from 2642c217.
+
+# ── The calibration screens (#291) ──
+calibration/ArmCalibrationStatus.qml | W12 | 3 | the arm routines' step gates read as status (the HackMotion step number against its phases: 141, 302, 359)  # #291
+calibration/HackMotionArmRoutine.qml | W12 | 4 | the HackMotion arm routine's step gates and its minimum raise travel (476, 482, 495, 697)  # #291
+calibration/TrunkRoutine.qml | W12 | 7 | the trunk routine's still, upright and turn gates, mirrored from their C++ constants, which W11 checks (392, 394, 490, 530, 554, 572, 574)  # #291
+calibration/WitmotionArmRoutine.qml | W12 | 4 | the Witmotion arm routine's held-still ceiling and its mount gate, which W11 checks (327, 360 ×2, 478)  # #291
+
+# ── The Consistency grade words (#219) ──
+components/ConsistencyVocabulary.qml | W12 | 1 | the grade words' vocabulary: a grade must be 0 to 5 (97)  # #219
+
+# ── Battery levels (#313) ──
+imu/CapturePage.qml | W12 | 3 | sensor battery bands (268, 271, 281)  # #313
+imu/PpImuPanel.qml | W12 | 2 | sensor chip battery bands (342, 343)  # #313
+settings/ImusPanel.qml | W12 | 6 | sensor card battery bands: strip, gauge, number (86 ×2, 631, 632, 644, 645)  # #313
+settings/PhonesPanel.qml | W12 | 3 | phone battery bands (531, 532, #313); phone sync spread above 5 ms (541, #314)  # #313 #314
+monitor/RmPpcpPhoneCard.qml | W12 | 4 | phone battery bands (110, 111, #313); phone sync spread above 2 ms (240, #314); zero padding (95, #319)  # #313 #314 #319
+session/PpSessionToolbar.qml | W12 | 5 | the session bar's battery bands (88, 98, 128, 136, #313); phone sync spread above 5 ms (112, #314)  # #313 #314
+
+# ── Sync, buffer, processor and disk warnings (#314) ──
+monitor/RmDeviceCard.qml | W12 | 1 | ring buffer above 85% full (277)  # #314
+monitor/RmSourceRow.qml | W12 | 2 | a frame gap above 100 ms; ring buffer above 85% full (111, 132)  # #314
+monitor/ScreenResourceMonitor.qml | W12 | 1 | a processor above 85% busy (985)  # #314
+settings/StoragePanel.qml | W12 | 4 | under 10 GB free and over 10 hours left (315, 326, 665, #314); a plural (661, #319)  # #314 #319
+
+# ── Quality, strength and grade bands (#315) ──
+theme/Theme.qml | W12 | 9 | the shot-quality quartile bands, mark and tints; the strength level's bands (680–693, 754, 755)  # #315
+components/MeasurementVocabulary.qml | W12 | 1 | a measurement grade must be 0 to 5 (84)  # #315
+components/PpVariabilityFunnel.qml | W12 | 2 | a grade's tone (171, 172)  # #315
+components/PpVariabilityMark.qml | W12 | 3 | a grade's tone and its 0 to 5 range (149, 165, 168)  # #315
+shot/PpShotPipRow.qml | W12 | 2 | the findings count read as a severity (67, 68)  # #315
+
+# ── Outliers, minimum swing counts and tolerances (#316) ──
+diagnostics/PpSmallMultiple.qml | W12 | 1 | the picked shot's distance to the pass edge drawn only above a z-score of 2 (93)  # #316
+diagnostics/PpQuestions.qml | W12 | 1 | "What fired with it?" only when a condition co-fired at least twice (85)  # #316
+charts/PpChartsRelationsView.qml | W12 | 1 | the correlation matrix only with at least 3 readings (155)  # #316
+typeset/PpChMatrix.qml | W12 | 1 | the matrix only with at least 3 readings (110)  # #316
+report/PpSessionsTableRow.qml | W12 | 2 | "No habits" only with at least 3 swings (206, #316); an ordinal (143, #319)  # #316 #319
+athlete/AthleteClubsSection.qml | W12 | 1 | a gap over 120 mm starts a new band group (188)  # #316
+report/PpReportSheet.qml | W12 | 3 | a sheet's text over its word limit (154, 158, 282)  # #316
+swing3d/SwingViz3DView.qml | W12 | 2 | a frame within 40 ms counts as near the position (307, 593)  # #316
+viz/ImuVizView.qml | W12 | 1 | the acceleration arrow only above a magnitude of 0.05 (158)  # #316
+review/PpChartSummary.qml | W12 | 1 | an angle wrap at -180 (141)  # #316
+
+# ── The framing page's gates (#317) ──
+setup/pages/FramingPage.qml | W12 | 6 | the framing gates: keypoint confidence, sample age, headroom (80 ×2, 82, 83, 89, 97)  # #317
+
+# ── Camera frame-rate options (#318) ──
+settings/CamerasPanel.qml | W12 | 8 | the impact camera's minimum rate and the frame rates offered (558, 616–618, #318); float matching (926, 1167, #319)  # #318 #319
+
+# ── Counted, but not rules (#319) ──
+report/PpReportTrust.qml | W12 | 1 | layout (44)  # #319
+report/PpSwingGrid.qml | W12 | 3 | layout (74, 84, 271)  # #319
+typeset/PpTypeset.qml | W12 | 4 | the size class (105 ×3); presentation of a graded level (158)  # #319
+report/PpSessionReportList.qml | W12 | 1 | an ordinal (404)  # #319
+settings/ArchivingPanel.qml | W12 | 1 | a plural (86)  # #319
+home/PpcpPairDialog.qml | W12 | 1 | zero padding (83)  # #319
+shell/PpAnalysingBadge.qml | W12 | 1 | a time format past 60 s (56)  # #319
+shot/PpShotCarousel.qml | W12 | 1 | a time format past 60 s (888)  # #319
+setup/setup_capability_rows.js | W12 | 1 | "camera" or "cameras" (154)  # #319
+charts/PpChPositionProfile.qml | W12 | 1 | UI state (159)  # #319
+diagnosticmodel/ModelGraph.qml | W12 | 1 | UI state (2023)  # #319
+charts/PpReaderPlace.qml | W12 | 1 | a retry bound (321)  # #319
+report/PpReportPrintHost.qml | W12 | 2 | the print host's settle and retry bounds (158 ×2)  # #319
+report/PpWorkOnPage.qml | W12 | 1 | UI state (39)  # #319
+components/PpTopoBackground.qml | W12 | 1 | animation (158)  # #319
+viz/BodyVizView.qml | W12 | 1 | easing (293)  # #319
+settings/MicrophonesPanel.qml | W12 | 1 | animation (536)  # #319
+athlete/ScreenAthleteForm.qml | W12 | 1 | a "no handicap" sentinel (158)  # #319
+cameras/PpCameraFrame.qml | W12 | 1 | fewer than 3 points to draw (272)  # #319
