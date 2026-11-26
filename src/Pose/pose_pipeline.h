@@ -34,6 +34,7 @@
 //                             the pre-step-2 pipeline exactly.
 
 #include <algorithm>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <exception>
@@ -41,11 +42,18 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 #include <vector>
 
 namespace pinpoint::analysis {
+
+// A pose run whose owner asked it to stop (ShotAnalysisRunnerOptions::stop, #294): thrown by the run between frames, and
+// by a stoppable InstanceCache::acquire while it waits. The analysis service reads the job's stop, not this type.
+struct PoseRunStopped : std::runtime_error {
+    PoseRunStopped() : std::runtime_error("the pose run was stopped (its owner asked: the app is quitting)") {}
+};
 
 // ── Step 1: process-wide keyed instance cache ───────────────────────────────
 //
@@ -62,6 +70,11 @@ namespace pinpoint::analysis {
 // result the `keep` predicate rejects (model missing, load failed) is handed to
 // the caller for this run only and NOT cached, so the next run retries — the L
 // model downloaded mid-session is picked up without a restart.
+//
+// STOPPABLE WAITS (#294). acquire() given a `stopped` predicate waits for the cache's mutex and the entry's lock by
+// polling (try_lock, every 10 ms) and throws PoseRunStopped once `stopped` says so: a run queued behind the launch
+// warm-up's load (which holds the cache's mutex for the whole load, 20-97 s on the Mac) can then give up at quit. A
+// stop cannot end a load or a run already in progress. Without a predicate the waits are the plain blocking locks.
 template <class Key, class T>
 class InstanceCache {
     struct Entry {
@@ -92,11 +105,12 @@ public:
     };
 
     template <class Factory, class Keep>
-    Lease acquire(const Key &key, Factory &&make, Keep &&keep)
+    Lease acquire(const Key &key, Factory &&make, Keep &&keep, const std::function<bool()> &stopped = {})
     {
         std::shared_ptr<Entry> e;
         {
-            std::lock_guard<std::mutex> lk(m_mutex);
+            std::unique_lock<std::mutex> lk(m_mutex, std::defer_lock);
+            lockOrStop(lk, stopped);
             auto it = m_entries.find(key);
             if (it != m_entries.end()) {
                 e = it->second;
@@ -114,9 +128,10 @@ public:
             }
         }
         Lease l;
-        l.m_lock  = std::unique_lock<std::mutex>(e->use);   // outside m_mutex: waiting
-        l.m_obj   = e->obj.get();                           // here must not block
-        l.m_entry = std::move(e);                           // other keys' lookups
+        l.m_lock  = std::unique_lock<std::mutex>(e->use, std::defer_lock);   // outside m_mutex: waiting
+        lockOrStop(l.m_lock, stopped);                                       // here must not block
+        l.m_obj   = e->obj.get();                                            // other keys' lookups
+        l.m_entry = std::move(e);
         return l;
     }
 
@@ -127,6 +142,20 @@ public:
     }
 
 private:
+    // The plain lock without a predicate; with one, a poll that throws PoseRunStopped once it says stop.
+    static void lockOrStop(std::unique_lock<std::mutex> &lk, const std::function<bool()> &stopped)
+    {
+        if (!stopped) {
+            lk.lock();
+            return;
+        }
+        while (!lk.try_lock()) {
+            if (stopped())
+                throw PoseRunStopped();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
     mutable std::mutex                       m_mutex;
     std::map<Key, std::shared_ptr<Entry>>    m_entries;
 };

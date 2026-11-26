@@ -649,6 +649,7 @@ struct PoseStage : AnalysisStage {
             ctx.job.progress(0.10f);
             opt.progress = [&job = ctx.job](float f) { job.progress(0.10f + 0.60f * f); };
         }
+        opt.stop = ctx.job.stop;   // #294: the owner's stop reaches the pose run (its wait and its frames)
         QElapsedTimer poseWall;
         poseWall.start();
         if (!ctx.job.posePreloaded.frames.empty()) {
@@ -2354,6 +2355,7 @@ struct DtlPoseStage : AnalysisStage {
         dopt.handedness           = ctx.job.handedness;
         dopt.motionCaptureQuality = ctx.job.motionCaptureQuality;
         dopt.tuningOverrides      = ctx.job.tuningOverrides;
+        dopt.stop                 = ctx.job.stop;            // #294: the owner's stop, as the face-on pass's
         dopt.twoPass              = false;                   // the span is inherited, not discovered
         dopt.scanStartUs          = scanLo;
         dopt.scanEndUs            = scanHi;

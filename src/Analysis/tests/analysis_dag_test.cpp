@@ -7,7 +7,9 @@
 //   3. detail->series: appenders that finish in REVERSE authored order still splice in authored
 //      order; a reader sees exactly its authored prefix; the final series equals runStages';
 //   4. a halt skips every later stage, as the loop does;
-//   5. two stages holding the same camera never overlap; different cameras do.
+//   5. two stages holding the same camera never overlap; different cameras do;
+//   6. the owner's stop (ShotAnalysisJob::stop, #294): asked while stage k runs, stage k and any stage running beside
+//      it finish, no later stage starts, and both runners throw AnalysisStopped; asked before the run, nothing runs.
 
 #include "../analysis_dag.h"
 
@@ -57,6 +59,26 @@ private:
     QString   m_name;
     StageDecl m_decl;
     int       m_sleep;
+};
+
+// A stage that counts its runs and, when given a stop flag, sets it at the end of its run (the quit arriving
+// mid-stage, while the stage beside it is still running).
+class CountingStage : public FakeStage {
+public:
+    CountingStage(QString n, StageDecl d, std::atomic<int> &runs, int sleepMs = 0,
+                  std::shared_ptr<std::atomic<bool>> stopOnRun = {})
+        : FakeStage(std::move(n), std::move(d), sleepMs), m_runs(runs), m_stopOnRun(std::move(stopOnRun)) {}
+    void run(AnalysisContext &ctx) override
+    {
+        FakeStage::run(ctx);   // its sleep: the stage beside it has started by now
+        if (m_stopOnRun) m_stopOnRun->store(true);
+        ++m_runs;
+        ran = true;
+    }
+    bool ran = false;
+private:
+    std::atomic<int>                  &m_runs;
+    std::shared_ptr<std::atomic<bool>> m_stopOnRun;
 };
 
 class Undeclared : public AnalysisStage {
@@ -278,6 +300,81 @@ int main()
         check(overlap(ctx.trace[2], ctx.trace[3]), "two readers of one store ran at once");
         check(ctx.trace[2].startNs >= ctx.trace[1].endNs && ctx.trace[4].startNs >= ctx.trace[1].endNs,
               "every reader started after the store was built");
+    }
+
+    std::printf("6. the owner's stop (#294)\n");
+    {
+        // S0 → { Stopper (sets the stop as it runs, 40 ms), Beside (60 ms, no edge to Stopper) } → After1 → After2.
+        const auto build = [](std::atomic<int> &runs, std::shared_ptr<std::atomic<bool>> stop,
+                              std::vector<CountingStage *> &out) {
+            SessionProfile p;
+            auto add = [&](CountingStage *f) { out.push_back(f); p.stages.emplace_back(f); };
+            add(new CountingStage("S0", decl({}, { "seg" }), runs));
+            add(new CountingStage("Stopper", decl({ "seg" }, { "ball" }), runs, 40, stop));
+            add(new CountingStage("Beside", decl({ "seg" }, { "detail.impact" }), runs, 60));
+            add(new CountingStage("After1", decl({ "ball", "detail.impact" }, { "detail.score" }), runs));
+            add(new CountingStage("After2", decl({ "detail.score" }, { "detail.bindings" }), runs));
+            return p;
+        };
+        for (int parallel = 0; parallel < 2; ++parallel) {
+            std::atomic<int> runs{ 0 };
+            auto stop = std::make_shared<std::atomic<bool>>(false);
+            ShotAnalysisJob sjob;
+            sjob.stop = stop;
+            std::vector<CountingStage *> st;
+            SessionProfile p = build(runs, stop, st);
+            AnalysisContext ctx{ CaptureCapabilities{}, sjob, nullptr };
+            ctx.detail = std::make_shared<SwingAnalysis>();
+            bool threw = false;
+            try {
+                if (parallel) runStagesParallel(p, ctx, 4);
+                else runStages(p, ctx);
+            } catch (const AnalysisStopped &) {
+                threw = true;
+            }
+            const char *who = parallel ? "DAG" : "loop";
+            std::printf("    %s: ran S0 %d Stopper %d Beside %d After1 %d After2 %d\n", who, st[0]->ran, st[1]->ran,
+                        st[2]->ran, st[3]->ran, st[4]->ran);
+            check(threw, parallel ? "DAG: a stop asked mid-stage ends the run with AnalysisStopped"
+                                  : "loop: a stop asked mid-stage ends the run with AnalysisStopped");
+            check(st[0]->ran && st[1]->ran && !st[3]->ran && !st[4]->ran,
+                  parallel ? "DAG: the stage in flight finishes, no later stage starts"
+                           : "loop: the stage in flight finishes, no later stage starts");
+            if (parallel)
+                check(st[2]->ran, "DAG: the stage running beside it finishes too (a stage is not stopped part-way)");
+            else
+                check(!st[2]->ran, "loop: the next stage in authored order does not start");
+        }
+        // Asked before the run: no stage starts, either way.
+        for (int parallel = 0; parallel < 2; ++parallel) {
+            std::atomic<int> runs{ 0 };
+            ShotAnalysisJob sjob;
+            sjob.stop = std::make_shared<std::atomic<bool>>(true);
+            std::vector<CountingStage *> st;
+            SessionProfile p = build(runs, {}, st);
+            AnalysisContext ctx{ CaptureCapabilities{}, sjob, nullptr };
+            ctx.detail = std::make_shared<SwingAnalysis>();
+            bool threw = false;
+            try {
+                if (parallel) runStagesParallel(p, ctx, 4);
+                else runStages(p, ctx);
+            } catch (const AnalysisStopped &) {
+                threw = true;
+            }
+            check(threw && runs.load() == 0, parallel ? "DAG: stopped before the run, no stage runs"
+                                                      : "loop: stopped before the run, no stage runs");
+        }
+        // No stop (the live path): the same profile runs every stage.
+        {
+            std::atomic<int> runs{ 0 };
+            ShotAnalysisJob sjob;
+            std::vector<CountingStage *> st;
+            SessionProfile p = build(runs, {}, st);
+            AnalysisContext ctx{ CaptureCapabilities{}, sjob, nullptr };
+            ctx.detail = std::make_shared<SwingAnalysis>();
+            runStagesParallel(p, ctx, 4);
+            check(runs.load() == 5, "no stop given: every stage runs, as before");
+        }
     }
 
     std::printf("analysis_dag_test: %s (%d failure%s)\n", g_fail ? "FAIL" : "PASS", g_fail, g_fail == 1 ? "" : "s");

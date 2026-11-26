@@ -44,6 +44,7 @@
 #include <initializer_list>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <vector>
 
 #include "shot_analyzer.h"      // ShotAnalysisJob
@@ -401,9 +402,17 @@ struct SessionProfile {
     std::vector<std::unique_ptr<AnalysisStage>> stages;
 };
 
+// A job whose owner asked it to stop (ShotAnalysisJob::stop, #294): thrown by the schedulers before a stage would start,
+// so no later stage runs and analyze() returns nothing. The analysis service turns it into a failed result that says
+// "stopped" (AnalysedRecording::stopped). A stage already running finishes first: a stage is not stopped part-way.
+struct AnalysisStopped : std::runtime_error {
+    AnalysisStopped() : std::runtime_error("the analysis was stopped (its owner asked: the app is quitting)") {}
+};
+
 // The orchestrator: authored order, halted short-circuit (recorded as skip
 // "halted"), canRun gate (recorded with the stage's skipReason), per-stage wall
-// clock into ctx.trace only. No registration, no sorting, no parallelism.
+// clock into ctx.trace only. No registration, no sorting, no parallelism. A stop asked of the job
+// (ShotAnalysisJob::stop) throws AnalysisStopped before the next stage starts.
 inline void runStages(const SessionProfile &profile, AnalysisContext &ctx)
 {
     // Offsets are from ctx.wall (started by the analyzer at the top of analyze()); a
@@ -415,6 +424,8 @@ inline void runStages(const SessionProfile &profile, AnalysisContext &ctx)
         StageTraceEntry e;
         e.name = stage->name();
         e.startNs = clock.nsecsElapsed();
+        if (ctx.job.stopRequested())
+            throw AnalysisStopped();   // #294: no stage starts once the owner has asked the job to stop
         if (ctx.halted) {
             e.skipReason = QStringLiteral("halted");
         } else if (!stage->canRun(ctx)) {

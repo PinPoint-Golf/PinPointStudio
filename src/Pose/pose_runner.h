@@ -27,8 +27,10 @@
 #include <QJsonObject>
 #include <QString>
 #include <QVariantMap>
+#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 
 #include "types.h"
@@ -105,6 +107,11 @@ struct ShotAnalysisRunnerOptions {
     // position, not posed-frame count — the sparse zone advances it in
     // stride jumps). Called from the worker thread; may be null.
     std::function<void(float)> progress;
+
+    // The owner's stop (#294; ShotAnalysisJob::stop): checked while the run waits for the cached pose session and
+    // before each frame is posed; once set, run() throws PoseRunStopped (pose_pipeline.h). A load or an inference
+    // already in progress is not ended part-way. Null: never stopped.
+    std::shared_ptr<const std::atomic<bool>> stop;
 
     // Offline ViTPose ORT intra-op thread count (pose.intraOpThreads). Seed for
     // the load()-time pool size; the tuningOverrides key of the same name (below)

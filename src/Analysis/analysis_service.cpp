@@ -38,8 +38,18 @@ AnalysedRecording AnalysisService::analyseJob(const pinpoint::recording::Recordi
         out.analysis.error = QStringLiteral("no recorded streams to analyse");
         return out;
     }
+    // A stopped job (#294): nothing runs, or nothing that ran is returned, and the verdicts are not reached.
+    const auto stopped = [&out] {
+        out.analysis       = ShotAnalysisResult{};
+        out.analysis.error = QStringLiteral("stopped: the app is quitting");
+        out.stopped        = true;
+        return out;
+    };
+    if (job.stopRequested())
+        return stopped();
     // Exception barrier: anything escaping a stage (e.g. a cv::Exception on malformed frame
     // geometry) degrades to a failed analysis rather than terminating the caller's thread.
+    // A stop asked while it ran ends it with AnalysisStopped (or the pose runner's PoseRunStopped).
     try {
         auto analyzer = makeShotAnalyzer();
         out.analysis  = analyzer->analyze(*recording.window, job);
@@ -50,6 +60,8 @@ AnalysedRecording AnalysisService::analyseJob(const pinpoint::recording::Recordi
         out.analysis       = ShotAnalysisResult{};
         out.analysis.error = QStringLiteral("analyzer threw an unknown exception");
     }
+    if (job.stopRequested())   // whatever ended it, a run its owner stopped returns nothing
+        return stopped();
     // The verdicts do not depend on the analysis: they are the Recording's.
     out.integrity = integrityFor(recording);
     return out;

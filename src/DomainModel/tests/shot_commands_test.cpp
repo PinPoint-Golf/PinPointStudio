@@ -64,6 +64,9 @@
 //       holds keeps today's write through the repository; and (round 2, review 1 CN-1) a camera shot whose folder the
 //       launch monitor filled (the rescue: allocated captured, its document device-only) is routed by its DOCUMENT's
 //       classification, as before — its rows refreshed through the Shot, never analysed (53a3bb0a)
+//   (#294) C16h a quit during a re-analysis: stopForQuit drops the queue, the swing in flight sees its stop (the
+//       stub waits for it), and nothing is written, even a result that comes back ok; both swings' files are
+//       byte-identical before and after, the controller holds neither, and it starts nothing more
 //   (round 2, CN-3b) C16g the Shot's write-back of a camera shot writes the same document and the same swing-file bytes
 //       as HEAD's path (persistReanalysis straight to the repository), for the same result and options
 //   (round 2, CN-2) C15k a session its Athlete already holds is answered from memory: its session.json unreadable,
@@ -106,8 +109,10 @@
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QThreadPool>
 
+#include <atomic>
 #include <cstdio>
 #include <memory>
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
@@ -121,16 +126,26 @@ using namespace pinpoint;
 namespace {
 ShotRef                         g_stubReadShot;
 bool                            g_stubHadReader = false;
-int                             g_stubCalls     = 0;
+std::atomic<int>                g_stubCalls{ 0 };
 pinpoint::analysis::ReanalyzeResult g_stubResult;
+// C16h (#294): the stub runs until its stop is set (at most 5 s), as a stage in flight does, and says it saw it.
+std::atomic<bool>               g_stubWaitForStop{ false };
+std::atomic<bool>               g_stubSawStop{ false };
 }
 namespace pinpoint::analysis {
-ReanalyzeResult reanalyzeShot(const RecordingSource &source, const ReanalyzeOptions &)
+ReanalyzeResult reanalyzeShot(const RecordingSource &source, const ReanalyzeOptions &opts)
 {
     ++g_stubCalls;
     g_stubReadShot  = source.shot();
     g_stubHadReader = !source.isNull();
-    return g_stubResult;
+    if (g_stubWaitForStop.load()) {
+        QElapsedTimer t;
+        t.start();
+        while (!(opts.stop && opts.stop->load()) && t.elapsed() < 5000)
+            QThread::msleep(2);
+        g_stubSawStop = opts.stop && opts.stop->load();
+    }
+    return g_stubResult;   // ok, with an analysis: the controller must still write nothing once stopped
 }
 } // namespace pinpoint::analysis
 
@@ -1078,6 +1093,62 @@ static void reanalysisThroughTheShot()
     } else {
         check(QStringLiteral("C16g two shots with the same camera document"), false);
     }
+
+    // C16h (#294): a quit during a re-analysis stops it, and nothing is written.
+    Shot *q1 = shotWithDocument(s, rig);
+    Shot *q2 = shotWithDocument(s, rig);
+    if (!q1 || !q2) {
+        check(QStringLiteral("C16h two shots with a camera document"), false);
+        return;
+    }
+    const auto folderBytes = [](const QString &dir) {   // every file of the swing folder, name and bytes
+        QByteArray all;
+        const QStringList names = QDir(dir).entryList(QDir::Files, QDir::Name);
+        for (const QString &n : names) {
+            QFile f(dir + QLatin1Char('/') + n);
+            all += n.toUtf8() + '\0' + (f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray("<unreadable>")) + '\0';
+        }
+        return all;
+    };
+    const QByteArray before1 = folderBytes(q1->folder()), before2 = folderBytes(q2->folder());
+    ReanalysisController quitting;
+    quitting.setShotCommands(&door);
+    int finishedCalls = 0;
+    QObject::connect(&quitting, &ReanalysisController::reanalyseFinished, &quitting,
+                     [&finishedCalls](int, int, const QString &) { ++finishedCalls; });
+    g_stubResult = analysis::ReanalyzeResult{};
+    g_stubResult.ok = true;
+    g_stubResult.analysis.score  = 77;
+    g_stubResult.analysis.detail = std::make_shared<analysis::SwingAnalysis>();
+    g_stubResult.analysis.detail->timeBase      = analysis::TimeBase::Window;
+    g_stubResult.analysis.detail->score.overall = 77;
+    g_stubCalls = 0;
+    g_stubSawStop = false;
+    g_stubWaitForStop = true;
+    const int writesBefore = door.writeBacks;
+    rig.events.clear();
+    quitting.reanalyse(QVariantList{ q1->folder(), q2->folder() });
+    const bool started = waitFor([] { return g_stubCalls.load() == 1; }, 5000);
+    const bool heldBoth = quitting.holds(q1->folder()) && quitting.holds(q2->folder());
+    QElapsedTimer stopClock;
+    stopClock.start();
+    quitting.stopForQuit(3000);
+    const qint64 stopMs = stopClock.elapsed();
+    waitFor([] { return false; }, 300);   // the event loop turns: a late result must still reach nothing
+    g_stubWaitForStop = false;
+    std::printf("    C16h: stop returned in %lld ms\n", static_cast<long long>(stopMs));
+    check(QStringLiteral("C16h1 the swing in flight saw its stop, and the stop returned once it had (well inside "
+                         "its budget)"),
+          started && heldBoth && g_stubSawStop.load() && stopMs < 1000);
+    check(QStringLiteral("C16h2 nothing written: no write-back, no event, no batch-finished signal, and both swings' "
+                         "files byte-identical"),
+          door.writeBacks == writesBefore && rig.events.isEmpty() && finishedCalls == 0
+              && folderBytes(q1->folder()) == before1 && folderBytes(q2->folder()) == before2 && !before1.isEmpty());
+    check(QStringLiteral("C16h3 the queue dropped (the queued swing never read) and neither swing held"),
+          g_stubCalls.load() == 1 && !quitting.holds(q1->folder()) && !quitting.holds(q2->folder()));
+    quitting.reanalyse(QVariantList{ q2->folder() });
+    waitFor([] { return false; }, 100);
+    check(QStringLiteral("C16h4 after the stop, nothing more starts"), g_stubCalls.load() == 1 && !quitting.holds(q2->folder()));
 }
 
 // C17 (refactor step 5.1; J-67 1: a session belongs to its athlete whoever is current): a late reading — the launch

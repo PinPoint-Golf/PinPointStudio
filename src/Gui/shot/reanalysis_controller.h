@@ -23,7 +23,9 @@
 #include <QStringList>
 #include <QVariantList>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 
 #include "../Analysis/swing_reanalyzer.h"   // pinpoint::analysis::ReanalyzeResult
 #include "../Analysis/reanalyse_and_persist.h"   // pinpoint::analysis::AnalysisWrite
@@ -65,6 +67,21 @@ class ReanalysisController : public QObject
 
 public:
     explicit ReanalysisController(QObject *parent = nullptr);
+    // Stops a swing still in flight (stopForQuit), so the job never outlives its owner.
+    ~ReanalysisController() override;
+
+    // QUITTING DURING A RE-ANALYSIS STOPS IT, AND NOTHING IS WRITTEN (#294; the Product Owner and the Solution
+    // Architect, 26 Nov 2026, option (a1)). Called on aboutToQuit (main.cpp), while the application object is still
+    // alive, and by the destructor. The queue is dropped, the swing in flight is asked to stop (ReanalyzeOptions::stop:
+    // no further stage starts, the pose run gives up between frames or while it waits for its session) and is waited
+    // for, for at most `budgetMs`. Its result, finished or not, is never written: the swing keeps the analysis it had,
+    // so its version stamps still ask for a re-analysis next time (version-gated re-analysis). A re-analysis asked for
+    // by a clip, a club correction or the golfer, on a swing whose stamps are current, is not re-run by itself, and
+    // the golfer is not told (GU-16, not part of #294's fix). Idle, it does nothing and logs nothing. Once called, the
+    // controller starts no more work. If the job has not returned within the budget, that is logged and the job is
+    // left to the global pool's wait in ~QCoreApplication, as before the fix.
+    static constexpr int kQuitBudgetMs = 4000;   // under GU-10's 5 s from the quit to the process gone
+    void stopForQuit(int budgetMs = kQuitBudgetMs);
 
     // `app` (refactor step 3.4b-ii): the shot is found (shotOfFolder), read through its Shot's RecordingSource and
     // written back by Shot::applyAnalysis. Unset (a test): every swing fails, and says why.
@@ -135,6 +152,9 @@ private:
     bool        m_reanalysing  = false;
     bool        m_liveBusy     = false;   // a live shot is processing
     bool        m_startDeferred = false;  // a startNext() was held off for m_liveBusy
+    bool        m_stoppedForQuit = false; // stopForQuit ran: no more work starts, nothing more is written
+    // The swing in flight's stop (ReanalyzeOptions::stop), one per swing; set by stopForQuit.
+    std::shared_ptr<std::atomic<bool>> m_stop;
 
     QFutureWatcher<pinpoint::analysis::ReanalyzeResult> m_watcher;
 };

@@ -525,6 +525,66 @@ int main()
         other.join();
         CHECK("the second user gets it once the lease ends", secondGot.load());
         CHECK("no rebuild for the waiters", builds == 5);
+
+        // #294: a stoppable acquire. (a) Waiting on a held entry, it gives up once its stop is set, while the holder
+        // keeps the lease; (b) waiting on the cache's own mutex while another caller builds a new entry (the launch
+        // warm-up's load), it gives up too; (c) given a stop that is never set, it waits and gets the entry as before.
+        {
+            std::atomic<bool> stopFlag{ false };
+            const std::function<bool()> stopped = [&stopFlag] { return stopFlag.load(); };
+            auto held = cache.acquire(kB, make("b", 0, true), keep);
+            std::atomic<int> outcome{ 0 };   // 1 got it, 2 stopped
+            std::thread waiter([&] {
+                try {
+                    auto l = cache.acquire(kB, make("b", 0, true), keep, stopped);
+                    outcome = 1;
+                } catch (const PoseRunStopped &) {
+                    outcome = 2;
+                }
+            });
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            CHECK("#294 a stoppable acquire of a held entry waits", outcome.load() == 0);
+            stopFlag = true;
+            const auto t0 = std::chrono::steady_clock::now();
+            waiter.join();
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+            CHECK("#294 …and gives up once stopped, while the holder keeps the lease (within 200 ms)",
+                  outcome.load() == 2 && ms < 200 && held.get() == b1);
+        }
+        {
+            const Key kSlow{ "vitpose-slow.onnx", "coreml>cpu", 0 };
+            std::atomic<bool> building{ false }, release{ false };
+            std::thread builder([&] {
+                auto l = cache.acquire(kSlow, [&] {
+                    building = true;
+                    while (!release.load()) std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                    auto e = std::make_unique<FakeEstimator>();
+                    e->ready = true;
+                    return e;
+                }, keep);
+            });
+            while (!building.load()) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::atomic<bool> stopFlag{ false };
+            std::atomic<int> outcome{ 0 };
+            std::thread waiter([&] {
+                try {
+                    auto l = cache.acquire(kB, make("b", 0, true), keep, [&stopFlag] { return stopFlag.load(); });
+                    outcome = 1;
+                } catch (const PoseRunStopped &) {
+                    outcome = 2;
+                }
+            });
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            CHECK("#294 a stoppable acquire waits while another caller builds (the cache's mutex)", outcome.load() == 0);
+            stopFlag = true;
+            waiter.join();
+            CHECK("#294 …and gives up once stopped, the build carrying on", outcome.load() == 2 && building.load());
+            release = true;
+            builder.join();
+            std::atomic<bool> never{ false };
+            auto l = cache.acquire(kSlow, make("x", 0, true), keep, [&never] { return never.load(); });
+            CHECK("#294 a stop never set: the acquire gets the entry, as before", l.cached() && l->ready);
+        }
     }
 
     // ── step 2: runOrderedPipeline ──────────────────────────────────────────

@@ -169,7 +169,8 @@ EstimatorCache &estimatorCache()
 // before its load(), so the cache holds no session that another thread could build or run.
 // `make` constructs and configures an estimator; it does not load it.
 EstimatorCache::Lease acquireCached(const EstimatorKey &key,
-                                    const std::function<std::unique_ptr<PoseEstimatorViTPose>()> &make)
+                                    const std::function<std::unique_ptr<PoseEstimatorViTPose>()> &make,
+                                    const std::function<bool()> &stopped = {})
 {
     return estimatorCache().acquire(
         key,
@@ -179,7 +180,8 @@ EstimatorCache::Lease acquireCached(const EstimatorKey &key,
             e->load();   // on the inference thread; this thread waits
             return e;
         },
-        [](const PoseEstimatorViTPose &e) { return e.isReady(); });
+        [](const PoseEstimatorViTPose &e) { return e.isReady(); },
+        stopped);   // #294: a run's owner may stop it while it waits (the warm-up passes none)
 }
 
 PoseEstimatorViTPose::LoadOptions loadOptionsFor(bool fp16, bool coremlProgram, bool tensorrt,
@@ -375,7 +377,11 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
         // building it; what it blocked for, less this run's own build, is the wait.
         QElapsedTimer acquireClock;
         acquireClock.start();
-        lease = acquireCached(key, makeEstimator);
+        // A stop asked while this run waits (behind the launch warm-up's load, or another run) ends the wait (#294).
+        std::function<bool()> stopped;
+        if (opt.stop)
+            stopped = [stop = opt.stop] { return stop->load(std::memory_order_acquire); };
+        lease = acquireCached(key, makeEstimator, stopped);
         timingSink.add(&pinpoint::pose::PoseTiming::sessionWaitMs,
                        std::max(0.0, double(acquireClock.elapsed()) - timingSink.snapshot().sessionBuildMs));
     } else {
@@ -672,6 +678,10 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
             });
 
         const std::function<void(size_t, PipeItem &&)> consume = [&](size_t, PipeItem &&item) {
+            // #294: the owner's stop, before each frame is posed. Thrown from the consumer, it stops and joins the
+            // producers (runOrderedPipeline) and leaves run(); the lease is let go as run() unwinds.
+            if (opt.stop && opt.stop->load(std::memory_order_acquire))
+                throw pinpoint::analysis::PoseRunStopped();
             if (opt.progress)
                 opt.progress(item.progress);
             if (!item.decodeOk)
@@ -722,6 +732,8 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
     auto scanPersonBbox = [&](size_t i0, size_t i1) -> BodyBboxAccum {
         BodyBboxAccum bb;
         for (size_t idx : pinpoint::analysis::selectCropScan(i0, i1)) {
+            if (opt.stop && opt.stop->load(std::memory_order_acquire))   // #294, as the dense pass's consumer
+                throw pinpoint::analysis::PoseRunStopped();
             cv::Mat frameBgr;
             bool decoded;
             if (store) {   // decode.frameStore: the same pixels, no fetch

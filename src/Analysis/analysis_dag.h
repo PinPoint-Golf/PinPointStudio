@@ -244,7 +244,8 @@ inline pinpoint::SourceId cameraSourceFor(const QString &r, const ShotAnalysisJo
 
 // Run `profile` as its graph on `nThreads` pool threads. Same trace shape as runStages
 // (one entry per stage, authored order) plus thread + offsets. A stage that throws stops
-// new starts; the running ones finish; the first exception is rethrown here.
+// new starts; the running ones finish; the first exception is rethrown here. A stop asked of the
+// job (ShotAnalysisJob::stop) does the same, and AnalysisStopped is what is rethrown.
 inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g,
                               AnalysisContext &ctx, int nThreads)
 {
@@ -315,6 +316,13 @@ inline void runStagesParallel(const SessionProfile &profile, const StageGraph &g
         for (;;) {
             if (done == n || (err && running == 0)) { cv.notify_all(); return; }
             if (err) { cv.wait(lk); continue; }
+            // #294: once the owner has asked the job to stop, no stage starts; the running ones finish, then
+            // AnalysisStopped is rethrown below, as a stage's own exception is.
+            if (ctx.job.stopRequested()) {
+                err = std::make_exception_ptr(AnalysisStopped());
+                cv.notify_all();
+                continue;
+            }
             const int i = pick();
             if (i < 0) {
                 if (running == 0) {   // cannot happen with forward edges; never hang on it

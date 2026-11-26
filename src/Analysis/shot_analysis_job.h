@@ -27,7 +27,9 @@
 #include <QRectF>
 #include <QString>
 #include <QVariantMap>
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -147,6 +149,13 @@ struct ShotAnalysisJob {
     // ShotProcessor lambda posts a queued invoke). May be null; analyzers
     // must check before calling.
     std::function<void(float)> progress;
+
+    // THE STOP (#294): set by the job's owner when the app quits (ReanalysisController::stopForQuit). The analysis
+    // checks it before each stage starts, between pose frames and while it waits for the pose session, and ends there
+    // by throwing AnalysisStopped (analysis_stage.h); nothing it computed is returned, so nothing is written. Like
+    // `progress`, it lives only while the job runs. Null (a live shot, SwingLab): never stopped.
+    std::shared_ptr<const std::atomic<bool>> stop;
+    bool stopRequested() const { return stop && stop->load(std::memory_order_acquire); }
 
     // SwingLab: when set, the analyzer takes the face-on PoseTrack2D from
     // this JSON file instead of running ViTPose — synthetic-corpus injection

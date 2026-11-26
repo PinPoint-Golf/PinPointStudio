@@ -624,8 +624,10 @@ endif()
 # pose warm-up, and while a re-analysis runs; each pin twice. quit_pins/quit_pin.py is the driver and the oracle (exit
 # code 0, gone within 5 s of the quit, no teardown fault line, no work run on after the application has gone, the
 # pin's busy marker before the quit). One ctest per pin; quit_pins_selftest proves the oracle catches a planted abort,
-# hang, missing marker, fault line and after-shutdown line, and lets the near misses pass. Not Run (77):
-# a busy pin with no fixture library (quit_pins/make_fixture.sh), or a pin that fails as its filed issue says (#294).
+# hang, missing marker, fault line and after-shutdown line, lets the near misses pass, and (with the fixture) catches a
+# re-analysis log without the stop and a swing written after all (#294). Not Run (77):
+# a busy pin with no fixture library (quit_pins/make_fixture.sh), or a pin that fails as its filed issue says (KNOWN;
+# empty since #294's fix: a quit during a re-analysis stops it, and the swing's files are left byte-identical).
 # Label quit_pins: about 7–8 minutes in all, most of it the pose model's load (CoreML: 1–2 minutes each time it
 # finishes). Serial: one app at a time (AG-16).
 find_package(Python3 COMPONENTS Interpreter QUIET)
@@ -635,7 +637,7 @@ if(UNIX AND Python3_Interpreter_FOUND)
     set(_pp_quit_cmd ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/quit_pins/quit_pin.py --app ${_pp_app_binary}
                      --repo ${PP_REPO_ROOT} --work ${CMAKE_CURRENT_BINARY_DIR}/quit_pins_work)
     add_test(NAME quit_pins_selftest COMMAND ${_pp_quit_cmd} --selftest)
-    set_tests_properties(quit_pins_selftest PROPERTIES TIMEOUT 300 RUN_SERIAL TRUE LABELS quit_pins)
+    set_tests_properties(quit_pins_selftest PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE LABELS quit_pins)
     foreach(_pin IN LISTS _pp_quit_pins)
         add_test(NAME quit_pin.${_pin} COMMAND ${_pp_quit_cmd} --pin ${_pin})
         set_tests_properties(quit_pin.${_pin} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77

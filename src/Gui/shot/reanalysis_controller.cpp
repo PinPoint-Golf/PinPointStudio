@@ -21,6 +21,8 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QElapsedTimer>
+#include <QThread>
 #include <QtConcurrent>
 
 #include "../Analysis/reanalyse_and_persist.h"   // the one write-back
@@ -35,8 +37,53 @@ ReanalysisController::ReanalysisController(QObject *parent)
             this, &ReanalysisController::onWorkerFinished);
 }
 
+ReanalysisController::~ReanalysisController()
+{
+    stopForQuit();
+}
+
+void ReanalysisController::stopForQuit(int budgetMs)
+{
+    if (m_stoppedForQuit)
+        return;
+    m_stoppedForQuit = true;
+    const int dropped = int(m_queue.size());
+    m_queue.clear();
+    m_startDeferred = false;
+    if (m_current.isEmpty()) {   // idle, or held between swings for a live shot: nothing is running
+        if (dropped > 0)
+            ppInfo() << "[Reanalysis] stopped at quit: no swing in flight;" << dropped << "queued swing(s) dropped";
+        return;
+    }
+    // Its result is never written, whenever it arrives: the write-back runs only from this signal.
+    disconnect(&m_watcher, nullptr, this, nullptr);
+    if (m_stop)
+        m_stop->store(true, std::memory_order_release);
+    ppInfo() << "[Reanalysis] stopping at quit:" << m_current << "in flight," << dropped
+             << "queued swing(s) dropped; nothing will be written";
+    // Poll, never waitForFinished (it has no time limit) and never an event loop (the app is quitting). The future's
+    // own state, not the watcher's: the watcher learns of the finish only through an event this loop never delivers.
+    const QFuture<pinpoint::analysis::ReanalyzeResult> job = m_watcher.future();
+    QElapsedTimer t;
+    t.start();
+    while (!job.isFinished() && t.elapsed() < budgetMs)
+        QThread::msleep(5);
+    if (job.isFinished()) {
+        ppInfo() << "[Reanalysis] stopped at quit: the re-analysis returned in" << t.elapsed()
+                 << "ms; nothing written, the swing keeps its previous analysis";
+        m_current.clear();   // nothing is in flight now (holds() answers false)
+        m_currentShot = {};
+    } else
+        ppWarn() << "[Reanalysis] stop at quit: the re-analysis has not returned after" << budgetMs
+                 << "ms; it is left to the thread pool's wait at exit";
+}
+
 void ReanalysisController::reanalyse(const QVariantList &swingDirs)
 {
+    if (m_stoppedForQuit) {
+        ppInfo() << "[Reanalysis] reanalyse() after the quit's stop — ignored";
+        return;
+    }
     if (swingDirs.isEmpty()) {
         ppInfo() << "[Reanalysis] reanalyse() called with no shots — ignored";
         return;
@@ -117,6 +164,8 @@ bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
 
 void ReanalysisController::startNext()
 {
+    if (m_stoppedForQuit)
+        return;   // the quit's stop: nothing more starts
     // Launch-monitor-only swings first, in queue order: no pose, no worker, a few KB each.
     while (!m_queue.isEmpty() && !m_liveBusy && refreshIfDeviceOnly(m_queue.first()))
         m_queue.removeFirst();
@@ -158,14 +207,18 @@ void ReanalysisController::startNext()
         m_commands ? m_commands->recordingSourceOf(pinpoint::sessionFolderOf(dir), m_currentShot) : std::nullopt;
     const pinpoint::RecordingSource source = held ? *held : pinpoint::RecordingSource(m_currentShot, {});
     const bool notHeld = !held;
-    m_watcher.setFuture(QtConcurrent::run([source, notHeld] {
+    // The swing's own stop (#294), set only by stopForQuit.
+    m_stop = std::make_shared<std::atomic<bool>>(false);
+    pinpoint::analysis::ReanalyzeOptions options;
+    options.stop = m_stop;
+    m_watcher.setFuture(QtConcurrent::run([source, notHeld, options] {
         pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
         if (notHeld) {
             pinpoint::analysis::ReanalyzeResult none;
             none.error = QStringLiteral("This shot couldn't be re-analysed: no golfer's session holds it.");
             return none;
         }
-        return pinpoint::analysis::reanalyzeShot(source, pinpoint::analysis::ReanalyzeOptions{});
+        return pinpoint::analysis::reanalyzeShot(source, options);
     }));
 }
 

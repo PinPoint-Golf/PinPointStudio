@@ -27,7 +27,10 @@ A RUN IS CLEAN when all of these hold (the oracle; each is independent of what t
      because its path is read from the application that has gone; GAP-21, seen for a re-analysis, #294);
   4. the pin's busy marker was in the log BEFORE the quit and its "done" marker was not (else the pin proved nothing
      and FAILS as vacuous), and its expected after-quit lines are there;
-  5. the memory guard (AG-16) did not have to kill it.
+  5. the memory guard (AG-16) did not have to kill it;
+  6. for a pin that names a swing (`unchanged`), every file of that swing's folder in the run's scratch library (but
+     the derived phase-grid index, DERIVED below) is byte-identical, after the exit, to the fixture's copy it was made from (the check "written": a re-analysis stopped
+     at quit writes nothing, so the swing is left as it was before the run; #294).
 The quit-to-exit time is printed for every run.
 
 EXPECTED FAILURES. A pin whose failure is an observed, filed fault carries its issue number (KNOWN below). It still
@@ -36,9 +39,9 @@ never Passed; if it now passes, or fails some other way, the test FAILS, so a fi
 
 Exit: 0 every run clean; 1 a run not clean; 77 Not Run (no fixture for a busy pin, or a known, filed failure).
 """
-import argparse, os, re, shutil, signal, subprocess, sys, threading, time
+import argparse, hashlib, os, re, shutil, signal, subprocess, sys, threading, time
 
-LIMIT_S = 5.0          # quit request -> process gone (proposed, for the Product Owner: GU-10's "a few seconds")
+LIMIT_S = 5.0          # quit request -> process gone: GU-10's 5 s, ruled by the Product Owner (lifecycle model 1.7)
 MEM_CAP_MB = 6144      # the agents' render guard (AG-16): kill above a 6 GB footprint
 WARM_TIMEOUT_S = 400   # a pose pin's run: a cold CoreML compile is about 97 s, the Debug app slower
 
@@ -67,12 +70,22 @@ SHUTDOWN = [
 ]
 
 FIX_REANALYSE = "Nick-Henn/2026-10-13_Nick-Henn_Wrist_01/swing_0001"   # make_fixture.sh's one swing
+# A re-analysis stopped at quit (#294; ReanalysisController::stopForQuit): its owner's line once the job has returned,
+# on aboutToQuit, while the application object is still alive. After it, no line of the analysis may follow.
+REANALYSIS_STOPPED = r"\[Reanalysis\] stopped at quit: the re-analysis returned in"
+# ...and never: the analysis finished (its last line, projectResult's: a quit that waited for the whole re-analysis inside
+# the stop's budget, rather than stopping it), a write-back, or a job left running past the budget into the pool's wait.
+REANALYSIS_NOT_AFTER = [r"\[WristAnalysis\] \d+ metrics, score", r"\[Reanalysis\] re-analysed",
+                        r"\[Reanalysis\] stop at quit: the re-analysis has not returned"]
 
 # name -> the pin. at: the probe's --quit-pin-at ("trigger" = the driver's file). env: extra PINPOINT_* switches.
 # busy: a marker that must be in the log before the quit (for "trigger", the quit is sent `delay` s after it).
 # not_before: a marker that must NOT be in the log before the quit (the work was still in flight).
 # after: markers that must follow the quit. ran_on: a marker of the busy work; a line of it after the quit means the
-# quit waited for that work to run on with no window (GAP-20), which fails the "ran-on" check. fixture: needs make_fixture.sh's library. pose_home: share one scratch
+# quit waited for that work to run on with no window (GAP-20), which fails the "ran-on" check. ran_on_from: a marker
+# after the quit from which ran_on is counted: the lines before it are the work in flight finishing (a stage is not
+# stopped part-way), and with no such marker every line after the quit counts. unchanged: a swing (under the library)
+# whose files must be byte-identical to the fixture's after the run ("written"). fixture: needs make_fixture.sh's library. pose_home: share one scratch
 # home across this pin's runs (True), or across every "shared" pin's, so the CoreML compile cache a finished load
 # leaves is reused (a cold compile is ~97 s). The warm-up pin keeps its own: its load is always abandoned part-way.
 PINS = {
@@ -107,23 +120,22 @@ PINS = {
     "re-analysis":  dict(at="trigger", fixture=True, pose_home="shared", delay=2.0,
                          env=["PINPOINT_PROBE_REANALYSE=@LIB@/" + FIX_REANALYSE],
                          busy=r"\[Probe\] re-analysing", not_before=r"\[Reanalysis\] (re-analysed|failed)",
-                         ran_on=r"\[WristAnalysis\]",
-                         what="a re-analysis running on Qt's global pool (J2, H2); it reuses the swing's recorded pose"),
+                         after=[REANALYSIS_STOPPED], not_after=REANALYSIS_NOT_AFTER,
+                         ran_on=r"\[WristAnalysis\]", ran_on_from=REANALYSIS_STOPPED, unchanged=FIX_REANALYSE,
+                         what="a re-analysis running on Qt's global pool (J2, H2); it reuses the swing's recorded pose; "
+                              "the quit stops it and nothing is written (#294)"),
     "re-analysis-in-warm-up": dict(at="trigger", fixture=True, pose_home="shared", delay=0.5,
                          env=["PINPOINT_PROBE_WARMUP=1", "PINPOINT_PROBE_REANALYSE=@LIB@/" + FIX_REANALYSE],
                          busy=r"\[Probe\] re-analysing", busy_also=r"\[PoseRunner\] warm-up: building",
                          not_before=r"\[PoseRunner\] warm-up: .* session ready in|\[Reanalysis\] (re-analysed|failed)",
-                         ran_on=r"\[WristAnalysis\]",
-                         what="a re-analysis running while the warm-up builds on the inference thread (J2 and S2, S5)"),
+                         after=[REANALYSIS_STOPPED], not_after=REANALYSIS_NOT_AFTER,
+                         ran_on=r"\[WristAnalysis\]", ran_on_from=REANALYSIS_STOPPED, unchanged=FIX_REANALYSE,
+                         what="a re-analysis running while the warm-up builds on the inference thread (J2 and S2, S5); "
+                              "the quit stops it and nothing is written (#294)"),
 }
 # pin -> (issue number, the checks it fails as the issue says): only an observed, filed fault. Every run must fail,
-# only on those checks (#294's "after-shutdown": the re-analysis ran on after the application had gone, in every run
-# of both pins; #294's comment of 26 Nov), and a "slow" run must still be gone within KNOWN_SLOW_CEILING_S; anything else FAILS. The fix
-# for #294 updates the pin with it (a re-analysis finished and written at quit would show as "ran-on").
-KNOWN = {
-    "re-analysis":            (294, {"ran-on", "after-shutdown"}),
-    "re-analysis-in-warm-up": (294, {"ran-on", "slow", "after-shutdown"}),
-}
+# only on those checks, and a "slow" run must still be gone within KNOWN_SLOW_CEILING_S; anything else FAILS.
+KNOWN = {}   # #294's two re-analysis pins came off it with its fix: a quit stops the re-analysis and writes nothing
 KNOWN_SLOW_CEILING_S = 30.0
 FIX_ATHLETE_ID = "2c4b2cf0-e5a4-406f-88d0-5b3420257402"   # make_fixture.sh's golfer (its athlete.json)
 
@@ -149,6 +161,8 @@ class Run:
             shutil.copytree(os.path.join(args.fixture, "lib"), self.lib)
         else:
             os.makedirs(self.lib)
+        # The swing's files as the fixture holds them, before the launch ("written").
+        self.swing_before = folder_digest(os.path.join(args.fixture, "lib", p["unchanged"])) if p.get("unchanged") else None
         cfg = os.path.join(self.dir, "cfg", "PinPointStudio")
         os.makedirs(cfg)
         self.ini = os.path.join(cfg, "PinPointStudio.ini")
@@ -234,6 +248,18 @@ class Run:
         elif plant == "nomarker":
             self.lines[:] = [(t, l) for t, l in self.lines if not re.search(PINS[self.pin]["busy"], l)]   # "vacuous"
 
+    def post_plant(self):
+        """The re-analysis pin's plants, after the exit (tests of the oracle, never of the app)."""
+        plant = getattr(self, "plant", None)
+        if plant == "nostop":
+            # The log of a build without the stop (#294 as it was): no stop line, and the analysis's lines run on.
+            self.lines[:] = [(t, l) for t, l in self.lines if "[Reanalysis] stop" not in l]
+            self.lines.append((now(), "[WristAnalysis] 120 metrics, score 64 — grid 1200 (planted: ran on, no stop)"))
+        elif plant == "written":
+            # A write-back that changed the swing's document after all.
+            with open(os.path.join(self.lib, PINS[self.pin]["unchanged"], "swing.ppsw"), "ab") as f:
+                f.write(b"planted")
+
     def send_trigger(self):
         with open(os.path.join(self.trigger, "quit"), "w") as f:
             f.write("quit\n")
@@ -317,7 +343,11 @@ class Run:
             if hit:
                 bad.append(("after", "/%s/ after the quit: %s" % (a, hit[0][-160:])))
         if p.get("ran_on"):
-            ran = [l for l in after if re.search(p["ran_on"], l)]
+            counted = after
+            if p.get("ran_on_from"):   # the work in flight at the quit finishes before its owner's marker
+                k = next((i for i, l in enumerate(after) if re.search(p["ran_on_from"], l)), None)
+                counted = after if k is None else after[k + 1:]
+            ran = [l for l in counted if re.search(p["ran_on"], l)]
             if ran:
                 bad.append(("ran-on", "the busy work ran on after the quit, with no window: %d line(s), the last: %s"
                             % (len(ran), ran[-1][-140:])))
@@ -328,10 +358,38 @@ class Run:
         if gone:
             bad.append(("after-shutdown", "work ran on after the application had gone: %d line(s):\n      %s"
                         % (len(gone), "\n      ".join(gone[:8]))))
+        if self.swing_before is not None:
+            now_digest = folder_digest(os.path.join(self.lib, p["unchanged"]))
+            changed = sorted(set(self.swing_before.items()) ^ set(now_digest.items()))
+            if changed:
+                bad.append(("written", "the swing's files are not as the fixture holds them: %s"
+                            % ", ".join(sorted({n for n, _ in changed}))))
         dt = (self.t_gone or now()) - self.t_quit
         if dt > LIMIT_S:
             bad.append(("slow", "the process took %.1f s to go after the quit request (limit %.0f s)" % (dt, LIMIT_S)))
         return bad
+
+
+# Left out of the "written" check: the swing's phase-grid sidecar (FILE-SHOT-07), a derived index that any read of the
+# session rebuilds when its schema is older than the build's (the fixture's is 10, this build's 11). A plain launch with
+# the golfer's session on screen, no re-analysis, rewrites it too (the athlete-on-screen pin's copy, 26 Nov 2026). The
+# swing's document (swing.ppsw), which holds the analysis and the version stamps the next re-analysis reads, and every
+# other file are compared.
+DERIVED = {"swing_phasegrid.json"}
+
+
+def folder_digest(d):
+    """{relative path: sha256} of every file under d but the DERIVED ones (the "written" check); empty when d does not
+    exist."""
+    out = {}
+    for root, _, files in os.walk(d):
+        for n in files:
+            if n in DERIVED:
+                continue
+            path = os.path.join(root, n)
+            with open(path, "rb") as f:
+                out[os.path.relpath(path, d)] = hashlib.sha256(f.read()).hexdigest()
+    return out
 
 
 def selftest(a):
@@ -356,6 +414,23 @@ def selftest(a):
                                                         "says" if text in r.stdout else "does NOT say", text))
         if not ok:
             print("    " + r.stdout.replace("\n", "\n    "))
+    # #294's plants, on the re-analysis pin (one run each): the log of a build without the stop must fail on the
+    # missing stop line and on the analysis run on, and a swing written after all must fail "written". They need the
+    # fixture library; without it they are skipped and said so (the "ready" plants above still prove the rest).
+    if os.path.isfile(os.path.join(a.fixture, "lib", FIX_REANALYSE, "swing.ppsw")):
+        me_r = [sys.executable, "-I", os.path.abspath(__file__), "--app", a.app, "--repo", a.repo, "--runs", "1",
+                "--fixture", a.fixture, "--pin", "re-analysis"]
+        for plant, texts in (("nostop", ("[after]", "[ran-on]")), ("written", ("[written]",))):
+            cmd = me_r + ["--work", os.path.join(a.work, "selftest-" + plant), "--_plant", plant]
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            ok = r.returncode == 1 and all(t in r.stdout for t in texts)
+            bad += not ok
+            print("%s plant %-14s: exit %d (want 1), %s %s" % ("ok  " if ok else "FAIL", plant, r.returncode,
+                  "says" if ok else "does NOT say all of", " ".join(texts)))
+            if not ok:
+                print("    " + r.stdout.replace("\n", "\n    "))
+    else:
+        print("skip plant nostop, written: no fixture library at %s/lib (the re-analysis pin's plants)" % a.fixture)
     print("PASS: the oracle caught every plant" if not bad else "FAIL: %d plant(s) not caught as planned" % bad)
     return 1 if bad else 0
 
@@ -368,7 +443,7 @@ def main():
     ap.add_argument("--list", action="store_true")
     # The oracle's own proof (quit_pins_selftest): each plant must turn a clean pin into a FAIL on the named check.
     ap.add_argument("--_plant", choices=["abort", "hang", "nomarker", "fault", "shutdown-app", "shutdown-model",
-                                         "shutdown-near"], default=None)
+                                         "shutdown-near", "nostop", "written"], default=None)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
@@ -398,6 +473,7 @@ def main():
             r.launch()
         except BaseException:
             r.kill(); raise
+        r.post_plant()
         bad = r.verdict()
         dt = ((r.t_gone or now()) - r.t_quit) if r.t_quit else float("nan")
         print("  run %d: exit %s, quit -> gone %.2f s, peak %.0f MB, %s" %

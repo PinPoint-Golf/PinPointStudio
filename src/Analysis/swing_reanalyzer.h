@@ -22,6 +22,7 @@
 
 #include <QString>
 #include <QVariantMap>
+#include <atomic>
 #include <memory>
 #include <optional>
 
@@ -159,6 +160,10 @@ struct ReanalyzeOptions {
     // skeleton3d values held fixed in the fit (swing_3d_viz_design.md §13.7) — SwingLab's
     // --skeleton-calib only. The app never pools: §13.9 measured no benefit.
     std::optional<pinpoint::skeleton3d::SkeletonCalib> skeletonCalib;
+    // The owner's stop (#294; ShotAnalysisJob::stop): the in-app ReanalysisController sets it at quit. Checked
+    // before the read, after it, and through the analysis; a stopped run returns stopped = true and nothing else.
+    // Null (SwingLab, the tools): never stopped.
+    std::shared_ptr<const std::atomic<bool>> stop;
 };
 
 struct ReanalyzeResult {
@@ -166,6 +171,9 @@ struct ReanalyzeResult {
     QString            error;
     ShotAnalysisResult analysis;            // score / metrics / trace / detail
     bool               usedRaw = false;
+    // The owner asked the run to stop (ReanalyzeOptions::stop): ok is false, there is no analysis and no verdict,
+    // and the caller writes nothing, so the swing keeps the analysis it had.
+    bool               stopped = false;
 
     // A FRESH IMU data-integrity verdict for this pass, or nullopt when the swing
     // was not checkable — which is why this is an optional and not a plain verdict.

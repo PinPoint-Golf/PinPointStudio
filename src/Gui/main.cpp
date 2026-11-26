@@ -1182,6 +1182,11 @@ int main(int argc, char *argv[])
         o.savePose = appSettings.savePoseKeypoints();
         return o;
     });
+    // QUITTING DURING A RE-ANALYSIS STOPS IT, AND NOTHING IS WRITTEN (#294): on aboutToQuit, while the application
+    // object is still alive, so the job never runs on into ~QCoreApplication's pool wait without it. The swing keeps
+    // its previous analysis (ReanalysisController::stopForQuit).
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &reanalysisController,
+                     [&reanalysisController] { reanalysisController.stopForQuit(); });
 
     // DELETE LETS GO OF THE SWING FIRST (#56). The replay holds the swing's videos
     // open — the focused one, and in a live session with a cast screen the newest

@@ -60,6 +60,9 @@ namespace pinpoint::analysis {
 struct AnalysedRecording {
     ShotAnalysisResult analysis;      // ok / error / score / metrics / trace / detail
     IntegrityVerdicts  integrity;     // the Recording's verdicts, whether or not the analysis succeeded
+    // The job's owner asked it to stop (ShotAnalysisJob::stop, #294): analysis is a failed result that says so, and
+    // the integrity verdicts were not reached (they are left empty; nothing is written from a stopped run).
+    bool               stopped = false;
 };
 
 class AnalysisService {

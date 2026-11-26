@@ -106,6 +106,12 @@ ReanalyzeResult reanalyzeShot(const RecordingSource& source, const ReanalyzeOpti
 {
     // The overrides reach the loader too: the MP4 readers it builds take the decode.*
     // keys (everything else in the map is applied by the stages, below).
+    if (opts.stop && opts.stop->load(std::memory_order_acquire)) {   // #294: stopped before the read
+        ReanalyzeResult stopped;
+        stopped.stopped = true;
+        stopped.error   = QStringLiteral("stopped: the app is quitting");
+        return stopped;
+    }
     SwingLoadOptions lopts;
     lopts.tuningOverrides = opts.tuningOverrides;
     return reanalyzeLoaded(SwingDiskLoader::load(source, lopts), opts, source.shot().toString());
@@ -114,6 +120,11 @@ ReanalyzeResult reanalyzeShot(const RecordingSource& source, const ReanalyzeOpti
 ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label)
 {
     ReanalyzeResult out;
+    if (opts.stop && opts.stop->load(std::memory_order_acquire)) {   // #294: stopped during the read
+        out.stopped = true;
+        out.error   = QStringLiteral("stopped: the app is quitting");
+        return out;
+    }
     if (!ls.ok) {
         out.error = ls.error;
         return out;
@@ -135,6 +146,7 @@ ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, co
         ls.job.poseTrackJson = opts.poseTrackJson;     // its content, as its namer read it (step 7.2)
     }
     ls.job.fullWindow = opts.fullWindow;
+    ls.job.stop       = opts.stop;   // #294: the owner's stop reaches every stage, the pose runner and its lease
     ls.job.path.origin = QStringLiteral("reanalysis");
     ls.job.path.forced = opts.forceRerun;
     // skeleton3d values held fixed: SwingLab's --skeleton-calib only (the app never pools).
@@ -262,6 +274,11 @@ ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, co
     // against the recorded window, the impact camera and off-clock lanes exempt) — the very code the
     // live capture runs (step 1.5). A FRESH verdict for this pass, never the one capture reached.
     AnalysedRecording run = AnalysisService().analyseJob(ls.recording, ls.job);
+    if (run.stopped) {   // nothing of a stopped run is returned (no analysis, no verdict)
+        out.stopped = true;
+        out.error   = run.analysis.error;
+        return out;
+    }
     out.analysis = std::move(run.analysis);
     out.ok       = out.analysis.ok;
     out.error    = out.analysis.error;
