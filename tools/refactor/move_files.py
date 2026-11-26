@@ -18,8 +18,9 @@ A map line `hand: <new file> <- <source file>:<lines>[,<lines>...]` declares a f
 hand, after the move (B1.7's capture_time_types.h out of swing_analysis.h); line numbers are the source's before the
 move, and each range is one block. The move makes no split. --verify then accepts exactly the split's lines: each block
 byte for byte in the new file, in order, whole and in the same namespace; the new file's other lines scaffold only
-(blank, comments, #pragma once, includes, an include guard, namespace lines); the blocks gone from the source, which may
-gain one include of the new file; an include of the source re-pointed at the new file (listed, anywhere); a build-file
+(blank, comments, #pragma once, includes, namespace lines; never a #define, an #if or #endif, or a line ending in a
+backslash), each block read as code there as in its source; the blocks gone from the source, which may gain an include
+of the new file (nothing but a // comment after its path); an include of the source re-pointed at the new file (listed, anywhere); a build-file
 line naming only the new file. Anything else still fails, and a hand: line that matches nothing (no such new file, a
 source not in the base, a range past its end, blocks the new file does not hold) is refused.
 Options: --root <checkout> (default: this file's checkout); --allow-prose <file> (with --verify: prose edits in that
@@ -293,8 +294,35 @@ def brace_context(text):
 
 
 SCAFFOLD_RES = (re.compile(r'^#\s*pragma\s+once$'), re.compile(r'^#\s*(?:include|import)\s*(?:"[^"]+"|<[^>]+>)$'),
-                re.compile(r'^#\s*endif$'),
                 re.compile(r'^namespace\s+[A-Za-z_][\w:]*\s*\{$'), re.compile(r'^\}$'))
+SPLICE_RE = re.compile(r'\\[ \t\f\v]*$')                     # a backslash, then only blanks: compilers splice it too
+PP_IF_RE = re.compile(r'^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b')
+
+
+def pp_depth(text):
+    """For each line (index 0 = line 1, plus one past the end), how many #if / #ifdef / #ifndef are open at its start."""
+    cls = spans_cpp(text)
+    out, depth, off = [], 0, 0
+    for line in text.splitlines(keepends=True):
+        out.append(depth)
+        body = ''.join(ch if c != 'm' else ' ' for ch, c in zip(line, cls[off:off + len(line)]))
+        off += len(line)
+        m = PP_IF_RE.match(body)
+        if m and m.group(1) in ('if', 'ifdef', 'ifndef'):
+            depth += 1
+        elif m and m.group(1) == 'endif':
+            depth -= 1
+    out.append(depth)
+    return out
+
+
+def line_classes(text):
+    """Each line's spans_cpp classes (code, comment, string), as a string per line."""
+    cls, out, off = spans_cpp(text), [], 0
+    for line in text.splitlines(keepends=True):
+        out.append(''.join(cls[off:off + len(line)]))
+        off += len(line)
+    return out
 
 
 def check_hand_file(new, blocks, base_text, nt, old_tree, new_tree, plan):
@@ -306,20 +334,30 @@ def check_hand_file(new, blocks, base_text, nt, old_tree, new_tree, plan):
     if nt is None:
         return ['hand: %s is not a text file' % new], None
     nl = nt.splitlines(keepends=True)
-    ctx_n = brace_context(nt)
+    ctx_n, cls_n = brace_context(nt), line_classes(nt)
     used, cur, ctx_cache, srcs = {}, 0, {}, []
     for src, (lo, hi), n in blocks:
         st = base_text(src)
         if src not in ctx_cache:
-            ctx_cache[src] = brace_context(st)
-        ctx_s, block = ctx_cache[src], st.splitlines(keepends=True)[lo - 1:hi]
+            ctx_cache[src] = (brace_context(st), line_classes(st), pp_depth(st))
+        (ctx_s, cls_s, pp_s), block = ctx_cache[src], st.splitlines(keepends=True)[lo - 1:hi]
         if ctx_s[lo - 1] != ctx_s[hi]:
             bad.append('hand: (map line %d) %s:%d-%d is not whole: its braces do not balance' % (n, src, lo, hi))
+        if pp_s[lo - 1] or pp_s[hi]:
+            bad.append('hand: (map line %d) %s:%d-%d sits under an #if in its source, or opens or closes one: a hand '
+                       'split takes only unconditional code' % (n, src, lo, hi))
+        if not any(c == 'c' and ch.strip() for x in range(lo - 1, hi) for ch, c in zip(block[x - lo + 1], cls_s[x])):
+            bad.append('hand: (map line %d) %s:%d-%d takes no code (only blank or comment lines)' % (n, src, lo, hi))
+        if block and SPLICE_RE.search(block[-1].rstrip('\r\n')):
+            bad.append('hand: (map line %d) %s:%d ends in a backslash: it would splice the line after it' % (n, src, hi))
         k = next((k for k in range(cur, len(nl) - len(block) + 1) if nl[k:k + len(block)] == block), None)
         if k is None:
             bad.append('hand: (map line %d) %s matches nothing: it does not hold %s:%d-%d byte for byte%s' % (
                 n, new, src, lo, hi, ' after the blocks declared before it' if cur else ''))
             continue
+        if cls_n[k:k + len(block)] != cls_s[lo - 1:hi]:
+            bad.append('hand: (map line %d) %s:%d: %s:%d-%d is not read as it is in its source (a comment or string '
+                       'opened before it swallows it)' % (n, new, k + 1, src, lo, hi))
         if ctx_n[k] != ctx_s[lo - 1]:
             bad.append('hand: (map line %d) %s:%d: %s:%d-%d sits in %s there, in %s in its source' % (
                 n, new, k + 1, src, lo, hi, '::'.join(ctx_n[k]) or 'the global scope', '::'.join(ctx_s[lo - 1]) or
@@ -332,7 +370,7 @@ def check_hand_file(new, blocks, base_text, nt, old_tree, new_tree, plan):
     for i, line in enumerate(nl):
         if i not in used and i + 1 not in scaffold:
             bad.append('%s:%d: in a hand split, a line that is neither taken from its source nor scaffold (blank, a '
-                       'comment, #pragma once, an include, a guard, a namespace line): %s' % (new, i + 1, line.rstrip('\r\n')))
+                       'comment, #pragma once, an include, a namespace line): %s' % (new, i + 1, line.rstrip('\r\n')))
         m = INC_RE.match(line.rstrip('\r\n'))
         if not m:
             continue
@@ -356,19 +394,18 @@ def check_hand_file(new, blocks, base_text, nt, old_tree, new_tree, plan):
 
 def scaffold_lines(text):
     """Line numbers (1-based) of a C++ file's scaffold: blank, a comment, #pragma once, an #include or #import, an
-    include guard (#ifndef G, then #define G with no value, #endif), a namespace opened or closed; a trailing comment
-    allowed. Any other #define is not scaffold: it could switch code on in every file that includes the new one."""
+    a namespace opened or closed; a trailing comment allowed. Never a #define, an #if / #ifdef / #ifndef / #else / #endif
+    (it could switch the taken code off, or code on in every includer: an include guard included; src/ uses #pragma
+    once), or a line that ends in a backslash (it would splice the next line into it; review B1)."""
     cls = spans_cpp(text)
-    out, off, guard = set(), 0, None
+    out, off = set(), 0
     for n, line in enumerate(text.splitlines(keepends=True), 1):
         body = ''.join(ch if c != 'm' else ' ' for ch, c in zip(line, cls[off:off + len(line)])).strip()
         off += len(line)
-        g = re.match(r'^#\s*ifndef\s+(\w+)$', body)
-        d = re.match(r'^#\s*define\s+(\w+)$', body)
-        if not body or g or (d and d.group(1) == guard) or any(r.match(body) for r in SCAFFOLD_RES):
+        if SPLICE_RE.search(line.rstrip('\r\n')):
+            continue
+        if not body or any(r.match(body) for r in SCAFFOLD_RES):
             out.add(n)
-        if body:
-            guard = g.group(1) if g else None                      # a guard's #define comes right after its #ifndef
     return out
 
 
@@ -2101,6 +2138,8 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
         h1, t1 = new_tree.resolve(w, mn.group(2))
         if h1 in (None, 'ambiguous', 'base'):
             return None
+        if not re.match(r'^"\s*(//.*)?$', mn.group(3)) or SPLICE_RE.search(mn.group(3)):
+            return None                     # after the path: nothing or a // comment, never a splice or a /* (review B2)
         if old is None:
             return 'src/' + t1 if 'src/' + t1 in splits_of.get(b, ()) else None
         mo = INC_RE.match(old.rstrip('\r\n'))
@@ -2964,16 +3003,40 @@ def hand_selftest(tmp, sh, tool, put, get, check):
     hand_case('hand: a code line added to the new file fails (only scaffold besides the taken lines)', hand,
               'neither taken from its source nor scaffold', 'src/Recording/types.h',
               lambda s: s.replace('} // namespace', 'inline int g() { return 2; }\n} // namespace'))
-    tb = get(d4, 'src/Recording/types.h')
-    put(d4, 'src/Recording/types.h', tb.replace('#pragma once\n', '#ifndef TYPES_H\n#define TYPES_H\n', 1) + '#endif // TYPES_H\n')
-    rc, out = tool(d4, mp4, '--verify', base4, '--no-configure-ok')
-    put(d4, 'src/Recording/types.h', tb)
-    check(rc == 0 and 'VERIFY PASSED' in out, 'hand: an include guard (#ifndef, #define, #endif) in the new file is scaffold')
-    hand_case('hand: a #define added to the new file fails (an include guard only)', hand,
-              'neither taken from its source nor scaffold (blank, a comment, #pragma once, an include, a guard, a '
-              'namespace line): #define PP_SWITCH', 'src/Recording/types.h',
-              lambda s: s.replace('#pragma once\n', '#pragma once\n#ifndef TYPES_H\n#define TYPES_H\n#define PP_SWITCH\n', 1)
-              .replace('} // namespace pp::analysis\n', '} // namespace pp::analysis\n#endif\n'))
+    T = 'src/Recording/types.h'
+    hand_case('hand: an include guard in the new file fails (#pragma once only: an #ifndef could switch code off)', hand,
+              'nor scaffold (blank, a comment, #pragma once, an include, a namespace line): #ifndef TYPES_H', T,
+              lambda s: s.replace('#pragma once\n', '#ifndef TYPES_H\n#define TYPES_H\n', 1) + '#endif // TYPES_H\n')
+    hand_case('hand: a #define added to the new file fails', hand, 'nor scaffold (blank, a comment, #pragma once, an '
+              'include, a namespace line): #define PP_SWITCH', T,
+              lambda s: s.replace('#pragma once\n', '#pragma once\n#define PP_SWITCH\n', 1))
+    hand_case('hand: the taken blocks under an #ifndef NDEBUG in the new file fail (review B1)', hand,
+              'nor scaffold (blank, a comment, #pragma once, an include, a namespace line): #ifndef NDEBUG', T,
+              lambda s: s.replace('// A binding.\n', '#ifndef NDEBUG\n// A binding.\n', 1)
+              .replace('} // namespace', '#endif\n} // namespace'))
+    hand_case('hand: the taken blocks inside a /* */ comment in the new file fail (review B1)', hand,
+              'is not read as it is in its source', T,
+              lambda s: s.replace('// A binding.\n', '/*\n// A binding.\n', 1).replace('} // namespace', '*/\n} // namespace'))
+    hand_case('hand: a scaffold comment ending in a backslash before a taken line fails (a splice; review B1)',
+              hand.replace('14-18', '15-18'), 'nor scaffold (blank, a comment, #pragma once, an include, a namespace '
+              'line): // note \\', T, lambda s: s.replace('// A track.\n', '// note \\\n', 1))
+    hand_case('hand: a scaffold comment ending in a backslash and a space fails (compilers splice it too; re-review R1)',
+              hand.replace('14-18', '15-18'), 'a namespace line): // note \\ ', T,
+              lambda s: s.replace('// A track.\n', '// note \\ \n', 1))
+    hand_case('hand: the source\'s include of the split ending in "// x \\" and a tab fails (re-review R1)', hand,
+              'line added: #include "../Recording/types.h" // x \\', 'src/Analysis/big.h',
+              lambda s: s.replace('#include "../Recording/types.h" // Binding, Track\n', '', 1)
+              .replace('inline int f()', '#include "../Recording/types.h" // x \\\t\ninline int f()', 1))
+    hand_case('hand: a hand: line that takes no code is refused (review B1)', hand.replace('7-11,14-18', '6'),
+              'takes no code (only blank or comment lines)')
+    hand_case('hand: the source\'s include of the split ending in a backslash fails (it would splice; review B2)', hand,
+              'line added: #include "../Recording/types.h" \\', 'src/Analysis/big.h',
+              lambda s: s.replace('#include "../Recording/types.h" // Binding, Track\n', '', 1)
+              .replace('inline int f()', '#include "../Recording/types.h" \\\ninline int f()', 1))
+    hand_case('hand: the source\'s include of the split opening a /* comment fails (review B2)', hand,
+              'line added: #include "../Recording/types.h" /* Binding', 'src/Analysis/big.h',
+              lambda s: s.replace('#include "../Recording/types.h" // Binding, Track\n',
+                                  '#include "../Recording/types.h" /* Binding, Track\n', 1))
     hand_case('hand: the taken blocks in another namespace fail', hand, 'sits in ns:pp::ns:other there, in ns:pp::ns:analysis',
               'src/Recording/types.h', lambda s: s.replace('namespace pp::analysis {', 'namespace pp::other {'))
     hand_case('hand: a taken line left in the source too fails (a split moves the lines)', hand,
