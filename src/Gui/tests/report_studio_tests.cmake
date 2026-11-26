@@ -27,15 +27,15 @@ pp_add_test(report_studio_test
             ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
             # The one session list: the controller's activity is its rows' (refactor step 5.7b).
             ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
             ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp

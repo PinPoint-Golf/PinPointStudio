@@ -45,13 +45,13 @@
 #include "../../Stores/rule_data_store.h"   // the shipped pack factory, for the typed-value checks
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
-#include "../packs/pack_provider.h"
-#include "../norms/norm_provider.h"
+#include "../content/pack_provider.h"
+#include "../content/norm_provider.h"
 #include "../../Gui/diagnosticmodel/layout/corridor_plot.h"
-#include "../packs/drill_pack.h"
-#include "../packs/screen_pack.h"
-#include "../measures/anatomy_vocabulary.h"
-#include "../measures/measure_facets.h"
+#include "../content/drill_pack.h"
+#include "../content/screen_pack.h"
+#include "../model/anatomy_vocabulary.h"
+#include "../model/measure_facets.h"
 
 #include <QCoreApplication>
 #include <QFile>

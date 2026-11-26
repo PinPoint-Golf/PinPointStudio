@@ -34,22 +34,22 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
@@ -93,22 +93,22 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics

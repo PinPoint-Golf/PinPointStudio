@@ -43,11 +43,11 @@
 #include "Stores/session_diagnostics_files.h"
 #include "Stores/session_files.h"
 #include "Diagnostics/derived/sequence_checks.h"
-#include "Diagnostics/measures/live_measure_source.h"
-#include "Diagnostics/norms/norm_provider.h"
-#include "Diagnostics/packs/pack_provider.h"
-#include "Diagnostics/packs/reference_pack.h"
-#include "Diagnostics/packs/screen_pack.h"
+#include "Diagnostics/engine/live_measure_source.h"
+#include "Diagnostics/content/norm_provider.h"
+#include "Diagnostics/content/pack_provider.h"
+#include "Diagnostics/content/reference_pack.h"
+#include "Diagnostics/content/screen_pack.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

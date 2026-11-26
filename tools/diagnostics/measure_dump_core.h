@@ -39,11 +39,11 @@
 //
 // Namespace `measure_dump`, deliberately outside pinpoint::analysis ([[odr-collision-in-pinpoint-analysis]]).
 
-#include "Diagnostics/engine/characteristic.h"
-#include "Diagnostics/measures/live_measure_source.h"
-#include "Diagnostics/measures/measure_sample.h"
-#include "Diagnostics/norms/norm.h"
-#include "Diagnostics/norms/norm_provider.h"
+#include "Diagnostics/model/characteristic.h"
+#include "Diagnostics/engine/live_measure_source.h"
+#include "Diagnostics/model/measure_sample.h"
+#include "Diagnostics/model/norm.h"
+#include "Diagnostics/content/norm_provider.h"
 
 #include <QJsonObject>
 #include <QString>

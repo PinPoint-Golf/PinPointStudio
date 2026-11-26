@@ -10,7 +10,7 @@
 //   ctest --test-dir <build> -R diag_uncertainty --output-on-failure
 
 #include "../engine/characteristic_engine.h"
-#include "../measures/measure_sample.h"
+#include "../model/measure_sample.h"
 #include "../engine/relation_resolver.h"
 #include "../derived/diagnostic_ledger.h"
 

@@ -20,12 +20,12 @@
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "charts_words.h"
-#include "../../Diagnostics/engine/characteristic.h"
-#include "../../Diagnostics/engine/condition_reading.h"   // a condition's readings: where it reads on a shot
-#include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid, reduceOverGrid: THE sampler
-#include "../../Diagnostics/norms/context_tree.h"        // contextIdForClub
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/model/characteristic.h"
+#include "../../Diagnostics/content/condition_reading.h"   // a condition's readings: where it reads on a shot
+#include "../../Diagnostics/model/measure_sample.h"   // buildPhaseGrid, reduceOverGrid: THE sampler
+#include "../../Diagnostics/model/context_tree.h"        // contextIdForClub
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/content/pack_provider.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"                // a gate's words for a refused reading
 #include "../../Analysis/route_substitution.h"           // substitutedGapGate: a gap in a substituted reading
 #include "../../Diagnostics/derived/diagnostic_ledger.h"            // conditionTier, wilsonLowerBound: the session's pattern gate

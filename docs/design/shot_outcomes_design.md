@@ -89,7 +89,7 @@ pushes on each of them:
 | Piece | Where | Use in this feature |
 |---|---|---|
 | 20 outcome conditions (`kind: outcome`): pull, push, launch_low, launch_high, ball_speed_deficit, slice, hook, pull_hook, push_slice, chunk, thin, top, sky, shank, strike_toe, strike_heel, smash_deficit, spin_excess, spin_deficit, carry_deficit | `src/Resources/diagnostics/core.json` | The labels. Already fire per shot. |
-| Outcome signals read LM / impact measures: `m_spinAxis`, `m_lmLaunchDirection`, `m_lmStrikeHeight`, `m_strikeLocation`, `m_carryDistance`, `m_smashFactor`, `m_lowPointAhead` (prefers `lm.lowPointAhead`, falls back to our own) | core.json measures; `src/Diagnostics/measures/live_measure_source.cpp` (key ladder) | Evidence line per label (E2). |
+| Outcome signals read LM / impact measures: `m_spinAxis`, `m_lmLaunchDirection`, `m_lmStrikeHeight`, `m_strikeLocation`, `m_carryDistance`, `m_smashFactor`, `m_lowPointAhead` (prefers `lm.lowPointAhead`, falls back to our own) | core.json measures; `src/Diagnostics/engine/live_measure_source.cpp` (key ladder) | Evidence line per label (E2). |
 | Ball ← club edges, e.g. `slice ← out_to_in_path, open_face_to_path`; `chunk ← low_point_behind_ball, attack_too_steep, ball_back, diving, posture_sinks_impact, deceleration`; `shank ← early_extension, ball_too_close, …` | core.json edges | The trace below each label. |
 | Outcome ↔ outcome edges: only `excludes` (chunk ⊥ thin/top, sky ⊥ chunk, pull_hook ⊥ push_slice), `strike_heel ⇢ shank` (corroborates), `strike_toe/heel → smash_deficit` (causes) | core.json | Extend (§3.2). |
 | Per-shot ledger row: `ShotRecord { shotId, club, contextId, timestampMs, dataWarning, rows, signalRows, clubheadSpeed, peakTimes }` | `src/Diagnostics/derived/diagnostic_ledger.h` | Already carries every fired outcome row per shot. |
@@ -196,7 +196,7 @@ z = (usual.carryMean(club) − lm.carryDistance) / usual.carrySd(club)    // + i
   off `m_lmBallSpeed` (`usual.ballSpeedMean/Sd`, same threshold), so its phrase is true. It has no duff
   guard, so a club with no history leaves it NotAssessable.
 - The provider (`IClubBaselineProvider`, factory `makeClubBaselineProvider`,
-  `src/Diagnostics/measures/club_baseline_provider.h`) reads the sidecar's numbers and is the **only**
+  `src/Diagnostics/model/club_baseline_provider.h`) reads the sidecar's numbers and is the **only**
   path from athlete history to firing. A test asserts no other measure reads it.
 
 ### 3.4 Fade and draw

@@ -13,7 +13,7 @@
 //   cmake --build build/analyzer-tests --target norm_pack_test
 //   ctest --test-dir build/analyzer-tests -R norm_pack_test --output-on-failure
 
-#include "../norms/norm_provider.h"
+#include "../content/norm_provider.h"
 #include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 
 #include <QDir>

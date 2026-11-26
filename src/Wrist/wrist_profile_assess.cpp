@@ -22,8 +22,8 @@
 #include "wrist_analysis_adapter.h"
 #include "wrist_assessment_engine.h"
 #include "../Vocabulary/Analysis/wrist_assessment_types.h"
-#include "../Diagnostics/norms/norm.h"
-#include "../Diagnostics/norms/norm_provider.h"
+#include "../Diagnostics/model/norm.h"
+#include "../Diagnostics/content/norm_provider.h"
 
 #include <QHash>
 #include <QJsonArray>

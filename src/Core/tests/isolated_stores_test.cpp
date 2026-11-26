@@ -28,7 +28,7 @@
 #include "../../App/studio_profile.h"
 #include "../../Stores/studio_profile_store.h"
 #include "../../Stores/rig_store.h"
-#include "../../Diagnostics/engine/pack_io.h"
+#include "../../Diagnostics/model/pack_io.h"
 
 #include <QCoreApplication>
 #include <QDir>

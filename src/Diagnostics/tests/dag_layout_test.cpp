@@ -24,7 +24,7 @@
 //   ctest --test-dir build/analyzer-tests -R dag_layout --output-on-failure
 
 #include "../../Gui/diagnosticmodel/layout/dag_layout.h"
-#include "../packs/reference_pack.h"
+#include "../content/reference_pack.h"
 
 #include <cstdio>
 #include <set>

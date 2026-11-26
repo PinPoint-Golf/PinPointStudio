@@ -35,7 +35,7 @@
 //              condition: no settings key moves).
 //
 // THE NORM SETS' BYTES are read here too since refactor step 7.1 (P11: the rules open no file): the norm
-// leaves (src/Diagnostics/norms) take RuleFile values, as the pack leaves have since 3.2. The reads the
+// leaves (src/Diagnostics/content) take RuleFile values, as the pack leaves have since 3.2. The reads the
 // norm stack needs (readFile, shippedPath, the by-path norm factories, the norm slot's no-RuleData
 // assembly and its installer) are in rule_data_reads.cpp, which links wherever the norm stack does; the
 // rest is in rule_data_store.cpp.
@@ -98,7 +98,7 @@ private:
 
 // ── By path, for the tests and offline tools that build a provider from a file of their own ─────────
 //
-// The forms the pack factories had before refactor step 3.2 (src/Diagnostics/packs/pack_provider.h now
+// The forms the pack factories had before refactor step 3.2 (src/Diagnostics/content/pack_provider.h now
 // takes the bytes): each reads through RuleDataStore and hands the bytes on, with the bibliography the
 // store reads for the pack loader's book gate. Not for the app, which reads RuleData's snapshot.
 namespace pinpoint::analysis {
@@ -111,7 +111,7 @@ std::vector<std::unique_ptr<ICharacteristicPackProvider>> makeFilePackProviders(
     const QString &directory = QString());
 QStringList characteristicPackFilesIn(const QString &directory = QString());
 
-// The norm side's (refactor step 7.1; src/Diagnostics/norms/norm_provider.h now takes the bytes), in
+// The norm side's (refactor step 7.1; src/Diagnostics/content/norm_provider.h now takes the bytes), in
 // rule_data_reads.cpp. The shipped core norm set and context tree: PINPOINT_CORE_NORMS / _CONTEXTS, else
 // the resources.
 std::unique_ptr<INormProvider> makeResourceNormProvider(

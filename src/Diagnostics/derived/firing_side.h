@@ -43,7 +43,7 @@
 // on it.
 
 #include "diagnostic_ledger.h"                       // FiringSide
-#include "../engine/characteristic.h"   // CharacteristicPack, Condition, Signal
+#include "../model/characteristic.h"   // CharacteristicPack, Condition, Signal
 
 #include <QString>
 

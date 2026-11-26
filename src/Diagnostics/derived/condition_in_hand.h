@@ -26,7 +26,7 @@
 // and its Swing areas all word a condition through this, once, from its ROW id.
 
 #include "handedness_gloss.h"
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 
 #include <QString>
 

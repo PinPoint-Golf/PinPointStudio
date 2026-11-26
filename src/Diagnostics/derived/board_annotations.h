@@ -47,7 +47,7 @@
 // Rules ring (src/Diagnostics/derived): pure, no I/O.
 
 #include "diagnostic_ledger.h"
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"   // effectiveClub: the one club rule (refactor 6.2)
 
 #include <QHash>

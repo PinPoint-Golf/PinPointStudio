@@ -1,7 +1,7 @@
 # Pinpoint Diagnostics — Developer Guide
 
 **Audience**: developers working on the diagnostics model — characteristics, measures, norms, contexts, the causal graph, or the screens over them
-**Location**: `src/Diagnostics/` (the model: `engine/`, `measures/`, `norms/`, `packs/`), `src/DomainModel/` (the owners that run it: `Session` → `SessionDiagnostics`, `Athlete` → `AthleteDiagnostics`, `RuleData`), `src/App/athlete_catch_up.*` (the catch-up), `src/Core/work_pool.*` (the one pool), `src/Gui/diagnostics/` and `src/Gui/diagnosticmodel/` (the thin adapters, the `ModelBrowser` façade and the panel views), `src/Resources/diagnostics/` (the content)
+**Location**: `src/Diagnostics/` (the model, in four folders by layer, lowest first: `model/`, `content/`, `derived/`, `engine/`; §14), `src/DomainModel/` (the owners that run it: `Session` → `SessionDiagnostics`, `Athlete` → `AthleteDiagnostics`, `RuleData`), `src/App/athlete_catch_up.*` (the catch-up), `src/Core/work_pool.*` (the one pool), `src/Gui/diagnostics/` and `src/Gui/diagnosticmodel/` (the thin adapters, the `ModelBrowser` façade and the panel views), `src/Resources/diagnostics/` (the content)
 **Language**: C++17 value types and rules, Qt-only, no Qt-GUI below the façade layer
 **Status**: the CONTENT layer is production and shipped. The EXECUTION layer runs (refactor step 3's build items, closed by 3.10 on 22 Nov 2026; step 3.0 and the re-fire are still to do, 04 step 3's status): every shot of every loaded session is fired by `fireFindings()` and the session diagnosed by its own `SessionDiagnostics`, panel or no panel; the athlete level is `AthleteDiagnostics`, over the session summaries. **§6.0 says who runs what.** Section 8 is the breakdown of what is live and what is dormant; read it before assuming any one piece runs.
 
@@ -490,7 +490,7 @@ Watch or Action — **not** merely on leaving Ideal. Ideal is the middle of norm
 ## 6. Detection and explanation
 
 Both run in the app. `detect()` runs inside `fireFindings()` for every shot (through `detectForSwing`,
-`measures/live_measure_source.cpp`); `explain()` runs in the session adapter's explanation
+`engine/live_measure_source.cpp`); `explain()` runs in the session adapter's explanation
 (`SessionDiagnosticsModel::refreshExplanation`). §6.0 says who calls them, on which thread, and who keeps the result.
 
 ### 6.0 Who runs it: the owners (refactor step 3)
@@ -751,7 +751,7 @@ The section to read before assuming anything here runs. "Dormant" means written 
 | `metric_corridor.h` | `metric_catalog.cpp` → MetricDetail, PpBandRail, dashboard Motion/Verdict/Setup zones |
 | `NormBandProvider` (`Wrist/reference_bands.cpp`) | the wrist grid (the Charts wrist presenter) and offline (`analysis_pipeline`) |
 | **`fireFindings()`, `deriveShotData()`** (`engine/fire_findings`) | every shot of every loaded session, through `SessionDiagnostics` (§6.0) |
-| **`detect()`** (`engine/characteristic_engine`), **`NormMeasureSource`**, `LiveMeasureSource` (`IMeasureValueSource`'s real implementation) | `fireFindings()` through `detectForSwing` (`measures/live_measure_source.cpp`) |
+| **`detect()`** (`engine/characteristic_engine`), **`NormMeasureSource`**, `LiveMeasureSource` (`IMeasureValueSource`'s real implementation) | `fireFindings()` through `detectForSwing` (`engine/live_measure_source.cpp`) |
 | **`reduceSession()`** (`engine/session_reduction`) | `SessionDiagnostics`' diagnosis, on its lane |
 | **`explain()`** (`engine/relation_resolver`) | the session adapter's explanation (`SessionDiagnosticsModel::refreshExplanation`) |
 | `SessionDiagnostics`, `AthleteDiagnostics`, `AthleteCatchUp`, `RuleData`, `WorkPool` | §6.0 |
@@ -1222,20 +1222,30 @@ Each of these is a bug that shipped or nearly shipped. They are here because non
 ## 14. File map
 
 ```
-src/Diagnostics/engine/
+                                Four folders by layer, lowest first: model → content → derived → engine. A file
+                                includes only its own folder and those before it (ctest diagnostics_dir_order_check,
+                                tools/refactor/dir_order_check.py; R8, ruled 26 Nov 2026). Tests in tests/ are exempt.
+src/Diagnostics/model/          the vocabulary and the types:
   characteristic.{h,cpp}        Measure · Signal · Condition · Edge, enums, label tables
+  pack_io.{h,cpp}               the pack's file shape, validatePack / loadPack
+                                norm · context_tree · measure_vocabulary.h · measurement_precedence.h ·
+                                anatomy_vocabulary · measure_facets · measure_sample (builds and reduces the phase grid) ·
+                                delivery_grid_numbers.h · excludes_rule.h · club_baseline_provider.h · enum_table_p.h
+src/Diagnostics/content/        the loaders, validators and registries: characteristic_pack · screen_pack · drill_pack ·
+                                gate_words_pack · reference_pack · norm_pack · layered_set.h · area_regroup_table.h ·
+                                pack_provider.h · norm_provider.h · {resource,file,merged,memory}_{pack,norm}_provider ·
+                                provider_leaf_p.h · condition_reading.h
+src/Diagnostics/derived/        the derived facts (outcomes, factors, tendencies, the ledger, the session's results) and
+                                their packs (swing_themes_pack.h among them); series/ the Charts' session maths
+src/Diagnostics/engine/
   characteristic_engine.{h,cpp} detect(), evaluate(), Finding
   relation_resolver.{h,cpp}     explain(): ranked causes + screen recommendations
   fire_findings.{h,cpp}         fireFindings(), deriveShotData(), FiringInputs, firingStamp()   (the shot)
   session_reduction.{h,cpp}     reduceSession(): the session's diagnosis, pure               (the session)
-  pack_io.{h,cpp}               the pack's file shape, validatePack / loadPack
   diagnostics_health.{h,cpp}    assembled-library checks
-src/Diagnostics/packs/          characteristic_pack · screen_pack · drill_pack · gate_words_pack · reference_pack ·
-                                layered_set.h · {resource,file,merged,memory}_pack_provider · pack_provider.h
-src/Diagnostics/norms/          norm.h · norm_pack · norm_provider.h · context_tree · metric_corridor.h ·
-                                norm_measure_source.h · {resource,file,merged,memory}_norm_provider
-src/Diagnostics/measures/       measure_sample (builds and reduces the phase grid) · live_measure_source (detectForSwing) ·
-                                measure_facets · anatomy_vocabulary · club_baseline_provider.h
+                                the measure sources: live_measure_source (detectForSwing) · norm_measure_source.h ·
+                                session_measure_source.h · composite_reading.h · metric_corridor.h ·
+                                shot_direction_bounds.h · wrist_domain_score.h
 src/Vocabulary/Analysis/        phase_grid.h (the phase grid's value types) · sigma_source.h (P-3)
 src/Stores/phase_grid_store.*   swing_phasegrid.json's file door (FILE-SHOT-07); a shot's grid through
                                 RecordingReader::phaseGrid (P-3)

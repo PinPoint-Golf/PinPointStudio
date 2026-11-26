@@ -19,7 +19,7 @@
 #include "session_reduction.h"
 
 #include "characteristic_engine.h"
-#include "../measures/session_measure_source.h"
+#include "session_measure_source.h"
 #include "../derived/club_distances.h"
 #include "../derived/sequence_checks.h"
 #include "../derived/strike_from_flight.h"

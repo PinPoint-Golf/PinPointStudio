@@ -27,8 +27,8 @@
 #include "../../Diagnostics/derived/sequence_checks.h"         // the KS checks off the ledger's signal rows           // the ledger's one deserialiser
 #include "../../Vocabulary/Club/club_vocabulary.h"                 // swingDocDeclaredClub
 #include "../../Core/pp_debug.h"
-#include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
-#include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
+#include "../../Diagnostics/content/condition_reading.h" // condition → { metricKey, phase }
+#include "../../Diagnostics/content/pack_provider.h"      // condition names and groups
 #include "../../Stores/swing_store.h"
 #include "../../Stores/swing_paths.h"
 #include "../../Stores/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)

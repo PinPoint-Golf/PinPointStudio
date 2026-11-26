@@ -31,18 +31,18 @@
 #include "../../Diagnostics/derived/swing_areas_pack.h"
 #include "../../Diagnostics/derived/work_ons_pack.h"
 
-#include "../../Diagnostics/packs/characteristic_pack.h"
-#include "../../Diagnostics/packs/drill_pack.h"
-#include "../../Diagnostics/engine/pack_io.h"
+#include "../../Diagnostics/content/characteristic_pack.h"
+#include "../../Diagnostics/content/drill_pack.h"
+#include "../../Diagnostics/model/pack_io.h"
 #include "../../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule (refactor 3.7-e)
 #include "../../Diagnostics/derived/session_results.h"        // the summary's strict read (3.7-e)
 #include "../../DomainModel/summary_rules.h"       // the rule data as the firing reads it; summaryFingerprintOf (3.7-e round 2)
 #include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: the athlete level, which this adapts (3.7-f)
 #include <QMutex>
-#include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Diagnostics/packs/swing_themes_pack.h"
-#include "../../Diagnostics/norms/context_tree.h"
-#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/content/pack_provider.h"
+#include "../../Diagnostics/derived/swing_themes_pack.h"
+#include "../../Diagnostics/model/context_tree.h"
+#include "../../Diagnostics/content/norm_provider.h"
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 #include "../../Core/pp_debug.h"
 #include "../../Stores/swing_store.h"

@@ -21,7 +21,7 @@
 // PhaseGridStore — THE FILE DOOR OF A SHOT'S PHASE GRID, <swing>/swing_phasegrid.json (FILE-SHOT-07; platform refactor
 // P-3). The one place the sidecar is read and written (R-PERS-1: one door per file); the archiver also spells its name, to
 // thin it with the other caches (session_archiver.cpp, isCache). Until P-3 this was the
-// phase-grid sampler's own file work in src/Diagnostics/measures/measure_sample.cpp (a rules directory, lint A1 and A5);
+// phase-grid sampler's own file work in src/Diagnostics/model/measure_sample.cpp (a rules directory, lint A1 and A5);
 // the sampler kept the pure half: building the grid from a document (buildPhaseGrid, phaseGridOfDocument) and the
 // sidecar's format (savePhaseGrid, loadPhaseGrid).
 //
@@ -39,7 +39,7 @@
 //
 // Adapters ring (src/Stores). Safe from any thread; it holds no state.
 
-#include "../Diagnostics/measures/measure_sample.h"   // SwingPhaseGrid, PhaseGridConfig, savePhaseGrid, loadPhaseGrid
+#include "../Diagnostics/model/measure_sample.h"   // SwingPhaseGrid, PhaseGridConfig, savePhaseGrid, loadPhaseGrid
 #include "../Vocabulary/Common/sidecar_policy.h"
 #include "../Wrist/wrist_profile_assess.h"            // WristInput
 

@@ -52,7 +52,7 @@
 #include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
 #include "../Body/skeleton3d_body_series.h" // the readings from the 3-D body (Skeleton3dBodyStage)
 #include "../Body/trunk_sensor_series.h" // hip internal rotation, the trunk sensors' bend precedence
-#include "../Diagnostics/measures/measurement_precedence.h" // findByPrecedence: which source wins for a metric (6.1a)
+#include "../Diagnostics/model/measurement_precedence.h" // findByPrecedence: which source wins for a metric (6.1a)
 #include "../Body/shoulder_tilt_vs_bend.h" // the shoulder tilt against the forward bend, after that precedence (W7)
 #include "../Club/club_slot_top.h"       // the club's climb placed in the on-plane window halfway back, after the run (D3)
 #include "../Club/p8_refusal_gate.h"     // why there is no P8, after the run (plane stack D6)

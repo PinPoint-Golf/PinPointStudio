@@ -933,7 +933,6 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
-    src/Diagnostics/engine src/Diagnostics/packs src/Diagnostics/norms src/Diagnostics/measures
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
 
@@ -3510,18 +3509,18 @@ if(PINPOINT_BUILD_TOOLS)
         # reference_bands.cpp hosts NormBandProvider — the corridors it used to compile in are now
         # content in src/Resources/diagnostics/norms.json, so the offline stack needs the norm
         # stack too. Omit these and swinglab_run / in-app re-analyse fail at link time.
-        src/Diagnostics/engine/pack_io.cpp
-        src/Diagnostics/norms/norm.cpp
-        src/Diagnostics/norms/norm_pack.cpp
-        src/Diagnostics/norms/context_tree.cpp
-        src/Diagnostics/packs/characteristic_pack.cpp
-        src/Diagnostics/engine/characteristic.cpp
-        src/Diagnostics/measures/measure_facets.cpp
-        src/Diagnostics/measures/anatomy_vocabulary.cpp
-        src/Diagnostics/norms/resource_norm_provider.cpp
-        src/Diagnostics/norms/file_norm_provider.cpp
+        src/Diagnostics/model/pack_io.cpp
+        src/Diagnostics/model/norm.cpp
+        src/Diagnostics/content/norm_pack.cpp
+        src/Diagnostics/model/context_tree.cpp
+        src/Diagnostics/content/characteristic_pack.cpp
+        src/Diagnostics/model/characteristic.cpp
+        src/Diagnostics/model/measure_facets.cpp
+        src/Diagnostics/model/anatomy_vocabulary.cpp
+        src/Diagnostics/content/resource_norm_provider.cpp
+        src/Diagnostics/content/file_norm_provider.cpp
         src/Stores/rule_data_reads.cpp
-        src/Diagnostics/norms/merged_norm_provider.cpp
+        src/Diagnostics/content/merged_norm_provider.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the
         # offline binaries carry two reference sets no code in them can read, which looks like
@@ -3530,10 +3529,10 @@ if(PINPOINT_BUILD_TOOLS)
         # Nothing offline CALLS them yet, so the linker drops the code and the binaries do not grow.
         # What this buys is that the day a diagnosis runs in swinglab_run — where a
         # TestRecommendation has to resolve its screenRef to a protocol — the link does not fail.
-        src/Diagnostics/packs/screen_pack.cpp
-        src/Diagnostics/packs/drill_pack.cpp
-        src/Diagnostics/packs/gate_words_pack.cpp
-        src/Diagnostics/packs/reference_pack.cpp
+        src/Diagnostics/content/screen_pack.cpp
+        src/Diagnostics/content/drill_pack.cpp
+        src/Diagnostics/content/gate_words_pack.cpp
+        src/Diagnostics/content/reference_pack.cpp
         src/Pose/pose_runner.cpp
         src/Ball/ball_runner.cpp
         src/Analysis/frame_store.cpp

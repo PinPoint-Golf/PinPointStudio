@@ -26,7 +26,7 @@
 // nothing beyond what holding a Condition already needs.
 
 #include "condition_role.h"
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 
 namespace pinpoint::analysis {
 

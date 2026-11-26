@@ -9,7 +9,7 @@
 //   cmake --build build/tests --target pack_io_test -j 6
 //   ctest --test-dir build/tests -R '^pack_io_test$' --output-on-failure
 
-#include "../engine/pack_io.h"
+#include "../model/pack_io.h"
 
 #include <QDir>
 #include <QFile>

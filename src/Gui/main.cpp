@@ -102,7 +102,7 @@
 #include "../Stores/series_store.h"  // its read door
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
-#include "../Diagnostics/packs/pack_provider.h"
+#include "../Diagnostics/content/pack_provider.h"
 #include "../DomainModel/rule_data.h"     // RuleData: the packs and norms, one per machine (step 3.2)
 #include "../Stores/rule_data_install.h" // the process's one RuleData, over its store
 #include "../Vocabulary/Metrics/metric_catalogue.h"

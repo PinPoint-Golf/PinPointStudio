@@ -41,8 +41,8 @@
 // The manifest is installed once, alone (no process-wide labeller), and never changed after, so readers on any
 // thread take no lock.
 
-#include "../measures/measure_vocabulary.h"         // Measure, measureKeyLadder
-#include "../norms/norm_provider.h"                 // INormProvider
+#include "../model/measure_vocabulary.h"         // Measure, measureKeyLadder
+#include "../content/norm_provider.h"                 // INormProvider
 #include "../../Vocabulary/Metrics/metric_catalogue.h"
 #include "../../Vocabulary/Metrics/variability/variability_outcome.h"         // isOutcomeMetric
 #include "../../Vocabulary/Metrics/variability/variability_scale_type.h"

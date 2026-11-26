@@ -22,7 +22,7 @@
 #include "gap_bridge.h"          // the chest's probable peak (design §12.6)
 #include "../Vocabulary/Metrics/metric_channel.h" // phaseTimeOpt, interpChannel, nearestIndex
 #include "../Pose/pose_schedule.h" // localGapUs (pose.dtlLocalGap)
-#include "../Diagnostics/measures/anatomy_vocabulary.h" // kp:: COCO indices
+#include "../Diagnostics/model/anatomy_vocabulary.h" // kp:: COCO indices
 
 #include <QVector3D>
 

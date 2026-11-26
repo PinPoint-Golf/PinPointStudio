@@ -10,7 +10,7 @@
 //   ctest -R wrist_domain_score --output-on-failure
 
 #include "../engine/wrist_domain_score.h"
-#include "../packs/characteristic_pack.h"
+#include "../content/characteristic_pack.h"
 #include "../../Wrist/assessment_rules.h"
 
 #include <QFile>

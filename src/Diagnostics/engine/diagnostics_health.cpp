@@ -18,8 +18,8 @@
 
 #include "diagnostics_health.h"
 
-#include "../packs/drill_pack.h"
-#include "../packs/screen_pack.h"
+#include "../content/drill_pack.h"
+#include "../content/screen_pack.h"
 
 #include <QObject>
 #include <QRegularExpression>

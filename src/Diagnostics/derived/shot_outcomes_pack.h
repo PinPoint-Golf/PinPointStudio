@@ -25,7 +25,7 @@
 
 #include "shot_outcomes.h"
 #include "condition_role_pack.h"        // conditionRoleFor
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 
 namespace pinpoint::analysis {
 

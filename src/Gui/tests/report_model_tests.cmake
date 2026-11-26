@@ -13,7 +13,7 @@
 # no norm — and the summary row's copy of the panel's variability map, club delivery only.
 #
 # The golfer words for gate clauses are model content now (Resources/diagnostics/gate_words.json, read through
-# Diagnostics/packs/gate_words_pack.cpp), and the test's last block proves that a Diagnostic Model edit reaches
+# Diagnostics/content/gate_words_pack.cpp), and the test's last block proves that a Diagnostic Model edit reaches
 # the next report: it writes a user pack, a user drill and a user gate-word override and reads them back the way
 # SessionReportModel::build() does. Hence the pack stack below — the loader, the three pack providers that
 # makeCharacteristicPackProvider() assembles, and the drill and gate-word registries — and the norm sources that
@@ -25,21 +25,21 @@ pp_add_test(report_model_test
     SOURCES report_model_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Stores/swing_paths.cpp   # report_swing_no.h: an unlisted swing's number off its folder (step 2.7b)
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/drill_pack.cpp
-            ${SRC}/Diagnostics/packs/gate_words_pack.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/drill_pack.cpp
+            ${SRC}/Diagnostics/content/gate_words_pack.cpp
             # The report's variability marks (report/report_variability.h, R2a R4b R10): the grader, its result, and
             # the within-club pooling over the Consistency maths' centring (variability_clubs.cpp needs those four).
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp

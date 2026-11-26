@@ -11,12 +11,12 @@
 //   cmake --build build/analyzer-tests --target reference_sets_test
 //   ctest --test-dir build/analyzer-tests -R reference_sets --output-on-failure
 
-#include "../packs/characteristic_pack.h"
+#include "../content/characteristic_pack.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../packs/drill_pack.h"
-#include "../packs/reference_pack.h"
-#include "../packs/screen_pack.h"
+#include "../content/drill_pack.h"
+#include "../content/reference_pack.h"
+#include "../content/screen_pack.h"
 
 #include <QFile>
 #include <QJsonArray>

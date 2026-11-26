@@ -45,21 +45,21 @@ pp_add_test(wrist_angle_sampling_test SOURCES wrist_angle_sampling_test.cpp)
 # reference_bands.h now pulls Diagnostics -> Metrics -> Analysis transitively (metric_reducer.h
 # includes swing_analysis.h non-relatively), so any test touching it needs all three on the path.
 set(NORM_INC ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${ANALYSIS})
-set(NORM_SRC ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
+set(NORM_SRC ${SRC}/Diagnostics/model/norm.cpp ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
              # Every registry loader reports through the shared issue vocabulary and returns a
              # LoadResult<T>, and both are defined in pack_io.cpp — so it travels with the pack the
              # way reference_pack.cpp does, on every link line that compiles one of them.
-             ${SRC}/Diagnostics/engine/pack_io.cpp
-             ${SRC}/Diagnostics/packs/characteristic_pack.cpp ${SRC}/Diagnostics/engine/characteristic.cpp
+             ${SRC}/Diagnostics/model/pack_io.cpp
+             ${SRC}/Diagnostics/content/characteristic_pack.cpp ${SRC}/Diagnostics/model/characteristic.cpp
              # The pack loader resolves a citation against the bibliography to decide whether a
              # peer tier is resting on a BOOK, so every target that compiles characteristic_pack.cpp
              # now links reference_pack.cpp too. Where no registry is on the path the shared set is
              # empty, nothing resolves, and the gate is a no-op — the link is the only requirement.
-             ${SRC}/Diagnostics/packs/reference_pack.cpp
-             ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-             ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-             ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp)
+             ${SRC}/Diagnostics/content/reference_pack.cpp
+             ${SRC}/Diagnostics/model/measure_facets.cpp ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+             ${SRC}/Diagnostics/content/resource_norm_provider.cpp
+             ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+             ${SRC}/Diagnostics/content/merged_norm_provider.cpp)
 
 # The shipped norm set and context tree live in Qt resources, which exist only inside the app
 # binary. Every standalone test that can reach NormBandProvider is pointed at the reviewable JSON.
@@ -375,7 +375,7 @@ pp_add_test(lower_body_metrics_test SOURCES lower_body_metrics_test.cpp
 # points and segments through the vocabulary rather than spelling keypoint indices,
 # so the geometry it measures is the geometry the content facets name.
 pp_add_test(upper_body_metrics_test SOURCES upper_body_metrics_test.cpp
-            ${SRC}/Body/upper_body_metrics.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp)
+            ${SRC}/Body/upper_body_metrics.cpp ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp)
 
 # Shared robust reducers (series_reduce.h + series_reduce_metric.h — HEADER-ONLY, so
 # there is no .cpp to add here or to any consumer target). At / Delta / Extremum /
@@ -1345,16 +1345,16 @@ set(DIAGRES ${SRC}/Resources/diagnostics)
 # providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
 set(RULE_DATA_SOURCES
     ${SRC}/DomainModel/rule_data.cpp ${SRC}/Stores/rule_data_store.cpp
-    ${SRC}/Diagnostics/packs/drill_pack.cpp ${SRC}/Diagnostics/packs/screen_pack.cpp
-    ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
-    ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
-    ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
-    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
-    ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
-    ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-    ${SRC}/Diagnostics/engine/characteristic.cpp ${SRC}/Diagnostics/measures/measure_facets.cpp
-    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    ${SRC}/Diagnostics/content/drill_pack.cpp ${SRC}/Diagnostics/content/screen_pack.cpp
+    ${SRC}/Diagnostics/content/reference_pack.cpp ${SRC}/Diagnostics/content/gate_words_pack.cpp
+    ${SRC}/Diagnostics/content/resource_pack_provider.cpp ${SRC}/Diagnostics/content/file_pack_provider.cpp
+    ${SRC}/Diagnostics/content/merged_pack_provider.cpp ${SRC}/Diagnostics/content/memory_pack_provider.cpp
+    ${SRC}/Diagnostics/content/resource_norm_provider.cpp ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${SRC}/Diagnostics/content/merged_norm_provider.cpp ${SRC}/Diagnostics/content/memory_norm_provider.cpp
+    ${SRC}/Diagnostics/model/norm.cpp ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
+    ${SRC}/Diagnostics/model/pack_io.cpp ${SRC}/Diagnostics/content/characteristic_pack.cpp
+    ${SRC}/Diagnostics/model/characteristic.cpp ${SRC}/Diagnostics/model/measure_facets.cpp
+    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
 
 # Anatomy vocabulary: role metadata, handedness resolution both ways, derived
@@ -1362,7 +1362,7 @@ set(RULE_DATA_SOURCES
 # guarantee that no admitted role reaches the face (23-90) or finger (91-132)
 # ranges. Qt-only (QPointF), no fixture.
 pp_add_test(anatomy_vocabulary_test
-    SOURCES ${DIAG}/tests/anatomy_vocabulary_test.cpp ${DIAG}/measures/anatomy_vocabulary.cpp
+    SOURCES ${DIAG}/tests/anatomy_vocabulary_test.cpp ${DIAG}/model/anatomy_vocabulary.cpp
     INCLUDE ${DIAG})
 
 # Vocabulary <-> skeleton-overlay parity. Pins the shared resolver to what
@@ -1371,31 +1371,31 @@ pp_add_test(anatomy_vocabulary_test
 # kBlueprintBones; the C++ video_overlay_pose these were first transcribed from
 # was deleted as unused, platform B1.1), so drift on either side fails.
 pp_add_test(anatomy_overlay_parity_test
-    SOURCES ${DIAG}/tests/anatomy_overlay_parity_test.cpp ${DIAG}/measures/anatomy_vocabulary.cpp
+    SOURCES ${DIAG}/tests/anatomy_overlay_parity_test.cpp ${DIAG}/model/anatomy_vocabulary.cpp
     INCLUDE ${DIAG})
 
 # Measure facets: the validity table indexed on (what-class, quantity,
 # reference-class), deterministic canonical naming across series AND reducer,
 # and structural duplicate / near-duplicate detection on the series tuple.
 pp_add_test(measure_facets_test
-    SOURCES ${DIAG}/tests/measure_facets_test.cpp ${DIAG}/measures/measure_facets.cpp ${DIAG}/measures/anatomy_vocabulary.cpp
+    SOURCES ${DIAG}/tests/measure_facets_test.cpp ${DIAG}/model/measure_facets.cpp ${DIAG}/model/anatomy_vocabulary.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 
 # Pack schema, loader and validator. Every rejection path is exercised: a validator whose
 # negative cases are untested is a validator that passes everything.
-set(DIAG_PACK ${DIAG}/engine/pack_io.cpp    # the shared issue vocabulary and LoadResult<T> — see NORM_SRC
-              ${DIAG}/packs/characteristic_pack.cpp ${DIAG}/engine/characteristic.cpp
+set(DIAG_PACK ${DIAG}/model/pack_io.cpp    # the shared issue vocabulary and LoadResult<T> — see NORM_SRC
+              ${DIAG}/content/characteristic_pack.cpp ${DIAG}/model/characteristic.cpp
               # See NORM_SRC above: the loader's book-citation tier gate resolves through the
               # bibliography, so the two travel together on every link line.
-              ${DIAG}/packs/reference_pack.cpp
-              ${DIAG}/measures/measure_facets.cpp ${DIAG}/measures/anatomy_vocabulary.cpp)
+              ${DIAG}/content/reference_pack.cpp
+              ${DIAG}/model/measure_facets.cpp ${DIAG}/model/anatomy_vocabulary.cpp)
 
 # The yes/no form of src/Core/atomic_write.h's atomicWrite() (header-only), which pack_io used to wrap
 # until refactor step 3.2 moved it beside the helper; the mechanism's own test is
 # Core/tests/atomic_write_test. This one pins only what the yes/no form adds: the empty path's
 # "no writable application data location", and that a write and a failure reach the helper.
 pp_add_test(pack_io_test
-    SOURCES ${DIAG}/tests/pack_io_test.cpp ${DIAG}/engine/pack_io.cpp
+    SOURCES ${DIAG}/tests/pack_io_test.cpp ${DIAG}/model/pack_io.cpp
     INCLUDE ${DIAG})
 
 pp_add_test(characteristic_pack_test
@@ -1426,9 +1426,9 @@ set_tests_properties(rule_data_test PROPERTIES
 # pass by watching the fix rather than the fault. It reads references.json itself, through
 # PP_CORE_REFERENCES_PATH, precisely so the validator and the content are gated separately.
 pp_add_test(core_pack_test
-    SOURCES ${DIAG}/tests/core_pack_test.cpp ${DIAG_PACK} ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
+    SOURCES ${DIAG}/tests/core_pack_test.cpp ${DIAG_PACK} ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/model/context_tree.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/packs/file_pack_provider.cpp ${DIAG}/packs/gate_words_pack.cpp
+            ${DIAG}/content/file_pack_provider.cpp ${DIAG}/content/gate_words_pack.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
@@ -1448,7 +1448,7 @@ set_tests_properties(core_pack_test PROPERTIES
 # every line). Prints the reduction's wall time. ~2 s optimised, ~13 s in a -O0 build on 10 cores,
 # so the timeout leaves room for a slow Debug box.
 pp_add_test(swing_themes_golden_test
-    SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+    SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     LINK    Threads::Threads
@@ -1462,7 +1462,7 @@ set_tests_properties(swing_themes_golden_test PROPERTIES TIMEOUT 600)
 # list's for every condition, and the list, areas, report and shot composer read the same answers as
 # before the role.
 pp_add_test(condition_role_test
-    SOURCES condition_role_test.cpp ${DIAG_PACK} ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+    SOURCES condition_role_test.cpp ${DIAG_PACK} ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
@@ -1477,7 +1477,7 @@ pp_add_test(condition_role_test
 pp_add_test(characteristic_engine_test
     SOURCES ${DIAG}/tests/characteristic_engine_test.cpp
             ${DIAG}/engine/relation_resolver.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${DIAG}/norms/context_tree.cpp ${DIAG_PACK}
+            ${DIAG}/model/context_tree.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 
 # rank_shift_report — the measurement `characteristic.h` demands of anything that moves the ranking
@@ -1491,7 +1491,7 @@ pp_add_test(characteristic_engine_test
 add_executable(rank_shift_report
     ${DIAG}/tests/rank_shift_report.cpp
     ${DIAG}/engine/relation_resolver.cpp ${DIAG}/engine/characteristic_engine.cpp
-    ${DIAG}/norms/context_tree.cpp ${DIAG_PACK})
+    ${DIAG}/model/context_tree.cpp ${DIAG_PACK})
 target_include_directories(rank_shift_report PRIVATE ${PP_BUFFER} ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 target_link_libraries(rank_shift_report PRIVATE Qt6::Core Qt6::Gui)
 target_compile_options(rank_shift_report PRIVATE -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
@@ -1517,23 +1517,23 @@ set(CMAKE_AUTOMOC ON)
 pp_add_test(diagnostics_catalogue_integrity_test
     SOURCES ${DIAG}/tests/diagnostics_catalogue_integrity_test.cpp ${DIAG_PACK}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp
+            ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/reference_pack.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Stores/swing_paths.cpp   # the model browser's library scans list swings through SwingPaths (step 2.7b)
             ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp
-            ${DIAG}/packs/memory_pack_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp
+            ${DIAG}/content/memory_pack_provider.cpp ${DIAG}/content/memory_norm_provider.cpp
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
-            ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
-            ${SRC}/Wrist/reference_bands.cpp ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
+            ${SRC}/Wrist/reference_bands.cpp ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/model/context_tree.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/Gui/diagnosticmodel
     LINK    Qt6::Qml Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
@@ -1553,20 +1553,20 @@ set_tests_properties(diagnostics_catalogue_integrity_test PROPERTIES
 # scoping (unscoped, the n=0 check opens with 39 items of noise about migrated rows) and the
 # single-tail axis, which must NOT be reported.
 pp_add_test(diagnostics_health_test
-    SOURCES ${DIAG}/tests/diagnostics_health_test.cpp ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG_PACK}
+    SOURCES ${DIAG}/tests/diagnostics_health_test.cpp ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG_PACK}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/model/context_tree.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+            ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     AUTOMOC)
 set_tests_properties(diagnostics_health_test PROPERTIES
@@ -1580,7 +1580,7 @@ set_tests_properties(diagnostics_health_test PROPERTIES
 pp_add_test(reference_sets_test
     SOURCES ${DIAG}/tests/reference_sets_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp ${DIAG_PACK}
+            ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/reference_pack.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     AUTOMOC)
 set_tests_properties(reference_sets_test PROPERTIES
@@ -1603,21 +1603,21 @@ pp_add_test(condition_reading_test
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
 
 # ── Norms ───────────────────────────────────────────────────────────────────
-set(DIAG_NORM ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
-              ${DIAG}/engine/pack_io.cpp                  # same pairing as DIAG_PACK
-              ${DIAG}/packs/characteristic_pack.cpp ${DIAG}/engine/characteristic.cpp
-              ${DIAG}/packs/reference_pack.cpp            # same pairing as DIAG_PACK
-              ${DIAG}/measures/measure_facets.cpp ${DIAG}/measures/anatomy_vocabulary.cpp)
+set(DIAG_NORM ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/model/context_tree.cpp
+              ${DIAG}/model/pack_io.cpp                  # same pairing as DIAG_PACK
+              ${DIAG}/content/characteristic_pack.cpp ${DIAG}/model/characteristic.cpp
+              ${DIAG}/content/reference_pack.cpp            # same pairing as DIAG_PACK
+              ${DIAG}/model/measure_facets.cpp ${DIAG}/model/anatomy_vocabulary.cpp)
 
 # The grade rule. Asserts z is computed per side (an asymmetric norm grades asymmetrically) and
 # that an explicit monitor band dominates the z-derived outer edge in BOTH directions — the rule
 # that makes the corridors migrated out of reference_bands.cpp reproduce exactly.
 pp_add_test(norm_test
-    SOURCES ${DIAG}/tests/norm_test.cpp ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/packs/characteristic_pack.cpp
-            ${DIAG}/engine/pack_io.cpp          # spelled out with the rest; keep the pairing
-            ${DIAG}/engine/characteristic.cpp ${DIAG}/measures/measure_facets.cpp ${DIAG}/measures/anatomy_vocabulary.cpp
-            ${DIAG}/packs/reference_pack.cpp   # spelled out rather than DIAG_NORM; keep the pairing
-            ${DIAG}/norms/context_tree.cpp
+    SOURCES ${DIAG}/tests/norm_test.cpp ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/content/characteristic_pack.cpp
+            ${DIAG}/model/pack_io.cpp          # spelled out with the rest; keep the pairing
+            ${DIAG}/model/characteristic.cpp ${DIAG}/model/measure_facets.cpp ${DIAG}/model/anatomy_vocabulary.cpp
+            ${DIAG}/content/reference_pack.cpp   # spelled out rather than DIAG_NORM; keep the pairing
+            ${DIAG}/model/context_tree.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 
 # Upward resolution through the context tree, plus the rule that an UNKNOWN context resolves to
@@ -1632,8 +1632,8 @@ pp_add_test(context_tree_test
 # every club-specific shipped norm beneath it.
 pp_add_test(norm_pack_test
     SOURCES ${DIAG}/tests/norm_pack_test.cpp ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 # The shipped norm set and context tree live in Qt resources, absent from a standalone binary —
 # same seam as PINPOINT_CORE_PACK.
@@ -1647,8 +1647,8 @@ set_tests_properties(norm_pack_test PROPERTIES
 pp_add_test(shared_norm_provider_test
     SOURCES ${DIAG}/tests/shared_norm_provider_test.cpp ${DIAG_NORM}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     AUTOMOC)
 pp_norm_env(shared_norm_provider_test)
@@ -1658,7 +1658,7 @@ pp_norm_env(shared_norm_provider_test)
 # that an unsegmented phase yields NOTHING (never a nearest-sample guess a sidecar would then cache),
 # that Extremum finds a peak no endpoint sees, and that an anchored Extremum is the SIGNED deviation.
 pp_add_test(measure_sample_test
-    SOURCES ${DIAG}/tests/measure_sample_test.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
+    SOURCES ${DIAG}/tests/measure_sample_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 
 # The shoulder tilt against the forward bend (Body/shoulder_tilt_vs_bend.h; planned-metrics second pass
@@ -1668,12 +1668,12 @@ pp_add_test(measure_sample_test
 # (and then the missing half's refusal is the reason LiveMeasureSource gives), the halves' records carried
 # over and body.tiltBendMixedSources on mixed instruments. Qt-only, synthetic halves.
 pp_add_test(shoulder_tilt_vs_bend_test
-    SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
+    SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
+            ${DIAG}/content/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
 
 # The club's climb placed in the slot (club_slot_top.h; plane stack D3, 13 Nov 2026): a known address plane,
@@ -1682,12 +1682,12 @@ pp_add_test(shoulder_tilt_vs_bend_test
 # missing or a slot under club.slotMinWidthDeg; the parts' records inherited, and a part's own refusal is the
 # reason the measure source gives. Qt-only, synthetic parts.
 pp_add_test(club_slot_top_test
-    SOURCES club_slot_top_test.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
+    SOURCES club_slot_top_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
 
 # Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8): σ through
@@ -1695,7 +1695,7 @@ pp_add_test(club_slot_top_test
 # counts that reproduce today's tier when no reading has a σ, and the noisy-OR posterior ranking with
 # its negative evidence and stability.
 pp_add_test(diag_uncertainty_test
-    SOURCES ${DIAG}/tests/diag_uncertainty_test.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+    SOURCES ${DIAG}/tests/diag_uncertainty_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp ${DIAG_NORM}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS})
 
@@ -1718,14 +1718,14 @@ pp_add_test(diag_uncertainty_test
 pp_add_test(live_measure_source_test
     SOURCES ${DIAG}/tests/live_measure_source_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/engine/characteristic_engine.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${NORM_INC}
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -1736,14 +1736,14 @@ set_tests_properties(live_measure_source_test PROPERTIES
 pp_add_test(club_baseline_provider_test
     SOURCES ${DIAG}/tests/club_baseline_provider_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/engine/characteristic_engine.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${NORM_INC}
     AUTOMOC)
 set_tests_properties(club_baseline_provider_test PROPERTIES
@@ -1820,15 +1820,15 @@ pp_add_test(shot_commands_test
             ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp
+            ${DIAG}/content/screen_pack.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
@@ -1896,15 +1896,15 @@ pp_add_test(work_ons_controller_test
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
-            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-            ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+            ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
             ${DIAG_NORM}
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
@@ -1948,15 +1948,15 @@ add_executable(regrade_ledger
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
     ${SESSION_DIAG_MARKS_SOURCES}
     ${SESSION_DIAG_CATALOGUE_SOURCES}
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+    ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG}/content/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${DIAG}/content/merged_norm_provider.cpp
+    ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
+    ${DIAG}/content/merged_pack_provider.cpp
     ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
@@ -2185,14 +2185,14 @@ add_executable(athlete_dump
     ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
     ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
     ${SRC}/Vocabulary/Metrics/metric_providers.cpp
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+    ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+    ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
+    ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${DIAG}/content/merged_norm_provider.cpp
+    ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
+    ${DIAG}/content/merged_pack_provider.cpp
     ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
@@ -2238,15 +2238,15 @@ pp_add_test(parity_json_test SOURCES ${PP_REPO_ROOT}/tools/diagnostics/parity_js
 set(MEASURE_DUMP_SRC
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${PP_REPO_ROOT}/tools/diagnostics/measure_dump_core.cpp
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+    ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG}/content/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${DIAG}/content/merged_norm_provider.cpp
+    ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
+    ${DIAG}/content/merged_pack_provider.cpp
     ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
@@ -2276,14 +2276,14 @@ set(FIRE_FINDINGS_TEST_SOURCES
     # The wrist checkpoint profile fireFindings computes (refactor 3.8-ii; DEC-123): the profile's rule and the wrist engine.
     ${SRC}/Wrist/wrist_profile_assess.cpp ${SRC}/Wrist/wrist_assessment_engine.cpp ${SRC}/Wrist/assessment_rules.cpp
     ${SRC}/Wrist/wrist_analysis_adapter.cpp ${SRC}/Wrist/reference_bands.cpp
-    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+    ${DIAG}/engine/live_measure_source.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
     ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
-    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG}/content/screen_pack.cpp
     ${DIAG_NORM}
-    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${DIAG}/norms/merged_norm_provider.cpp
-    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
-    ${DIAG}/packs/merged_pack_provider.cpp
+    ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${DIAG}/content/merged_norm_provider.cpp
+    ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
+    ${DIAG}/content/merged_pack_provider.cpp
     ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
@@ -2367,7 +2367,7 @@ set(SESSION_GATES_TEST_SOURCES ${SESSION_DIAGNOSTICS_TEST_SOURCES}
     ${SRC}/Stores/firing_reader_store.cpp
     ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
     ${SRC}/Stores/session_index_summary.cpp ${SRC}/Stores/session_archiver.cpp   # the entry's summary reads (5.7a-P1)
-    ${SRC}/Stores/swing_paths.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp   # the count's reads
+    ${SRC}/Stores/swing_paths.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp   # the count's reads
     ${SRC}/Gui/diagnosticmodel/gate_counts.h ${SRC}/Gui/diagnosticmodel/gate_count_reads.h
     ${SRC}/Gui/diagnosticmodel/corridor_grid_read.h   # the fallback's folder read; the suite defines it (B1.14)
     ${SRC}/Gui/diagnosticmodel/gate_count_index.h ${SRC}/Diagnostics/derived/session_gates.h ${SRC}/Stores/athlete_store.cpp)
@@ -2493,8 +2493,8 @@ pp_add_test(axis_direction_test
 # unknown context against the default, and an absent norm reading as a pass.
 pp_add_test(norm_measure_source_test
     SOURCES ${DIAG}/tests/norm_measure_source_test.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${NORM_INC})
 
 # The stage-2 migration gates (reference_bands_parity_test, wrist_render_parity_test) are GONE. They
@@ -2533,11 +2533,11 @@ pp_norm_env(wrist_domain_score_test)
 pp_add_test(seed_conversion_test
     SOURCES ${DIAG}/tests/seed_conversion_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     AUTOMOC)
 set_tests_properties(seed_conversion_test PROPERTIES
@@ -2557,11 +2557,11 @@ set_tests_properties(seed_conversion_test PROPERTIES
 pp_add_test(lm_corridor_test
     SOURCES ${DIAG}/tests/lm_corridor_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             # the engine's own signal evaluation (evaluateSignal), which the one direction rule is swept against
             # (refactor 6.3b)
@@ -2574,11 +2574,11 @@ set_tests_properties(lm_corridor_test PROPERTIES
 pp_add_test(manifest_migration_test
     SOURCES ${DIAG}/tests/manifest_migration_test.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
+            ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
@@ -2603,14 +2603,14 @@ pp_add_test(model_browser_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Stores/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
-            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
+            ${DIAG}/content/merged_pack_provider.cpp ${DIAG}/content/memory_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp ${DIAG}/content/memory_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
@@ -2638,14 +2638,14 @@ pp_add_test(inspector_refresh_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
             ${SRC}/Stores/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
-            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
+            ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
+            ${DIAG}/content/merged_pack_provider.cpp ${DIAG}/content/memory_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp ${DIAG}/content/memory_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
@@ -2666,12 +2666,12 @@ set_tests_properties(inspector_refresh_test PROPERTIES
 pp_add_test(corridor_plot_test
     SOURCES ${DIAG}/tests/corridor_plot_test.cpp
             ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
-            ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
-            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
+            ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${DIAG}/packs/merged_pack_provider.cpp
-            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${DIAG}/norms/merged_norm_provider.cpp ${DIAG_NORM}
+            ${DIAG}/content/merged_pack_provider.cpp
+            ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${DIAG}/content/merged_norm_provider.cpp ${DIAG_NORM}
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp

@@ -19,8 +19,8 @@
 #include "variability_env.h"
 
 #include "consistency_env.h"                        // consistencyEnvFromPacks
-#include "../../Diagnostics/norms/context_tree.h"   // contextIdForClub
-#include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
+#include "../../Diagnostics/model/context_tree.h"   // contextIdForClub
+#include "../../Diagnostics/content/norm_provider.h"  // sharedNormProvider
 #include "../variability/variability_measures.h"       // variabilityManifest: the one manifest every lookup reads
 #include "../../Vocabulary/Metrics/metric_catalogue.h"
 

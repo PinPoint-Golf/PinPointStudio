@@ -73,7 +73,7 @@
 #include "../../Diagnostics/derived/swing_themes.h"
 #include "../../Diagnostics/derived/tendencies_pack.h"
 #include "../../Diagnostics/derived/shot_outcomes_pack.h"
-#include "../../Diagnostics/packs/swing_themes_pack.h"
+#include "../../Diagnostics/derived/swing_themes_pack.h"
 #include "../../Core/work_pool.h"
 #include "../../Stores/firing_reader_store.h"
 #include "../../Stores/recording_loader.h"

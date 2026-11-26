@@ -375,7 +375,7 @@ const QHash<QString, int> &fileContexts()
         { QStringLiteral("Audio/ting_player"), CtxHub },
         // The drill pack stays Diagnostics until no Diagnostics file includes it; then Coaching (IM §2, "The packs").
         // Named, though its directory says the same, so that day is a one-line change.
-        { QStringLiteral("Diagnostics/packs/drill_pack"), CtxDiagnostics },
+        { QStringLiteral("Diagnostics/content/drill_pack"), CtxDiagnostics },
         // IMU: the device-level, calibration-procedure and signal-level files (IM §2's Acquisition row, L2; RING-RULES).
         { QStringLiteral("IMU/imu_calibration"), CtxAcquisition },
         { QStringLiteral("IMU/trunk_angles"), CtxAcquisition },
@@ -529,8 +529,16 @@ const QVector<OwnedFile> &ownedFiles()
 bool isRulesIoDir(const QString &rel)
 {
     if (rel.startsWith(QLatin1String("Analysis/"))) return ringOf(rel) == Rules;     // 03 §11 "Analysis rules"
-    return rel.startsWith(QLatin1String("Diagnostics/derived/")) || rel.startsWith(QLatin1String("Diagnostics/engine/"))
-        || rel.startsWith(QLatin1String("Diagnostics/norms/")) || rel.startsWith(QLatin1String("Diagnostics/measures/"));
+    // B1.19 re-keyed the old folders' image: content/'s files from engine/ and norms/ by name (the packs' loaders,
+    // from packs/, were never in it).
+    static const char *const contentStems[] = {
+        "Diagnostics/content/provider_leaf_p.", "Diagnostics/content/condition_reading.", "Diagnostics/content/norm_pack.",
+        "Diagnostics/content/norm_provider.", "Diagnostics/content/file_norm_provider.", "Diagnostics/content/memory_norm_provider.",
+        "Diagnostics/content/merged_norm_provider.", "Diagnostics/content/resource_norm_provider." };
+    for (const char *s : contentStems)
+        if (rel.startsWith(QLatin1String(s))) return true;
+    return rel.startsWith(QLatin1String("Diagnostics/model/")) || rel.startsWith(QLatin1String("Diagnostics/derived/"))
+        || rel.startsWith(QLatin1String("Diagnostics/engine/"));
 }
 
 // A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Stores, and the Platform
@@ -1136,7 +1144,7 @@ void selfTest()
               && contextOf(QStringLiteral("Core/device_enumerator.h")) == CtxAcquisition && contextOf(QStringLiteral("Core/pp_settings.h")) == CtxPlatform
               && contextOf(QStringLiteral("LaunchMonitor/inferred/lm_gates.h")) == CtxDiagnostics
               && contextOf(QStringLiteral("LaunchMonitor/gcquad_monitor.cpp")) == CtxAcquisition
-              && contextOf(QStringLiteral("Diagnostics/packs/drill_pack.h")) == CtxDiagnostics
+              && contextOf(QStringLiteral("Diagnostics/content/drill_pack.h")) == CtxDiagnostics
               && contextOf(QStringLiteral("Diagnostics/derived/series/session_curves.h")) == CtxDiagnostics
               && contextOf(QStringLiteral("Gui/shot/shot_arbiter.h")) == CtxHub && contextOf(QStringLiteral("Vocabulary/Rig/rig_state.h")) == CtxAcquisition
               && contextOf(QStringLiteral("Vocabulary/Identity/identity.h")) == CtxShared

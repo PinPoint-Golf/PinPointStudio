@@ -19,9 +19,9 @@
 #include "../engine/diagnostics_health.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../packs/drill_pack.h"
-#include "../packs/pack_provider.h"
-#include "../packs/screen_pack.h"
+#include "../content/drill_pack.h"
+#include "../content/pack_provider.h"
+#include "../content/screen_pack.h"
 
 #include <QFile>
 

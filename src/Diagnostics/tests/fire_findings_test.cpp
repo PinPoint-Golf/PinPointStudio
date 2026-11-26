@@ -29,7 +29,7 @@
 //   • deriveShotData() is composeShotOutcome() and shotFactors() on the inputs' usuals and baseline.
 
 #include "../engine/fire_findings.h"
-#include "../norms/context_tree.h"   // kDefaultContextId (ASM)
+#include "../model/context_tree.h"   // kDefaultContextId (ASM)
 #include "../../DomainModel/rule_data.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)

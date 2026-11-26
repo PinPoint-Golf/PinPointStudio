@@ -28,8 +28,8 @@
 
 #include "folder_series.h"
 #include "session_wrist.h"
-#include "../../Diagnostics/norms/norm.h"           // gradePolicyByName
-#include "../../Diagnostics/norms/norm_provider.h"  // sharedNormProvider
+#include "../../Diagnostics/model/norm.h"           // gradePolicyByName
+#include "../../Diagnostics/content/norm_provider.h"  // sharedNormProvider
 #include "../../Wrist/wrist_profile_assess.h"
 #include "../../Stores/rule_data_install.h"
 

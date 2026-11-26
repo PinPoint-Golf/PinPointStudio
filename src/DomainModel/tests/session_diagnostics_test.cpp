@@ -61,7 +61,7 @@
 #include "../shot.h"
 #include "../../Core/folder_lock.h"
 #include "../../Core/work_pool.h"
-#include "../../Diagnostics/measures/live_measure_source.h"
+#include "../../Diagnostics/engine/live_measure_source.h"
 #include "../../Diagnostics/derived/session_day_readings_rules.h"   // the day readings' rules (refactor 5.5d)
 #include "../../Stores/firing_reader_store.h"
 #include "../../Stores/phase_grid_store.h"   // the phase grid's file door (platform refactor P-3)

@@ -765,10 +765,10 @@ Stages run in order, unattended, with commits only at the end and the Product Ow
 anything is committed.
 
 1. **Engine**
-   - `src/Diagnostics/measures/measure_vocabulary.h`: `Composite` kind and part struct
+   - `src/Diagnostics/model/measure_vocabulary.h`: `Composite` kind and part struct
    - `pack_io.cpp`: parse and write
-   - `src/Diagnostics/norms/norm.h`, `norm_pack.cpp`: `rho`
-   - new `src/Diagnostics/norms/composite_reading.h`
+   - `src/Diagnostics/model/norm.h`, `norm_pack.cpp`: `rho`
+   - new `src/Diagnostics/engine/composite_reading.h`
    - `norm_measure_source.h`: compose
    - `characteristic_engine.h`: `MeasureReading::parts`
    - `live_measure_source.h`: `CompositeCoverage`

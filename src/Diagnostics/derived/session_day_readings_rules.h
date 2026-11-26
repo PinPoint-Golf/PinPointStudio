@@ -35,8 +35,8 @@
 
 #include "session_day_readings.h"
 #include "diagnostic_ledger.h"
-#include "../engine/characteristic.h"
-#include "../measures/delivery_grid_numbers.h"
+#include "../model/characteristic.h"
+#include "../model/delivery_grid_numbers.h"
 
 #include <QJsonArray>
 #include <QJsonObject>

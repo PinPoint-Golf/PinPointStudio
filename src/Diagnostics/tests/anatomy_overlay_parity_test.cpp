@@ -17,7 +17,7 @@
 //   cmake --build build/analyzer-tests --target anatomy_overlay_parity_test
 //   ctest --test-dir build/analyzer-tests -R anatomy_overlay_parity --output-on-failure
 
-#include "../measures/anatomy_vocabulary.h"
+#include "../model/anatomy_vocabulary.h"
 
 #include <cmath>
 #include <cstdio>

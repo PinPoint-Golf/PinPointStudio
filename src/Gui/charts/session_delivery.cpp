@@ -19,9 +19,9 @@
 #include "session_delivery.h"
 
 #include "charts_words.h"
-#include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid: THE sampler
-#include "../../Diagnostics/measures/delivery_grid_numbers.h"   // the grid → numbers rule (refactor 5.5d)
-#include "../../Diagnostics/measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
+#include "../../Diagnostics/model/measure_sample.h"   // buildPhaseGrid: THE sampler
+#include "../../Diagnostics/model/delivery_grid_numbers.h"   // the grid → numbers rule (refactor 5.5d)
+#include "../../Diagnostics/model/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
 #include "../../LaunchMonitor/inferred/lm_inferred_reads.h"       // lmShapeClass: THE shot-shape classifier (decision 10)
 
 #include <QHash>
@@ -300,7 +300,7 @@ DeliveryShotInput deliveryInputFromGrid(const pa::SwingPhaseGrid &grid)
     in.ordinal = grid.ordinal; in.swingDir = grid.swingDir; in.club = grid.club; in.session = grid.sessionId;
     in.nominalLoft = deliveryNominalLoft(grid.club);
     // THE ONE RULE (refactor 5.5d): the grid's numbers as the session summary's day readings take them too
-    // (Diagnostics/measures/delivery_grid_numbers.h), so another session's day reads what this section reads.
+    // (Diagnostics/model/delivery_grid_numbers.h), so another session's day reads what this section reads.
     const pa::DeliveryGridNumbers n = pa::deliveryGridNumbersOf(grid);
     in.plane = n.plane;
     in.hands = n.hands;

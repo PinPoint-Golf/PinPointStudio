@@ -22,16 +22,16 @@
 #include "layout/corridor_plot.h"
 #include "layout/dag_layout.h"
 #include "../../Diagnostics/engine/diagnostics_health.h"
-#include "../../Diagnostics/packs/drill_pack.h"
-#include "../../Diagnostics/measures/measure_sample.h"
+#include "../../Diagnostics/content/drill_pack.h"
+#include "../../Diagnostics/model/measure_sample.h"
 #include "shot_grid_door.h"   // the swing on screen, by its Shot (platform refactor P-3)
 #include "gate_count_reads.h"   // the Gates view's count over the session indexes (platform refactor P-3b)
 #include "corridor_grid_read.h"   // the folder read of a swing's grid: the corridor scan's recorded exception (B1.14, R11)
 // THE PHASE GRID'S FILE DOOR (FILE-SHOT-07), for the folder read alone (corridor_grid_read.h, defined below). The
 // architecture allowlist counts this include on model_browser.cpp's A5 line (R11; the Solution Architect, 24 Nov 2026).
 #include "../../Stores/phase_grid_store.h"
-#include "../../Diagnostics/packs/reference_pack.h"
-#include "../../Diagnostics/packs/screen_pack.h"
+#include "../../Diagnostics/content/reference_pack.h"
+#include "../../Diagnostics/content/screen_pack.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
 #include "../../Stores/swing_paths.h"
 

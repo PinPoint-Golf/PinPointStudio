@@ -72,7 +72,7 @@
 #include "../../src/DomainModel/session_diagnostics.h"
 #include "../../src/DomainModel/summary_rules.h"
 #include "../../src/Core/work_pool.h"
-#include "../../src/Diagnostics/packs/swing_themes_pack.h"   // themeMeasureInfo, themeConditionInfo (the bench)
+#include "../../src/Diagnostics/derived/swing_themes_pack.h"   // themeMeasureInfo, themeConditionInfo (the bench)
 #include "../../src/Stores/athlete_cache_repository.h"   // the athlete's own caches (FILE-ATH-02/03), as the app keeps them (3.7-f)
 #include "../../src/Stores/firing_reader_store.h"
 #include "../../src/Stores/recording_loader.h"

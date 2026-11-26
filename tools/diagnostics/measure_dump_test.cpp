@@ -24,8 +24,8 @@
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "Diagnostics/engine/fire_findings.h"
-#include "Diagnostics/norms/norm_measure_source.h"
-#include "Diagnostics/packs/pack_provider.h"
+#include "Diagnostics/engine/norm_measure_source.h"
+#include "Diagnostics/content/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>

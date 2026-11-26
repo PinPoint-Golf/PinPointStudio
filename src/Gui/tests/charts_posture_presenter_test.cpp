@@ -43,8 +43,8 @@
 #include "report/report_posture.h"
 #include "variability/variability_facade.h"
 #include "Vocabulary/Metrics/variability/variability_grader.h"
-#include "Diagnostics/measures/measure_sample.h"
-#include "Diagnostics/norms/norm_provider.h"
+#include "Diagnostics/model/measure_sample.h"
+#include "Diagnostics/content/norm_provider.h"
 #include "Diagnostics/derived/session_day_readings_rules.h"   // the owner's rules: an earlier session's summary (refactor 5.5d)
 #include "Diagnostics/derived/diagnostic_ledger.h"
 #include "charts/session_neighbours.h"

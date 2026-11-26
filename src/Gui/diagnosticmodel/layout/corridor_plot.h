@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../../Diagnostics/norms/norm.h"
+#include "../../../Diagnostics/model/norm.h"
 
 #include <QString>
 

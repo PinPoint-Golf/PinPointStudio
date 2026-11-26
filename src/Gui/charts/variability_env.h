@@ -23,7 +23,7 @@
 
 #include "../../Vocabulary/Metrics/variability/variability_result.h"     // ScaleSource
 #include "../../Vocabulary/Metrics/variability/variability_scale_type.h" // ScaleType
-#include "../../Diagnostics/norms/norm.h"                     // NormSource
+#include "../../Diagnostics/model/norm.h"                     // NormSource
 
 #include <QString>
 

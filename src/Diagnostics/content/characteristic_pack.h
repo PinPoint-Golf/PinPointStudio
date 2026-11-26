@@ -1,0 +1,600 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#pragma once
+
+#include "../model/characteristic.h"
+// The issue vocabulary and `LoadResult<T>` live there — shared with the norm, reference, screen and
+// drill registries, which report through the same types. Included here rather than forward-declared
+// so every consumer of this header still finds ValidationReport exactly where it always did.
+#include "../model/pack_io.h"
+
+#include <QByteArray>
+#include <QJsonObject>
+#include <QHash>
+#include <QSet>
+#include <QString>
+#include <QStringList>
+
+#include <functional>   // MetricDomainFn — the pack asks for a domain, it never looks one up
+#include <vector>
+
+// Pack persistence and validation.
+//
+// The validator is the pack's only real defence. A characteristic library degrades in two ways —
+// duplicate measures proliferating, and the causal graph quietly becoming wrong — and neither is
+// visible by reading the JSON. Every rule below exists because of a specific way this content can
+// be wrong while still looking right.
+
+namespace pinpoint::analysis {
+
+// The schema version this build writes. A pack declaring a HIGHER version is refused rather than
+// partially read: silently dropping fields it does not understand would let a newer pack round-trip
+// through an older build and lose content. The rule data's repository also keeps a USER pack that
+// declares a higher version read-only, so this build's next save cannot overwrite it (audit B-20;
+// RuleDataRepository, src/Stores/rule_data_store.cpp).
+//
+// THE LOG. Every field added since 1 is OPTIONAL and absent means what it always meant, so a pack
+// written before it reads exactly as it did, and none needed a bump:
+//   1  the format (characteristics, signals, conditions, edges)
+//      + `retiredEdges`, `reportHold`, `picture` (each optional; absent = none, not held, none)
+//      + `groupsRevision` (kPackGroupsRevision below): the marker that a file's condition groups are
+//        the regrouped swing areas. It is a SIDE revision, not a schema bump, because a pack without
+//        it is still read correctly — through the regroup alias — and only the marker says which
+//        tokens a golfer refiled on purpose. The shipped core.json carries it too (from refactor
+//        step 3.2, B-20), so the alias never reinterprets a shipped row.
+// A field that an older build would MISREAD by dropping (as the norm set's `cohort` would be) is a
+// bump; see kNormPackSchemaVersion for the one that has happened on the norm side.
+inline constexpr int kPackSchemaVersion = 1;
+
+struct ReferenceSet;   // reference_pack.h — the bibliography the loader's book gate reads
+
+// ── Validation ──────────────────────────────────────────────────────────────
+//
+// LOAD-TIME ERRORS — the file cannot be read as this build understands packs:
+//   parse                the bytes are not JSON, or not a JSON object
+//   schemaTooNew         the pack declares a schema version above kPackSchemaVersion. Refused
+//                        outright rather than partially read — see the constant above
+//   noPackId             a pack with no id at all. Nothing can namespace it, nothing can layer it,
+//                        and every issue it raises would be attributed to the empty string
+//   unknownKind          a MEASURE declares a kind that is not composed, provided or composite
+//   unknownSignalTest    a signal declares a test that is not one of the four
+//   unknownDetection     a condition declares a signal-combining mode that is not any, all or first.
+//                        An ERROR rather than a fall back to `any`, because "all" misread as "any"
+//                        turns one conjunction into N faults that each fire on their own
+//   unknownShape         a measure declares a shape that is not target/floor/ceiling. An error
+//                        rather than a fall back to Target: "flooor" would grade the good tail
+//   unknownDirection     a measure's unwatchedTail is not high or low — same reasoning
+//   badRigSensitive      a measure's rigSensitive is not a JSON boolean. Not coerced: the flag decides
+//                        whether an absolute may be set against a published band
+//   unknownConditionKind a condition declares a kind that is not one of the seven. A misread kind
+//                        lands the row in Fault, where the kind rules then accuse it of the wrong
+//                        defect entirely
+//   unknownProminence    a condition declares a rung that is not one of the five
+//   unknownDomain        a condition declares a domain that is not in conditionDomains() ("wrist").
+//                        A misspelt domain would silently drop the row out of the domain surface's
+//                        findings and score, which reads as the fault having gone away
+//   unknownFamily        a condition declares a family that is not in conditionFamilies()
+//                        (direction, strike, flight). Absent is legal; a misspelt one would drop
+//                        the outcome out of every label and tally that is sorted by family
+//   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine
+//                        a condition's report `picture` names a token outside its closed
+//                        vocabulary (reportPictureKinds / Cameras / Lines below; phase is P1…P10).
+//                        The still is drawn from these words by a renderer that cannot guess, so a
+//                        misspelt line is a work-on page with no picture on it
+//   pictureIncomplete    a `picture` other than `none` that leaves camera, phase or line out. A
+//                        still needs all three; `none` is the one kind that needs nothing
+//   badGolferSign        a measure's `golferSign` is not +1 or −1. Anything else would scale the
+//                        number a golfer is shown, not merely say which way it reads
+//   reportHoldNoReason   a condition held off the work-on lists (`reportHold`) without a reason,
+//                        or with one not written as {"reason": "…"}. The report prints the reason
+//                        as the only thing it says about the habit, so a hold without one is a
+//                        habit that silently vanished
+//                        THE REPORT CODES ABOVE (the picture's five, badGolferSign and
+//                        reportHoldNoReason) are also raised by validatePack(), through
+//                        reportFieldIssues() below, wherever the in-memory row can show the fault —
+//                        so an unsaved draft in the editor reports them too. The loader keeps only
+//                        the cases the row cannot hold; see reportFieldIssues()
+//   unknownGroup · unknownObservability · unknownConfirmedBy · unknownState · unknownViewNeeded ·
+//   unknownStatus        the same rule for the six fields that used to fall back silently. Each
+//                        decides something invisible — which section a condition appears in, which
+//                        rules reason about it, whether a corridor can ever be graded — so a typo
+//                        produced a row that loaded, rendered and validated clean against the wrong
+//                        answer
+//
+// ONE REGIME across all of those: an ABSENT key still means the documented default, and only a
+// token that is present and unrecognised is refused.
+//
+// STRUCTURAL ERRORS — the pack parsed, and is broken:
+//   duplicateId          two entities share an id
+//   unknownMeasure       a signal references a measure that does not exist
+//   unknownSignal        a condition's detectedBy names a signal that does not exist
+//   unknownCondition     an edge endpoint does not exist
+//   cycle                the condition graph is not a DAG
+//   leadsToCycle         the LeadsTo edges are not a DAG. Checked apart from `cycle`: the shot's
+//                        physics and the swing's causes are two graphs
+//   leadsToNotOutcome    a LeadsTo edge with an end that is not an Outcome
+//   familyNotOutcome     a `family` on a condition that is not an Outcome
+//   selfEdge             an edge from a condition to itself
+//   signalArity          wrong measure count for the test (2 for order/ratio, 1 otherwise)
+//   signalDirection      a corridor/threshold/ratio signal with no direction — it cannot identify a
+//                        tail, and a ratio has two of them like anything else
+//   signalThreshold      an authored number on a test that inherits one, or none on a test that has
+//                        nothing to inherit from (threshold and ratio — a quotient keys no norm)
+//   signalRatioUnit      a ratio whose two measures are not in one unit, or do not state it. The
+//                        quotient is then not a pure number and the authored figure is in a unit
+//                        the model cannot name
+//   corroboratesCausal   Corroborates between conditions that already have a causal path. The pair
+//                        would double-count in the confidence ranking; one relationship or the other
+//   axisMismatch         two tails share an axis id but not a series — then they are not tails
+//   badFacets            a measure's series fails the validity table
+//   badReducer           a measure's reducer is malformed
+//   measureOutsideDomain a LIVE measure reads its metric outside the phase domain where that
+//                        metric's geometry means anything (MetricDescriptor::domain). Only
+//                        raised when the caller supplied a MetricDomainFn, because the domain
+//                        lives in the metric catalogue and this file cannot see it
+//   unwatchedTailShaped  a one-sided measure claiming a tail is "deliberately unwatched". The shape
+//                        already says which tail does not grade; the two cannot both be true
+//   unwatchedTailWatched a measure claiming a tail is unwatched that a corridor signal watches
+//
+// WARNINGS — the pack works, but the health list should show it:
+//   observableNoSignal   an Observable and Measured condition nothing can detect. Scoped to
+//                        Measured: Screened/Asserted conditions are signal-less by design
+//   noCause              a condition with no cause: it can be reported but never explained
+//   noResolvableCause    every cause is Asserted, so the resolver can offer but never conclude
+//   orphanCause          a Latent condition that explains nothing — dead weight
+//   unusedMeasure        a measure no signal uses
+//   proposedTier         no citation; the UI must badge it
+//   needsRevalidation    flagged for review
+//   singleTailAxis       an axis with only one authored tail — deliberate, or an oversight?
+//   inconsistentReach    a Screened/Asserted condition that also claims to be detected by a signal
+//   conjunctionOfOne     a condition combining its signals with `all` when it has fewer than two.
+//                        `all` and `any` are the same test on one signal, so the field is either a
+//                        leftover or an author part-way through adding the rest
+//   screenedHasCause     a Screened cause with an incoming edge — the likeliest symptom of a
+//                        wholly INVERTED graph, which no coverage count can detect
+//   bothTailsOneCondition  one condition flagging BOTH sides of one measure's corridor. It fires
+//                        whichever way the reading goes, so it cannot tell too much from too little
+//   duplicateAlias       two conditions answer to one coach term. Search resolves to whichever came
+//                        first in the file, so the term silently leads to the wrong page
+//   externalDeviceNoReason  an ExternalDevice measure that does not name the device. The status says
+//                        something is in the way; only the reason says what, and two surfaces quote it
+//   unwatchedTailNoReason  a measure declaring a tail deliberately unwatched without saying why.
+//                        The declaration silences `ungradedTail`; without the reason it is
+//                        indistinguishable from a tail nobody has got to
+//   rigSensitiveDelta    rigSensitive on a change from address. The change cancels where the camera
+//                        stands, so the flag belongs on the absolute (posture_chart_design.md §7.4)
+//   golferPhraseMissing  something the home screen's plain-language summary can name, with no
+//                        golfer words to name it in: a detectable Fault or Setup with no `golfer`,
+//                        or a measure that produces readings (live, held, external device) missing
+//                        `golferHigh` or `golferLow`, or a detectable Fault or Setup combining Any
+//                        or First with no `golferWell` or no `golferWhy` (Setup since 14 Nov 2026,
+//                        Mark: a set-up can be praised). The summary skips it, so it goes
+//                        quiet about a fault the golfer has, or about one they have beaten, or
+//                        names the focus without saying what it costs. A warning so a
+//                        user's own pack still loads; `core_pack_test` holds the shipped pack to zero
+//   golferPhraseWording  a golfer phrase that says why (because, causes, leads to…) where the
+//                        summary can only say what moved together, or uses the panel's vocabulary
+//                        — pelvis, thorax, lateral, flexion, extension, rotation, kinematic, a
+//                        P-position, any digit, °, %, mph, degrees. In `golferWell` also don't,
+//                        doesn't, not, never, no: that phrase says what the golfer DOES. A
+//                        `golferWhy` is one sentence, so it must also start with a capital and end
+//                        with a full stop ("so" is allowed there: it is the cost to the shot).
+//                        The session report's words are held to their own rules under the same
+//                        code: `goal` is a sentence-case instruction of at most 60 characters with
+//                        no full stop, digit, P-position, don't or never; `cue` and `check` are
+//                        sentences with no P-position or percentage, and a cue never promises
+//                        (will fix, guarantees, cures); a measure's `golferName` is lower case
+//                        with no P-position
+//   faultNotObservable  a Fault that cannot be seen in the swing. Then it is not a swing fault; it
+//                        is a Capacity or an Intent. THIS IS THE CHECK THAT WOULD HAVE CAUGHT
+//                        `over_the_top`, which shipped Latent because nobody had written it a measure
+//   kindReachMismatch    a Capacity not reached by a screen, or an Intent not reached by asking. One
+//                        code for both, because an author fixes either the same way
+//   outcomeNotBallFlight an Outcome outside the BallFlight group. The ONE rule coupling the two
+//                        otherwise-orthogonal axes; if it ever fires legitimately, delete the rule
+//   outcomeNoFamily      an Outcome with no `family`. Its shot labels cannot be sorted into a
+//                        family, so they go unsaid. A warning so a user's own pack still loads;
+//                        `core_pack_test` holds the shipped pack to zero
+//   outcomeHasEffect     an Outcome that causes something. What the ball did cannot cause the swing
+//                        that produced it, so this is an edge written back to front
+//
+// COMPOSITE MEASURES (posture_metrics_design.md §6.4) — all ERRORS, because each one is a composite
+// that would grade a golfer on arithmetic its calibration does not cover:
+//   compositeNested      a part names another composite. A composite's z is calibrated over graded
+//                        readings; a composite of composites would square its own calibration
+//   compositeWeight      a part weight not strictly inside 0 and 1, or a `minWeight` not in (0, 1]
+//   compositeSign        a coherent part whose signs are not ±1, one per alternative; or a distance
+//                        part carrying signs (it squares, so a sign means nothing there)
+//   compositeUnknownPart a part names a measure that does not exist, or names none, or the composite
+//                        has no parts. REFERENTIAL, so a layer drops it and the assembly reports it
+//   compositeScope       a part (or the composite itself) is read over the SESSION. A composite is
+//                        read off one swing, and a session measure has no per-swing value
+//   compositeShape       a distance-mode composite that is not `ceiling`. Its z is near zero for a
+//                        good setup and only the high tail is a fault; graded as a Target, a clean
+//                        setup would read past the LOW fault line
+//   compositeKind        a `composite` block on a measure that is not kind composite — dropped
+//                        silently it would be content lost on the next save
+//   unknownCombine       a composite's `combine` is not coherent or distance
+//   sharedEvidenceAuthored  an edge carrying `sharedEvidence` in JSON. The flag is computed at load
+//                        (stampSharedEvidence) and never authored, so it can never be stale
+// The composite's NORM (μ 0, σ 1, "z", ρ) is checked where norms meet measures — `compositeNorm` in
+// validateNormsAgainst (norm_pack.h).
+//
+// DELIBERATELY NOT A CHECK: "this condition has no prominence". It cannot be written here at all.
+// Prominence has five legitimate values and no sentinel, so a row nobody authored and a row somebody
+// authored at the default rung are THE SAME BYTES by the time the validator sees them — and 58 of
+// the shipped conditions sit at that rung on purpose. Any predicate over the loaded pack either
+// accuses those 58 or reports nothing. Giving the enum an eighth "unset" value would fix the
+// predicate and break the thing the enum is for, which is that every condition has an answer.
+// The failure it was meant to catch — a 146-row hand edit that stopped at 142 — is caught instead by
+// `core_pack_test`, which reads the SHIPPED JSON as raw text and asserts the key is present on every
+// condition. That is the only layer where the question is answerable, and it is also the only layer
+// where it matters.
+//
+// The checks that span the pack, the norm set, the context tree and the metric catalogue at once —
+// "can this signal ever fire?" — live in `diagnostics_health.h`, because no single pack can answer
+// them.
+// How a caller that HOLDS the metric catalogue answers "where does this metric mean anything?".
+// Returns the metric's PhaseDomain (metric_descriptor.h); an unknown key must answer the whole swing,
+// which is the default a descriptor carries.
+//
+// ASK, NEVER LOOK UP. This file still cannot see the catalogue, for the reason stated on the
+// instrument-ladder check below — it must not start guessing at it. Supplying the resolver is
+// therefore the caller's choice, and omitting it leaves every answer exactly as it is today: the
+// domain defaults to the whole swing and no reducer can fall outside it.
+using MetricDomainFn = std::function<PhaseDomain(const QString &metricKey)>;
+
+ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomainFn &domainFor = {});
+
+// The cross-registry domain pass on its own, so the two callers that want it can have it without
+// either of them paying for the other's work.
+//
+// `validatePack()` runs it as part of a full validation. `diagnostics_health.cpp` wants ONLY this —
+// every other issue validatePack() raises has already been reported by the provider that loaded the
+// pack standalone — and re-running the whole validator to sieve one code out of the result both
+// duplicated ~200 checks and made the health list's contents depend on a string comparison.
+//
+// Returns `measureOutsideDomain` errors, one per offending measure. Empty when `domainFor` is null,
+// which is what makes the check opt-in for every caller that cannot see the metric catalogue.
+std::vector<ValidationIssue> validateMeasureDomains(const CharacteristicPack &pack,
+                                                    const MetricDomainFn     &domainFor);
+
+// ── Persistence ─────────────────────────────────────────────────────────────
+//
+// The four fields, and the `parsed` / `loaded` distinction that a merging caller has to get right,
+// are LoadResult<T>'s — see pack_io.h. The alias stays because `PackLoadResult` is the name every
+// caller of loadPack() already writes.
+using PackLoadResult = LoadResult<CharacteristicPack>;
+
+// Parse + validate. Parse failures land in `report` as errors rather than being thrown or logged,
+// so a bad community pack surfaces in the UI instead of vanishing.
+//
+// `refs` is the bibliography the BOOK GATE reads: a Supported or Established edge or condition whose
+// citation resolves to a book (an ISBN and no DOI or PMID) is demoted to Indirect. It is handed in
+// (the rule data's repository passes the snapshot's assembled references) rather than read from a
+// process-wide registry, which is what the loader did before refactor step 3.2 (audit B-03, B-12).
+// Null means no bibliography: nothing resolves and the gate is a no-op — the SAFE direction, since
+// the gate can only ever soften a claim.
+PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel = QString(),
+                        const ReferenceSet *refs = nullptr);
+PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel = QString(),
+                        const ReferenceSet *refs = nullptr);
+
+QJsonObject savePack(const CharacteristicPack &pack);
+
+// ── Retired group tokens ────────────────────────────────────────────────────
+//
+// The swing areas were regrouped: a condition's group now says what moves, and the old tokens that
+// named a phase (`impact`, `finish`) or a catch-all (`armsAndClub`) are gone from the vocabulary.
+// Packs written before that keep loading, through the two steps below.
+//
+// savePack() writes this key at the top level of every pack, holding this revision. It is the
+// difference between a row an old build wrote and a row a golfer has deliberately refiled: without
+// it, the id alias would bounce a moved condition back to its table area on every load. core.json
+// carries it too (refactor step 3.2, audit B-20): its tokens were already current, and without the
+// marker a shipped row refiled under a pre-regroup token would be bounced by the alias.
+inline constexpr int kPackGroupsRevision = 2;
+
+// True when this file was written after the regroup.
+bool packHasCurrentGroups(const QJsonObject &root);
+
+// The token a stored `group` means today, for a condition in this file.
+//
+//   1. If the file predates the regroup, the condition id is in the regroup table and the stored
+//      token is the one the table says it moved FROM, the answer is the table's new token. This is
+//      what splits a group: `posture` stays `posture` for most rows and becomes `lateral` for
+//      `reverse_spine_p4`.
+//   2. Otherwise a retired token maps to its default successor (`impact` to `delivery`, and so on),
+//      in every file, so a community pack's own condition under `armsAndClub` still loads.
+//
+// Anything else comes back unchanged, so a genuinely unknown token is still the loader's
+// `unknownGroup` error.
+QString currentConditionGroupToken(const QString &conditionId, const QString &stored,
+                                   bool fileHasCurrentGroups);
+
+// ── The name a measure renders under ────────────────────────────────────────
+//
+// ONE rule, here, because a measure with no authored label is not an edge case: nine shipped
+// measures carry `label: ""`, all of them `kind: "composed"`, and eight of the nine are `planned` or
+// `noProducer` — exactly the rows an author is hunting for. Every surface that had its own fallback
+// got a different answer, and the surfaces that had none rendered a blank row.
+//
+// The order matters and each step is load-bearing:
+//   authored label   — an author's own words always win
+//   canonical label  — Composed measures ARE their facets, so the series and the reducer name them
+//                      ("Thoracic segment angle to ground, at P1") deterministically
+//   id               — a last resort that cannot be reached by a well-formed Composed measure, but
+//                      a Provided measure with no label has no facets to generate one from, and a
+//                      nameless row is worse than an ugly one
+QString measureDisplayLabel(const Measure &m);
+
+// ── The session report's content (docs/design/session_report_design.md §5) ──
+//
+// The closed vocabularies of Condition::picture. ONE list each, here, because three readers spell
+// them — the loader that refuses a misspelling, the gate that requires one, and the still renderer
+// (report_stills.h) that draws the named body segment — and a fourth spelling anywhere is a work-on
+// page with no picture on it and nothing to say why.
+const QStringList &reportPictureKinds();     // change, pair, typical, none
+const QStringList &reportPictureCameras();   // faceOn, dtl
+const QStringList &reportPictureLines();     // trailThigh … stance — COCO body segments, lead/trail
+bool               isReportPicturePhase(const QString &token);   // "P1" … "P10", exactly
+
+// Can the work-on rule list this condition? A set-up, fault or delivery habit that something can
+// detect, in any state but retired or superseded — DRAFT ROWS ARE LISTED (Nick's first work-on,
+// trail_knee_straighten, is one), so a draft is held to everything an active row is. `reportHold`
+// does not take a row out of this set: a held habit is still named in the report, once, as could
+// not be measured reliably, and the golfer words it is named in are the same ones.
+bool isWorkOnListable(const Condition &c);
+
+// What a client report would be missing, row by row. The gate core_pack_test holds the shipped pack
+// to: every listable condition has golfer, golferWell, golferWhy, goal, cue, check, a picture and
+// at least one drill that RESOLVES in `drillIds` (a dangling id is a drill card the report cannot
+// print); every measure such a condition's signals read — the order chain's fallbacks included —
+// has golferName; every capacity condition has golfer (it is named under "could be behind it").
+//
+// Presence only. Whether the words are well formed is golferPhraseWording's job in validatePack,
+// so a row that is present and badly worded is reported once, by the lint, and not twice.
+struct ReportContentGap {
+    QString entity;   // condition or measure id
+    QString field;    // "golfer", "goal", "picture", "drills", "golferName", …
+    QString why;      // one line, naming the row and what it is for
+};
+std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
+                                                const QSet<QString>      &drillIds);
+
+// What is wrong with ONE row's report words, field by field — the checks the loader and the
+// validator raise about a condition's golfer / golferWell / golferWhy / goal / cue / check / picture
+// / reportHold, and a measure's golferName / golferSign / golferHigh / golferLow.
+//
+// ONE SOURCE FOR EACH MESSAGE. validatePack() raises these by calling the two functions below for
+// every condition and every measure, and the Diagnostic Model's inspector calls the same two while
+// the user types, so the line under a field and the line in Health are the same string and cannot
+// drift. Each issue's `code`, `severity` and `message` are exactly what validatePack() reports; the
+// subject (the row's id) is the caller's, because the caller is the one holding the row.
+//
+// What is covered, and the codes it is covered under:
+//   golferPhraseMissing   (warning) golfer on a detectable fault or set-up; golferWell and golferWhy on
+//                         a detectable Any/First fault; golferHigh/golferLow on a measure that
+//                         produces readings and is not a composite. Every one of those conditions is
+//                         read off the row itself, so nothing here needs the pack. The measure's
+//                         missing-phrase issue is ONE issue naming both directions when both are
+//                         missing; its `field` is the first missing one (golferHigh, then golferLow)
+//   golferPhraseWording   (warning) every phrase and sentence above, under the rules on the code
+//                         table at the top of this file
+//   unknownFamily        a condition declares a family that is not in conditionFamilies()
+//                        (direction, strike, flight). Absent is legal; a misspelt one would drop
+//                        the outcome out of every label and tally that is sorted by family
+//   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine   (error)
+//                         `field` is "picture.kind" / "picture.camera" / "picture.phase" /
+//                         "picture.line". A picture with all four parts blank is "no picture
+//                         authored" and raises nothing here: presence is reportContentGaps' question
+//   pictureIncomplete     (error) a kind other than none with camera, phase or line blank. ONE issue,
+//                         on the first blank part in that order, because the message names all three
+//   reportHoldNoReason    (error) a hold whose reason is only white space. savePack() writes it, and
+//                         the loader then trims it to nothing and refuses the file, so the inspector
+//                         has to say so before the save rather than after
+//   badGolferSign         (error) a golferSign that is not 1 or -1
+//
+// What is NOT covered, because the row on its own cannot answer it: whether a listable habit HAS its
+// report words, and whether a measure a listable habit reads has a golferName (reportContentGaps,
+// which needs the pack and the drill registry); and the parse-level faults only the JSON can show — a
+// `picture` object with nothing in it, a reportHold not written as {"reason": "…"}, a golferSign that
+// is not a number at all. loadPack() raises those itself, through the same message text. Each of them
+// leaves the in-memory row at its default (no picture, no hold, +1), so the two passes can never
+// report one finding twice.
+//
+// Issues come back in the order validatePack() has always raised them: per condition golfer,
+// golferWell, golferWhy, goal, cue, check, then picture and reportHold; per measure the missing
+// phrase, golferHigh, golferLow, golferName, then golferSign.
+struct ReportFieldIssue {
+    QString       field;      // "goal", "picture.camera", "golferName", … — the Condition / Measure member
+    QString       code;       // the validator code, as above
+    IssueSeverity severity = IssueSeverity::Warning;
+    QString       message;    // the validator's own message, word for word
+};
+std::vector<ReportFieldIssue> reportFieldIssues(const Condition &c);
+std::vector<ReportFieldIssue> reportFieldIssues(const Measure &m);
+
+// ── Graph helpers (shared by the validator, the resolver and the UI) ────────
+// `Causes` edges only. Direction follows Edge's contract: `from` causes `to`.
+QStringList causesOf(const CharacteristicPack &pack, const QString &conditionId);   // upstream
+QStringList effectsOf(const CharacteristicPack &pack, const QString &conditionId);  // downstream
+
+// How many conditions this one explains, directly. The concentration of a handful of latent causes
+// over many characteristics is the model's whole point, so this is a first-class query.
+int  coverageOf(const CharacteristicPack &pack, const QString &conditionId);
+
+// True when `fromId` causes `toId`, directly or through any chain. DIRECTED — this is the acyclicity
+// question, and it is the one to ask before drawing a causal edge: `from → to` closes a cycle
+// exactly when `to` already reaches `from`.
+bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId);
+
+// The same question over LeadsTo edges: true when outcome `fromId` leads to `toId`, directly or through
+// a chain. `from → to` is a cycle exactly when `to` already leads to `from`.
+bool leadsToReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId);
+
+// True when a `Corroborates` edge would be illegal between these two: a causal path already exists
+// in either direction. SYMMETRIC, because corroboration is — which is why it is a separate function
+// from causallyReaches() rather than a call to it with a comment. Asking this one about a CAUSAL
+// edge refuses every legal shortcut (`A → B` where `A → X → B` already runs), and says "cycle" while
+// doing it; that is what it used to do here, and it is what the two names now prevent.
+bool hasCausalPath(const CharacteristicPack &pack, const QString &fromId, const QString &toId);
+
+// Everything `id` reaches, in ONE walk. `downstream` picks the direction: true follows effects and
+// answers "what does this cause, transitively", false follows causes and answers "what causes this".
+// `id` itself is never in the result — a condition does not reach itself, and including it would
+// make every caller subtract it back out.
+//
+// This is causallyReaches() asked of every condition at once, and it exists because asking the
+// singular form per candidate is the same traversal repeated N times. The graph's link drag needs
+// the whole refusal set at the moment the drag arms (one walk, then O(1) per node); doing it per
+// hover was measurably the wrong shape on a pack this size, and it also has to be answered for
+// conditions that are OFF SCREEN, which is why it cannot be a UI-side check over drawn nodes.
+QSet<QString> causalClosure(const CharacteristicPack &pack, const QString &id, bool downstream);
+
+// The Causes edges as an adjacency, one direction: `downstream` maps each condition to its effects,
+// otherwise to its causes. For a caller asking closures of MANY conditions of one pack — building it
+// is one pass over the edges, and causalClosure(pack, …) builds one per call.
+using CausalAdjacency = QHash<QString, QStringList>;
+CausalAdjacency causalAdjacency(const CharacteristicPack &pack, bool downstream);
+
+// causalClosure() over an adjacency already built, in the direction it was built for.
+QSet<QString> causalClosure(const CausalAdjacency &next, const QString &id);
+
+// How many BALL-FLIGHT conditions this one eventually reaches — the bad shots it explains.
+//
+// A separate question from the size of the downstream closure, and the pack is what proves it is not
+// a proxy for it: limited TRAIL-hip internal rotation reaches 27 conditions and 6 outcomes, while
+// limited LEAD-hip internal rotation reaches 27 and 10. Identical apparent size, materially different
+// consequence, and the second is the one a coach is asking about.
+//
+// Lives here rather than at the call site because it is a GRAPH RULE, and the browser holds none —
+// see model_browser.h. It is deliberately a COUNT of a set that can be listed, never a score: this
+// repo has twice refused to weight a graph claim into a magnitude (Strength's authored rungs,
+// Corroboration's refusal to multiply) on the grounds that nobody can defend the resulting number
+// when asked why one cause outranked another. A count always answers that with the members.
+int outcomeReachOf(const CharacteristicPack &pack, const QString &conditionId);
+
+// outcomeReachOf() over a downstream closure already walked: how many of `reached` are outcomes.
+int outcomeCountOf(const CharacteristicPack &pack, const QSet<QString> &reached);
+
+// Both tails of an axis, in pack order. Empty for a condition with no axis.
+QStringList tailsOfAxis(const CharacteristicPack &pack, const QString &axis);
+
+// ── The metric → measure join ───────────────────────────────────────────────
+//
+// Which measure reads `metricKey` at `phase`. This is the bridge between the two registries: the
+// metric catalogue speaks in (key, phase) and the diagnostics pack speaks in measures, and every
+// corridor the app renders has to cross that gap. `metric_corridor.h` carries the answer on to the
+// norm that grades it; both live in the pack layer rather than in a QML façade, because every rule
+// written inside a façade is a rule nothing can test.
+//
+// A measure matches a phase through its REDUCER, not through a phase field, because that is where
+// the phase actually lives:
+//   at        -> the anchor phase
+//   delta     -> the window's END phase; the measure IS the change observed at that phase
+//   rate      -> likewise the window's end
+//   extremum  -> never matches. "The lowest lag angle between P5 and P6" is not a reading at P5 or
+//                at P6, and returning it for either would attach a corridor to the wrong number.
+//
+// Ambiguity is possible and is resolved by preferring `at` over `delta`: both m_leadWristAtTop
+// (at P4) and a Δ-from-address measure name P4 on the same metric, and the absolute reading is the
+// one a corridor keyed on a phase means. Within each, a measure whose own key is the one asked for
+// comes before one that only has it on its ladder (#190: `lm.clubPath` is m_lmClubPath's key and a
+// rung of m_clubPathAtImpact's, and the launch monitor's board grades against its own row). Beyond
+// that PACK ORDER wins — deterministic, but arbitrary, and a tie there means two measures describe
+// one number. The validator warns about exactly that
+// case (`duplicateMeasure`), because no downstream check can: both answers look correct.
+
+// EVERY measure that reads `metricKey` at `phase`, in that preference order.
+//
+// Callers that must produce something need the whole list, not the winner. `m_leadWristAtTop` is the
+// case that proves it: it is the preferred measure at P4 and carries NO norm, so a caller taking only
+// the winner draws no corridor at the top of the swing while the Δ-from-address measure beside it has
+// carried one since v1. Empty when nothing matches.
+std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &&, const QString &, Phase) = delete;   // a temporary would leave the result dangling (#247, #248)
+std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &pack,
+                                                      const QString            &metricKey,
+                                                      Phase                     phase);
+
+// The preferred one — the first of the above. Null when nothing matches.
+const Measure *measureForMetricAtPhase(const CharacteristicPack &&, const QString &, Phase) = delete;   // a temporary would leave the result dangling (#247, #248)
+const Measure *measureForMetricAtPhase(const CharacteristicPack &pack,
+                                       const QString            &metricKey,
+                                       Phase                     phase);
+
+// True when this measure is a change from address — the flag a corridor carries so a consumer knows
+// whether to plot it against the raw curve or against Δ-from-address.
+// True when every measure behind every one of the condition's signals is read over the SESSION
+// (MeasureScope::Session) — a condition with no per-swing verdict (§10.8 E2). False for a condition
+// with no signals.
+bool isSessionScopeCondition(const CharacteristicPack &pack, const QString &conditionId);
+
+// THE STATUS RULE AGAINST A PACK (#176, measureStatusGrades): may a verdict rest on this measure's reading?
+// False for a measure the pack holds at any status but live. True for an id the pack does not have — a
+// pack bug the validator refuses (unknownMeasure), with no status to refuse on; such a measure has no value
+// either. The engine's read (characteristic_engine.cpp) and every read the session model makes outside the
+// engine that feeds a verdict (the timing spread's peaks, the shot's flight readings) call this one function.
+inline bool packMeasureGrades(const CharacteristicPack &pack, const QString &measureId)
+{
+    const Measure *m = pack.measure(measureId);
+    return !m || measureStatusGrades(m->status);
+}
+
+bool measureIsDeltaFromAddress(const Measure &m);
+
+// ── Shared evidence (posture_metrics_design.md §6.5) ─────────────────────────
+//
+// Every measure a condition's signals read, with each composite among them expanded into its parts
+// (every alternative — a part answered by trunk rise on one swing and by DTL bend on the next is
+// measured from both). The composite's own id stays in the set, so two conditions reading one
+// composite share it as well.
+QSet<QString> conditionEvidenceMeasures(const CharacteristicPack &pack, const QString &conditionId);
+
+// THE CURVES BEHIND THE SET ABOVE, for an edge into or out of a composite: the measures turned into
+// the curves they are read from — every
+// catalogue key on each measure's ladder (measureKeyLadder: preferKeys, then metricKey), a composed
+// measure with no key by its facet series, and every measure by its own id. Two measures of ONE
+// series at different instants are one reading for this purpose: `early_extension` reads the
+// forward bend's P5–P7 extreme and `loss_of_posture` its P1→P7 change, and the design's own words
+// are "both read the forward bend" (posture_metrics_design.md §6.5). Matching on measure ids alone
+// missed exactly the edges the flag exists for, because a composite reads its parts AT ONE INSTANT
+// through measures of their own (§4.4). Tokens are prefixed ("key:", "series:", "measure:") so the
+// three spaces cannot collide.
+QSet<QString> conditionEvidenceKeys(const CharacteristicPack &pack, const QString &conditionId);
+
+// True when the two ends of this edge share evidence: a common MEASURE (the set above) on any edge,
+// or a common KEY (conditionEvidenceKeys) on an edge with a composite-read condition at either end.
+// The key match is deliberately NOT applied pack-wide — see sharesEvidence() in the .cpp for the
+// measurement behind that decision.
+bool edgeSharesEvidence(const CharacteristicPack &pack, const Edge &edge);
+
+// WHERE A MEASURE'S READING LANDS IN THE SWING. Itself, for every measure that reduces a curve; for a
+// composite, which reduces nothing, the first of its parts' alternatives the pack holds — the parts
+// are read at one instant by design (§4.4), so any of them places it (P7, P4, P1). The one rule
+// condition_reading.h (the card phase, charts) and swing_themes_pack.h (themes' `when`) both use.
+const Measure *landingMeasureOf(const CharacteristicPack &pack, const Measure &m);
+const Measure *landingMeasureOf(const CharacteristicPack &&, const Measure &) = delete;   // a temporary would leave the result dangling (#247, #248)
+const Measure *landingMeasureOf(const CharacteristicPack &, const Measure &&) = delete;
+
+// Sets Edge::sharedEvidence on every edge (and clears it where it no longer holds), by the rule above. Run at the end of
+// loadPack() and again on the merged library, whose edges can join conditions from two layers.
+void stampSharedEvidence(CharacteristicPack &pack);
+
+} // namespace pinpoint::analysis

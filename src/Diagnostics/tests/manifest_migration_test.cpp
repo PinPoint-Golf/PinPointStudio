@@ -12,10 +12,10 @@
 //   cmake --build build/analyzer-tests --target manifest_migration_test
 //   ctest --test-dir build/analyzer-tests -R manifest_migration --output-on-failure
 
-#include "../norms/metric_corridor.h"
+#include "../engine/metric_corridor.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../packs/pack_provider.h"
+#include "../content/pack_provider.h"
 #include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <cmath>

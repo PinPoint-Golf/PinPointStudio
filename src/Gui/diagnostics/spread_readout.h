@@ -30,8 +30,8 @@
 // Included by the panel's adapter and the report model only (not by session_spread.h, which a rules header includes).
 
 #include "../../Diagnostics/derived/session_spread.h"
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/packs/characteristic_pack.h"
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/content/characteristic_pack.h"
 
 #include <QHash>
 #include <QString>

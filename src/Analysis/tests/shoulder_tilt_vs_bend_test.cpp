@@ -39,9 +39,9 @@
 //      (body3d.shoulderViewsDisagree) is inherited by the reading.
 
 #include "../../Body/shoulder_tilt_vs_bend.h"
-#include "../../Diagnostics/measures/measure_sample.h"
+#include "../../Diagnostics/model/measure_sample.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
-#include "../../Diagnostics/measures/live_measure_source.h"
+#include "../../Diagnostics/engine/live_measure_source.h"
 #include "../../Stores/swing_doc.h"
 #include "../../Stores/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../../Stores/swing_store.h"

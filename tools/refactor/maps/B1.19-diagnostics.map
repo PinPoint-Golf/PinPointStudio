@@ -1,0 +1,61 @@
+# B1.19: src/Diagnostics re-cut by layer (R8, docs/implementation/platform_b1_placements.md; the folders and their
+# order ruled by the Solution Architect, 26 Nov 2026, option (B): build/platform/B1/DECISION-R8-files.md). The folders,
+# lowest first: model -> content -> derived -> engine; a file includes only its own folder and those before it
+# (tools/refactor/dir_order_check.py; ctest diagnostics_dir_order_check). R8's named kinds:
+#   model    vocabulary, characteristic, norm, context, pack reading, provider interfaces
+#   content  loaders, validators, registries, the packs
+#   derived  today's derived facts (B1.6), with series/ (B1.15b): unchanged, not in this map but for the themes pack
+#   engine   detect, explain, measure sources, health: on top, it fires findings over everything below it
+# Each file is placed by its own header comment, file by file (stems: .h and .cpp together). The ruling's seven
+# re-placements against those kinds: the two provider interfaces (norm_provider.h, pack_provider.h) and the condition
+# reading (condition_reading.h) to content; the exclusion rule (excludes_rule.h), the measure sample (measure_sample)
+# and the delivery-grid numbers (delivery_grid_numbers.h) to model; the themes pack (swing_themes_pack.h) to derived.
+# The drill pack moves like any other file; none of its includers change. No ring or context changes (all Rules,
+# Diagnostics).
+
+# ── model ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+src/Diagnostics/engine/characteristic -> src/Diagnostics/model/
+src/Diagnostics/engine/enum_table_p.h -> src/Diagnostics/model/
+src/Diagnostics/engine/pack_io -> src/Diagnostics/model/
+src/Diagnostics/measures/anatomy_vocabulary -> src/Diagnostics/model/
+src/Diagnostics/measures/measure_facets -> src/Diagnostics/model/
+src/Diagnostics/measures/measure_vocabulary.h -> src/Diagnostics/model/
+src/Diagnostics/measures/measurement_precedence.h -> src/Diagnostics/model/
+src/Diagnostics/measures/club_baseline_provider.h -> src/Diagnostics/model/
+src/Diagnostics/norms/norm -> src/Diagnostics/model/
+src/Diagnostics/norms/context_tree -> src/Diagnostics/model/
+src/Diagnostics/norms/norm_provider.h -> src/Diagnostics/content/
+src/Diagnostics/packs/pack_provider.h -> src/Diagnostics/content/
+
+# ── content ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+src/Diagnostics/engine/provider_leaf_p.h -> src/Diagnostics/content/
+src/Diagnostics/packs/area_regroup_table.h -> src/Diagnostics/content/
+src/Diagnostics/packs/characteristic_pack -> src/Diagnostics/content/
+src/Diagnostics/packs/drill_pack -> src/Diagnostics/content/
+src/Diagnostics/packs/file_pack_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/packs/gate_words_pack -> src/Diagnostics/content/
+src/Diagnostics/packs/layered_set.h -> src/Diagnostics/content/
+src/Diagnostics/packs/memory_pack_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/packs/merged_pack_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/packs/reference_pack -> src/Diagnostics/content/
+src/Diagnostics/packs/resource_pack_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/packs/screen_pack -> src/Diagnostics/content/
+src/Diagnostics/packs/swing_themes_pack.h -> src/Diagnostics/derived/
+src/Diagnostics/norms/norm_pack -> src/Diagnostics/content/
+src/Diagnostics/norms/file_norm_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/norms/memory_norm_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/norms/merged_norm_provider.cpp -> src/Diagnostics/content/
+src/Diagnostics/norms/resource_norm_provider.cpp -> src/Diagnostics/content/
+
+# ── engine (stay: characteristic_engine, diagnostics_health, fire_findings, relation_resolver, session_reduction,
+#    wrist_domain_score.h; four of the re-placements are listed here, by their old folder) ──────────────────────────
+src/Diagnostics/norms/composite_reading.h -> src/Diagnostics/engine/
+src/Diagnostics/norms/metric_corridor.h -> src/Diagnostics/engine/
+src/Diagnostics/norms/norm_measure_source.h -> src/Diagnostics/engine/
+src/Diagnostics/norms/shot_direction_bounds.h -> src/Diagnostics/engine/
+src/Diagnostics/measures/delivery_grid_numbers.h -> src/Diagnostics/model/
+src/Diagnostics/measures/live_measure_source -> src/Diagnostics/engine/
+src/Diagnostics/measures/measure_sample -> src/Diagnostics/model/
+src/Diagnostics/measures/session_measure_source.h -> src/Diagnostics/engine/
+src/Diagnostics/engine/excludes_rule.h -> src/Diagnostics/model/
+src/Diagnostics/engine/condition_reading.h -> src/Diagnostics/content/

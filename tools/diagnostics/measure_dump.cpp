@@ -27,7 +27,7 @@
 #include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "Core/atomic_write.h"
-#include "Diagnostics/packs/pack_provider.h"
+#include "Diagnostics/content/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QDir>

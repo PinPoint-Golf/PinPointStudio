@@ -32,8 +32,8 @@
 #include "../../Vocabulary/Metrics/variability/variability_typicality.h"
 
 #include "../../Core/pp_debug.h"
-#include "../../Diagnostics/norms/norm.h"           // the grade policy
-#include "../../Diagnostics/norms/norm_provider.h"
+#include "../../Diagnostics/model/norm.h"           // the grade policy
+#include "../../Diagnostics/content/norm_provider.h"
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>

@@ -32,9 +32,9 @@
 
 #include "work_ons.h"
 #include "condition_role_pack.h"                  // priorityClassFor
-#include "../engine/characteristic.h"
-#include "../engine/condition_reading.h"
-#include "../measures/measure_facets.h"   // phaseLabel
+#include "../model/characteristic.h"
+#include "../content/condition_reading.h"
+#include "../model/measure_facets.h"   // phaseLabel
 
 #include <vector>
 

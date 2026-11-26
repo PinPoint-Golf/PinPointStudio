@@ -1,6 +1,6 @@
 # rtm_platform_tests/macos.txt: the tests a macos test tree configured, one name per line, read by
 # tools/method/make_rtm.py (test_strategy.md §8.3). Written by `make_rtm.py --platform-list`, from
-# `ctest --show-only=json-v1`, on a development test tree at commit dfb6f352, with uncommitted changes.
+# `ctest --show-only=json-v1`, on a development test tree at commit f271b823, with uncommitted changes.
 # It is not yet the release gate's list: BT-25's release gate will rewrite it.
 acoustic_shot_detector_test
 address_marks_test
@@ -82,6 +82,7 @@ diag_stage_panel_test
 diag_uncertainty_test
 diagnostic_ledger_test
 diagnostics_catalogue_integrity_test
+diagnostics_dir_order_check
 diagnostics_health_test
 display_tone_test
 dtl_posture_test

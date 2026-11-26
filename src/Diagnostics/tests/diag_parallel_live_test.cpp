@@ -66,7 +66,7 @@
 #include "../../Stores/swing_store_repository.h"
 #include "../../Gui/diagnostics/diag_parallel_run.h"
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
-#include "../measures/measure_sample.h"
+#include "../model/measure_sample.h"
 
 #include <QCoreApplication>
 #include <QDateTime>

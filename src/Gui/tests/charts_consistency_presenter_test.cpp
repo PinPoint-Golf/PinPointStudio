@@ -14,7 +14,7 @@
 #include "folder_series.h"   // the old loader, a test double (5.5a)
 #include "../../Diagnostics/derived/series/session_warp.h"
 #include "charts_maths_fixture.h"
-#include "Diagnostics/norms/norm_provider.h"
+#include "Diagnostics/content/norm_provider.h"
 #include "variability/variability_facade.h"
 
 #include <QDir>

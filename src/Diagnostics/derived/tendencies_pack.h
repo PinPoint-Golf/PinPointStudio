@@ -28,7 +28,7 @@
 
 #include "club_distances.h"
 #include "tendencies.h"
-#include "../norms/context_tree.h"
+#include "../model/context_tree.h"
 
 #include <QJsonArray>
 

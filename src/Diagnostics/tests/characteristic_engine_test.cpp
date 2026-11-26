@@ -10,7 +10,7 @@
 //   ctest --test-dir build/analyzer-tests -R characteristic_engine --output-on-failure
 
 #include "../engine/relation_resolver.h"
-#include "../measures/session_measure_source.h"
+#include "../engine/session_measure_source.h"
 
 #include <algorithm>
 #include <cmath>

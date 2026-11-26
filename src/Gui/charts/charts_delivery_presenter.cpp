@@ -25,8 +25,8 @@
 #include "session_series_extract.h"   // extractShot, folderShotId (refactor 5.5a)
 #include "../../Stores/series_store.h"   // seriesSwingLabelOf: the ★ label
 #include "../../DomainModel/rule_data.h"   // RuleData's snapshot: the pack the direction rule's boundaries come from
-#include "../../Diagnostics/norms/context_tree.h"
-#include "../../Diagnostics/norms/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
+#include "../../Diagnostics/model/context_tree.h"
+#include "../../Diagnostics/engine/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
 
 #include "../../Core/pp_debug.h"
 #include "../../Stores/swing_store.h"

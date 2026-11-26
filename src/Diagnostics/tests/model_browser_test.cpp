@@ -32,14 +32,14 @@
 #include "../../Gui/diagnosticmodel/shot_grid_door.h"     // the model browser's swing on screen, by its Shot (P-3)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
-#include "../packs/characteristic_pack.h"
-#include "../packs/pack_provider.h"
-#include "../norms/norm_provider.h"
-#include "../measures/measure_facets.h"
-#include "../measures/anatomy_vocabulary.h"
-#include "../packs/drill_pack.h"
-#include "../packs/gate_words_pack.h"
-#include "../packs/screen_pack.h"
+#include "../content/characteristic_pack.h"
+#include "../content/pack_provider.h"
+#include "../content/norm_provider.h"
+#include "../model/measure_facets.h"
+#include "../model/anatomy_vocabulary.h"
+#include "../content/drill_pack.h"
+#include "../content/gate_words_pack.h"
+#include "../content/screen_pack.h"
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
 
 #include <QCoreApplication>

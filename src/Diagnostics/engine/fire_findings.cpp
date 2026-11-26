@@ -23,13 +23,13 @@
 #include "fire_findings.h"
 
 #include "characteristic_engine.h"
-#include "../norms/context_tree.h"                // saveContextTree (the stamp)
-#include "../norms/norm_pack.h"                   // saveNormPack (the stamp)
-#include "../packs/characteristic_pack.h"         // savePack, isSessionScopeCondition, packMeasureGrades
+#include "../model/context_tree.h"                // saveContextTree (the stamp)
+#include "../content/norm_pack.h"                   // saveNormPack (the stamp)
+#include "../content/characteristic_pack.h"         // savePack, isSessionScopeCondition, packMeasureGrades
 #include "../derived/club_distances.h"        // classifySwingLength
 #include "../derived/firing_side.h"           // conditionFiringSide (#16)
 #include "../derived/sequence_checks.h"       // the sequence checks, their spread and their gap words
-#include "../measures/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
+#include "../model/measurement_precedence.h"   // pickByPrecedence: THE precedence rule (6.1a)
 #include "../../Vocabulary/Club/club_vocabulary.h"           // the baseline's keys are canonical club ids
 
 #include <QCryptographicHash>

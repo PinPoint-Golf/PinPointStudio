@@ -41,18 +41,18 @@
 //   cmake --build build/analysis-tests --target lm_corridor_test
 //   ctest --test-dir build/analysis-tests -R lm_corridor --output-on-failure
 
-#include "../norms/context_tree.h"
+#include "../model/context_tree.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../norms/metric_corridor.h"
-#include "../packs/pack_provider.h"
+#include "../engine/metric_corridor.h"
+#include "../content/pack_provider.h"
 
 // The panel's own tuning, so the numbers the pack authored can be checked against it rather than
 // against a second copy written here — see "one classifier, two readers" at the end of main().
 #include "../../LaunchMonitor/inferred/lm_inferred_reads.h"
 #include "../engine/characteristic_engine.h"     // evaluateSignal: the engine's own verdict (refactor 6.3b)
-#include "../norms/norm_measure_source.h"
-#include "../norms/shot_direction_bounds.h"      // the one direction rule's boundaries, off the pack
+#include "../engine/norm_measure_source.h"
+#include "../engine/shot_direction_bounds.h"      // the one direction rule's boundaries, off the pack
 
 #include <QHash>
 #include <QSet>

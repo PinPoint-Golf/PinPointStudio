@@ -11,14 +11,14 @@
 //   cmake --build build/analyzer-tests --target diagnostics_catalogue_integrity_test
 //   ctest --test-dir build/analyzer-tests -R diagnostics_catalogue_integrity --output-on-failure
 
-#include "../packs/characteristic_pack.h"
+#include "../content/characteristic_pack.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../engine/diagnostics_health.h" // referenceHealth()
-#include "../norms/norm_pack.h"       // requiredNormSchemaVersion()
-#include "../packs/reference_pack.h"
-#include "../measures/measure_facets.h"     // quantityName (the synthetic roadmap row)
-#include "../measures/anatomy_vocabulary.h"  // roleName
+#include "../content/norm_pack.h"       // requiredNormSchemaVersion()
+#include "../content/reference_pack.h"
+#include "../model/measure_facets.h"     // quantityName (the synthetic roadmap row)
+#include "../model/anatomy_vocabulary.h"  // roleName
 
 #include "model_browser.h"
 #include "model_browser_test_support.h"

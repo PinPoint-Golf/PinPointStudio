@@ -30,7 +30,7 @@
 // missing anatomy.
 
 #include "../../Vocabulary/Analysis/swing_analysis.h"             // MetricSeries
-#include "../../Diagnostics/measures/measurement_precedence.h" // findByPrecedence, measurementLadder (6.1a)
+#include "../../Diagnostics/model/measurement_precedence.h" // findByPrecedence, measurementLadder (6.1a)
 #include "../../Vocabulary/Metrics/measurement.h"     // the source-tagged set and the stored keys (6.1a)
 
 #include <QFile>

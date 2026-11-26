@@ -18,9 +18,9 @@
 
 #pragma once
 
-#include "../packs/characteristic_pack.h"
-#include "../norms/context_tree.h"
-#include "../norms/norm.h"
+#include "../content/characteristic_pack.h"
+#include "../model/context_tree.h"
+#include "../model/norm.h"
 #include "../../Vocabulary/Analysis/sigma_source.h"
 
 #include <QString>

@@ -36,13 +36,13 @@
 //
 // Every write returns whether it landed, with the reason in the user's words when not (DEC-126).
 
-#include "../Diagnostics/packs/drill_pack.h"
-#include "../Diagnostics/packs/gate_words_pack.h"
-#include "../Diagnostics/packs/layered_set.h"
-#include "../Diagnostics/packs/pack_provider.h"
-#include "../Diagnostics/packs/reference_pack.h"
-#include "../Diagnostics/packs/screen_pack.h"
-#include "../Diagnostics/norms/norm_provider.h"
+#include "../Diagnostics/content/drill_pack.h"
+#include "../Diagnostics/content/gate_words_pack.h"
+#include "../Diagnostics/content/layered_set.h"
+#include "../Diagnostics/content/pack_provider.h"
+#include "../Diagnostics/content/reference_pack.h"
+#include "../Diagnostics/content/screen_pack.h"
+#include "../Diagnostics/content/norm_provider.h"
 
 #include <QString>
 #include <QStringList>

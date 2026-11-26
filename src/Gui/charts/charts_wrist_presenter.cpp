@@ -33,11 +33,11 @@
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
-#include "../../Diagnostics/engine/condition_reading.h"
+#include "../../Diagnostics/content/condition_reading.h"
 #include "../../Diagnostics/engine/wrist_domain_score.h"
-#include "../../Diagnostics/norms/norm.h"            // NormSource: where the wrist bands come from (TRUST)
-#include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProvider: the bands' own rows
-#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/model/norm.h"            // NormSource: where the wrist bands come from (TRUST)
+#include "../../Diagnostics/content/norm_provider.h"   // sharedNormProvider: the bands' own rows
+#include "../../Diagnostics/content/pack_provider.h"
 #include "../../Vocabulary/Analysis/wrist_assessment_types.h"   // dofForMetricKey
 #include "../../Wrist/reference_bands.h"          // NormBandProvider::cellMeasureId, BandContext
 #include "../review/timeline_labels.h"

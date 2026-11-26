@@ -204,7 +204,7 @@ inline QString lmSideText(double v, int decimals, const QString &unit,
 // classifiers and they disagreed: this header's own 1° / 2° windows on the card and in Club delivery, the pack's ~4°
 // corridors in the factors, so a 7 iron starting 2.5° left read "Pull–fade" on the card and "Straight" in Tendencies.
 //
-// The boundaries are the pack's, resolved (shotDirectionBounds, Diagnostics/norms/shot_direction_bounds.h: the
+// The boundaries are the pack's, resolved (shotDirectionBounds, Diagnostics/engine/shot_direction_bounds.h: the
 // corridor edges of m_lmLaunchDirection and m_spinAxis under the grade policy, and the fade / draw / compound signals'
 // thresholds). The defaults below ARE the shipped pack under the standard policy, asserted by lm_corridor_test, so a
 // caller with no pack in hand still names a shot as the shipped pack does.

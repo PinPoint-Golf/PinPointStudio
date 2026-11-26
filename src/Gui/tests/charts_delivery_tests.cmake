@@ -9,10 +9,10 @@ pp_add_test(session_delivery_test
     SOURCES session_delivery_test.cpp
             ${GUI}/charts/session_delivery.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
@@ -42,10 +42,10 @@ pp_add_test(charts_delivery_presenter_test
             ${GUI}/charts/session_delivery.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
@@ -68,10 +68,10 @@ pp_add_test(delivery_picture_test
             ${GUI}/charts/session_delivery.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics

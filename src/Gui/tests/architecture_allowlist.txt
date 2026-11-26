@@ -163,7 +163,7 @@ Diagnostics/derived/tendencies.h | A7 | 1 | reduceTendencies 434 lines; #222 spl
 Diagnostics/engine/characteristic_engine.cpp | A7 | 1 | evaluate 353 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Diagnostics/engine/diagnostics_health.cpp | A7 | 1 | diagnosticsHealth 448 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Diagnostics/engine/relation_resolver.cpp | A7 | 1 | explain 374 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
-Diagnostics/measures/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
+Diagnostics/model/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Kinematics/segment_rates.cpp | A7 | 1 | buildSegmentRates 761 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Pose/pose_runner.cpp | A7 | 1 | PoseRunner::run 722 lines (pose runs are non-deterministic: the split needs a control run); #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222
 Skeleton3d/skeleton3d_fit.cpp | A7 | 2 | frameResiduals 646, fitSkeleton 1390 lines; #222 splits it (it was step 8) under parity (0 differences against the baseline) (triage, Product Owner, 14 Nov 2026)  # #222

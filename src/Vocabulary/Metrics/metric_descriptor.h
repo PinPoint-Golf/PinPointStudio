@@ -457,7 +457,7 @@ inline bool phaseInDomain(const PhaseDomain &d, Phase p)
 // context those numbers assumed. All three are gone. Corridors are now content in the norm set,
 // keyed on a MEASURE (post-reducer, so "Δ from address at the top" and "absolute at impact" cannot
 // be confused for one another) and resolved in the shot's own context through the tree — see
-// `Diagnostics/norms/metric_corridor.h`, which is what every metric surface calls.
+// `Diagnostics/engine/metric_corridor.h`, which is what every metric surface calls.
 //
 // The descriptor states what a metric IS. It no longer judges it.
 

@@ -7,16 +7,16 @@
 //   cmake --build build/analyzer-tests --target core_pack_test
 //   ctest --test-dir build/analyzer-tests -R core_pack --output-on-failure
 
-#include "../packs/area_regroup_table.h"
+#include "../content/area_regroup_table.h"
 #include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../packs/characteristic_pack.h"
-#include "../norms/context_tree.h"
-#include "../norms/norm_pack.h"
-#include "../packs/gate_words_pack.h"
-#include "../packs/pack_provider.h"
-#include "../packs/reference_pack.h"
+#include "../content/characteristic_pack.h"
+#include "../model/context_tree.h"
+#include "../content/norm_pack.h"
+#include "../content/gate_words_pack.h"
+#include "../content/pack_provider.h"
+#include "../content/reference_pack.h"
 // Header-only: the gate words are held to the catalogue's ids here, and only here.
 #include "../../Vocabulary/Metrics/gate_catalogue.h"
 

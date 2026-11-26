@@ -18,7 +18,7 @@
 
 #include "dag_layout.h"
 
-#include "../../../Diagnostics/packs/reference_pack.h"
+#include "../../../Diagnostics/content/reference_pack.h"
 
 #include <QHash>
 #include <QPointF>

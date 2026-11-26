@@ -1,5 +1,5 @@
 // The join that lights the pack up: values + norms -> a graded MeasureReading
-// (src/Diagnostics/norms/norm_measure_source.h) and the engine's corridor test on top of it.
+// (src/Diagnostics/engine/norm_measure_source.h) and the engine's corridor test on top of it.
 //
 // Three behaviours carry it, and each exists because the failure it prevents is silent:
 //
@@ -14,8 +14,8 @@
 //   cmake --build build/analyzer-tests --target norm_measure_source_test
 //   ctest --test-dir build/analyzer-tests -R norm_measure_source --output-on-failure
 
-#include "../norms/norm_measure_source.h"
-#include "../norms/composite_reading.h"
+#include "../engine/norm_measure_source.h"
+#include "../engine/composite_reading.h"
 #include "../../Vocabulary/Analysis/det_rng.h"   // seeded, platform-identical normals for the null calibration
 
 #include <cmath>

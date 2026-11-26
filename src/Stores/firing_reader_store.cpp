@@ -25,7 +25,7 @@
 #include "../Core/folder_lock.h"
 #include "../DomainModel/recording_repository.h"
 #include "../DomainModel/session_repository.h"
-#include "../Diagnostics/measures/live_measure_source.h"
+#include "../Diagnostics/engine/live_measure_source.h"
 #include "phase_grid_store.h"   // the phase grid's file door (FILE-SHOT-07; platform refactor P-3)
 #include "../Diagnostics/derived/session_day_readings_rules.h"   // sessionCamerasOf: the cameras' one rule (refactor 5.5d)
 

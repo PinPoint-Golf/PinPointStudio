@@ -14,7 +14,7 @@
 //   cmake --build build/analyzer-tests --target context_tree_test
 //   ctest --test-dir build/analyzer-tests -R context_tree_test --output-on-failure
 
-#include "../norms/context_tree.h"
+#include "../model/context_tree.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
 
 #include <QFile>

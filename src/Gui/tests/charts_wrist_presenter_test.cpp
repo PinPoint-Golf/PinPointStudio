@@ -33,8 +33,8 @@
 #include "../../Stores/rule_data_install.h"
 #include "../../Diagnostics/derived/series/session_series_types.h"
 #include "charts/session_wrist.h"
-#include "Diagnostics/norms/norm.h"            // gradePolicyByName
-#include "Diagnostics/norms/norm_provider.h"   // sharedNormProvider
+#include "Diagnostics/model/norm.h"            // gradePolicyByName
+#include "Diagnostics/content/norm_provider.h"   // sharedNormProvider
 #include "Wrist/wrist_profile_assess.h"
 #include "report/report_wrist.h"
 #include "variability/variability_facade.h"

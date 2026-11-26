@@ -56,7 +56,7 @@
 #include "swing_themes.h"   // ThemeShot (DEC-192 as amended, round 3)
 #include "tendencies.h"
 #include "work_ons.h"
-#include "../measures/club_baseline_provider.h"
+#include "../model/club_baseline_provider.h"
 
 #include <QCryptographicHash>
 #include <QHash>

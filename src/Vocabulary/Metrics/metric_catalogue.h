@@ -93,7 +93,7 @@ public:
 
     // There is no corridor() here. The catalogue describes metrics; it does not judge them. A
     // corridor is (metric, phase) → measure → norm, resolved in the shot's context —
-    // `Diagnostics/norms/metric_corridor.h`.
+    // `Diagnostics/engine/metric_corridor.h`.
 
 private:
     std::vector<MetricDescriptor>        m_descriptors;   // owns; never mutated after build

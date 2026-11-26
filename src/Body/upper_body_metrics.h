@@ -33,7 +33,7 @@
 // ── Built on the anatomy vocabulary, not on keypoint indices ────────────────
 //
 // Unlike lower_body_metrics, which predates it and hardcodes `kLHip = 11`, every
-// point and segment here resolves through `Diagnostics/measures/anatomy_vocabulary.h`:
+// point and segment here resolves through `Diagnostics/model/anatomy_vocabulary.h`:
 // `resolvePoint(AnatomyRole::ThoraxCentre, …)`, `resolveSegment(AnatomyRole::
 // ShoulderLine, …)`. Three things follow, and all three are the reason:
 //

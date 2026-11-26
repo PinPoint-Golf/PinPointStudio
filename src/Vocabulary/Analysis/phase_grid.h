@@ -20,7 +20,7 @@
 
 // THE PHASE GRID'S VALUE TYPES (OBJ-PHASE-GRID; platform refactor P-3, R-1): a swing reduced to every metric's value at
 // each segmented phase, the spans between them and the millisecond spans a pack names, with each reading's σ. Moved
-// unchanged from the sampler (src/Diagnostics/measures/measure_sample.h), which builds, reduces and serialises them; here
+// unchanged from the sampler (src/Diagnostics/model/measure_sample.h), which builds, reduces and serialises them; here
 // so the Recording's reader contract (RecordingReader::phaseGrid, src/DomainModel/recording_reader.h) and its callers
 // name the grid without including the sampler. Value types only: the three lookups are inline, no function needs the
 // sampler's object file.

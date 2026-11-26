@@ -141,7 +141,7 @@
 
 #include "../../Diagnostics/derived/series/session_series_types.h"
 #include "../typeset/box_stats.h"
-#include "../../Diagnostics/norms/norm.h"   // GradePolicy
+#include "../../Diagnostics/model/norm.h"   // GradePolicy
 
 #include <QString>
 #include <QStringList>

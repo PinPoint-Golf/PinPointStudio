@@ -43,8 +43,8 @@
 #include "../derived/sequence_checks.h"
 #include "../derived/condition_in_hand.h"   // the one function a condition is worded through (6.3b fix round, B-2)
 #include "../engine/characteristic_engine.h"
-#include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
-#include "../norms/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)
+#include "../content/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
+#include "../content/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)
 
 #include <QUuid>
 #include <QCoreApplication>

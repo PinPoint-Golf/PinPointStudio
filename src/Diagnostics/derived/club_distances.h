@@ -43,8 +43,8 @@
 #include "diagnostic_ledger.h"
 #include "strike_from_flight.h"
 #include "../../Vocabulary/Club/club_vocabulary.h"
-#include "../engine/excludes_rule.h"
-#include "../measures/club_baseline_provider.h"
+#include "../model/excludes_rule.h"
+#include "../model/club_baseline_provider.h"
 #include "../../LaunchMonitor/inferred/lm_session_reductions.h"
 
 #include <QDate>

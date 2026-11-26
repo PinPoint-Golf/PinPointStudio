@@ -80,24 +80,24 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-            # athlete_controller.cpp includes Diagnostics/norms/norm_pack.h for Cohort/cohortFor()/
+            # athlete_controller.cpp includes Diagnostics/content/norm_pack.h for Cohort/cohortFor()/
             # cohortToMap(), so the definitions have to come with it. cohortFor() and cohortToMap's
             # sexFromName/ageBandFromName are defined in norm.cpp now (norm.h's out-of-line
             # functions), so it comes along too. norm_pack.cpp needs context_tree.cpp in turn — the
             # same pairing every other suite that compiles it uses.
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
             # The registries' shared machinery — the issue vocabulary and LoadResult<T> — so it
             # travels on every link line that compiles one of them.
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
             # characteristic_pack.cpp resolves a citation against the bibliography to decide whether
             # a peer tier rests on a book, so reference_pack.cpp comes with it on every link line.
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
             # The one session list: athlete_controller.cpp's activity is its rows' (refactor step 5.7b).
             ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
             ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp

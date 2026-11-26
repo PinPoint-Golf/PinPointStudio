@@ -29,8 +29,8 @@
 #include "swing_areas.h"
 #include "condition_role_pack.h"                    // conditionRoleFor
 #include "firing_side.h"                            // conditionFiringSide
-#include "../engine/characteristic.h"
-#include "../engine/condition_reading.h"  // conditionReadings
+#include "../model/characteristic.h"
+#include "../content/condition_reading.h"  // conditionReadings
 
 #include <QHash>
 #include <QSet>

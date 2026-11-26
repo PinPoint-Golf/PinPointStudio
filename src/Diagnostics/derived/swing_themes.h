@@ -89,7 +89,7 @@
 //
 // Like the work-ons, the result is a PURE FUNCTION OF THE LEDGERS: re-analysing or deleting a
 // session re-derives it, nothing accumulates. The pack is never seen here — the caller marshals
-// orientation, swing position and phrases (src/Diagnostics/packs/swing_themes_pack.h).
+// orientation, swing position and phrases (src/Diagnostics/derived/swing_themes_pack.h).
 //
 // The linear algebra is hand-written and small (tens of measures): a Householder + implicit-QL
 // symmetric eigensolver, a one-sided Jacobi SVD for varimax's k×k polar factor, Gauss–Jordan for

@@ -36,7 +36,7 @@
 #include "../../Stores/rule_data_install.h"
 #include "charts/session_delivery.h"
 #include "../../Diagnostics/derived/series/session_series_types.h"
-#include "Diagnostics/measures/measure_sample.h"
+#include "Diagnostics/model/measure_sample.h"
 #include "Diagnostics/derived/session_day_readings_rules.h"   // the day readings' one rule (refactor 5.5d)
 #include "charts/session_neighbours.h"
 

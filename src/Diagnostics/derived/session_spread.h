@@ -19,7 +19,7 @@
 #pragma once
 
 #include "diagnostic_ledger.h"
-#include "../norms/norm.h"
+#include "../model/norm.h"
 #include "../../Vocabulary/Metrics/box_stats.h"
 #include "../../Vocabulary/Common/figure_format.h"
 

@@ -48,12 +48,12 @@
 #include "shot/qml_payload.h"
 #include "fake_shot_source.h"
 #include "Vocabulary/Analysis/swing_analysis.h"
-#include "norms/norm_provider.h"
-#include "norms/context_tree.h"
-#include "norms/metric_corridor.h"
-#include "packs/pack_provider.h"
-#include "packs/characteristic_pack.h"      // measuresForMetricAtPhase (P, refactor 5.7e)
-#include "measures/measure_vocabulary.h"   // measureKeyLadder
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/model/context_tree.h"
+#include "../../Diagnostics/engine/metric_corridor.h"
+#include "../../Diagnostics/content/pack_provider.h"
+#include "../../Diagnostics/content/characteristic_pack.h"      // measuresForMetricAtPhase (P, refactor 5.7e)
+#include "../../Diagnostics/model/measure_vocabulary.h"   // measureKeyLadder
 #include "../../App/session_shot_source.h"         // T: the carousel's port over a real Session
 #include "../../DomainModel/athlete.h"
 #include "../../DomainModel/session.h"

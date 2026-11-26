@@ -25,7 +25,7 @@
 //
 // ⚠ THE POINT IS THAT THE CARD AND THE ENGINE CANNOT DISAGREE. Before this header the review
 // chart's summary (Gui/review/chart_metrics.cpp) and the diagnostics phase grid
-// (Diagnostics/measures/measure_sample.cpp) each carried their own arithmetic for the same words. The
+// (Diagnostics/model/measure_sample.cpp) each carried their own arithmetic for the same words. The
 // engine's `At` was already a ±15 ms windowed median; the chart's was a linear interpolation at
 // one instant. The engine's `Extremum` was the raw min/max of the samples in a span; the chart's
 // PEAK was the raw argmax of |value| over the window. Both raw extremes return the largest

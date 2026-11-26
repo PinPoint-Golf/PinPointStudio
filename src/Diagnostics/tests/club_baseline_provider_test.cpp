@@ -4,10 +4,10 @@
 // That is the containment the design rests on — "per-athlete norms out of scope" holds everywhere
 // except these two — so it is asserted across the whole shipped pack, not assumed.
 
-#include "../measures/live_measure_source.h"
+#include "../engine/live_measure_source.h"
 #include "../../Stores/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
 #include "../../Stores/rule_data_install.h"
-#include "../packs/pack_provider.h"
+#include "../content/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QHash>

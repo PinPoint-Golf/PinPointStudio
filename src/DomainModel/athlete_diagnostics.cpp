@@ -31,7 +31,7 @@
 #include "../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule
 #include "../Diagnostics/engine/session_reduction.h"   // SessionReductionInput: a session's judged rows (DEC-195)
 #include "../Diagnostics/derived/work_ons_pack.h"
-#include "../Diagnostics/packs/swing_themes_pack.h"
+#include "../Diagnostics/derived/swing_themes_pack.h"
 #include "../Vocabulary/Metrics/variability/variability_constants.h"   // kNWindow
 #include "../Core/pp_debug.h"
 

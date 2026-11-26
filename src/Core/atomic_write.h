@@ -192,7 +192,7 @@ inline AtomicWriteResult atomicWrite(const QString &path, const QByteArray &byte
 // The yes/no form, for a caller that wants only whether it landed and, when not, the reason in the user's
 // words. An empty `path` is refused in its own words: it is what a caller gets from an app-data location
 // that does not exist (`diagnosticsFilePath`), and "could not write ''" would say nothing. Moved here from
-// src/Diagnostics/engine/pack_io (refactor step 3.2), where it wrapped this helper from a rules directory.
+// src/Diagnostics/model/pack_io (refactor step 3.2), where it wrapped this helper from a rules directory.
 inline bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot)
 {
     if (path.isEmpty()) {

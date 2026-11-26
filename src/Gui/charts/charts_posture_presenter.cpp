@@ -31,8 +31,8 @@
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
-#include "../../Diagnostics/engine/characteristic.h"
-#include "../../Diagnostics/engine/condition_reading.h"
+#include "../../Diagnostics/model/characteristic.h"
+#include "../../Diagnostics/content/condition_reading.h"
 #include "../../Diagnostics/derived/session_day_readings_rules.h"   // sessionCamerasOf: this session's cameras (refactor 5.5d)
 
 #include <QCoreApplication>

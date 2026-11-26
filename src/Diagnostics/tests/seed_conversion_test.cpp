@@ -17,12 +17,12 @@
 //   cmake --build build/analyzer-tests --target seed_conversion_test
 //   ctest --test-dir build/analyzer-tests -R seed_conversion --output-on-failure
 
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 #include "../../Stores/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
-#include "../norms/norm.h"
-#include "../norms/norm_provider.h"
-#include "../packs/pack_provider.h"
+#include "../model/norm.h"
+#include "../content/norm_provider.h"
+#include "../content/pack_provider.h"
 
 #include <QCoreApplication>
 

@@ -81,7 +81,7 @@ L2_GAP = {
 TRUE_DIRS = {'Gui/cameras/': ACQ, 'Gui/imu/': ACQ}
 TRUE_FILES = {'Gui/shot/shot_processor': ACQ, 'Gui/shot/capture_context': ACQ, 'Gui/shot/shot_controller': ACQ,
               'Gui/shot/shot_arbiter': ACQ, 'Gui/shot/shot_source_map': ACQ, 'Gui/shot/ppcp_clip_filer': ACQ,
-              'Diagnostics/packs/drill_pack': COA}
+              'Diagnostics/content/drill_pack': COA}
 
 # ---- the named contracts ----------------------------------------------------------------------------------------
 # The Recording contract (Acquisition -> Diagnostics; IM 2.2, OBJ-RECORDING, CLS-RECORDING, R-REC-4, lint A8):

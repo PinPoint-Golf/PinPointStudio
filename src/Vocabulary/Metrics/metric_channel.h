@@ -364,7 +364,7 @@ inline const std::vector<Phase> &defaultPhaseSamples()
 // Resample one sparse channel onto the full frame grid and wrap it as a MetricSeries.
 //
 // UNSCORED, always: the corridor that judges this number lives in the diagnostics norm set and is
-// resolved in the shot's own context (Diagnostics/norms/metric_corridor.h). A producer that also carried
+// resolved in the shot's own context (Diagnostics/engine/metric_corridor.h). A producer that also carried
 // a band would be a second, unversioned opinion about what is normal.
 //
 // Returns a series with an empty key when the channel is empty, which the caller drops. That is the

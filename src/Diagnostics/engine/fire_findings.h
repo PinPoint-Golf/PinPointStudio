@@ -46,11 +46,11 @@
 // does NOT write it: diagnostics.json keeps today's content stamp (SessionDiagnosticsModel::
 // computeContentStamp) until 3.5's parallel run, so parity A shows no difference.
 
-#include "../measures/club_baseline_provider.h"
-#include "../measures/live_measure_source.h"   // detectForSwing and the grid it reads — the Rules ring's own seam
-#include "../norms/norm.h"                      // Cohort
-#include "../norms/norm_provider.h"
-#include "../packs/pack_provider.h"
+#include "../model/club_baseline_provider.h"
+#include "live_measure_source.h"   // detectForSwing and the grid it reads — the Rules ring's own seam
+#include "../model/norm.h"                      // Cohort
+#include "../content/norm_provider.h"
+#include "../content/pack_provider.h"
 #include "../derived/diagnostic_ledger.h"   // ShotRecord, the rows
 #include "../derived/shot_factors.h"        // ShotFactors (and, through it, ShotOutcome, composeShotOutcome)
 #include "../derived/strike_from_flight.h"  // FlightNorms, ClubFlightUsual

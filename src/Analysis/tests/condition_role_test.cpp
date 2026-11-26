@@ -34,7 +34,7 @@
 #include "../../Diagnostics/derived/swing_areas_pack.h"
 #include "../../Diagnostics/derived/shot_outcomes_pack.h"
 #include "../../Diagnostics/derived/session_report.h"
-#include "../../Diagnostics/packs/swing_themes_pack.h"
+#include "../../Diagnostics/derived/swing_themes_pack.h"
 
 #include <QFile>
 

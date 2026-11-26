@@ -5,7 +5,7 @@ The map (condition id -> { new, old } group token) is the one source. This scrip
 
   * rewrites the "group" value of each condition in core.json, by text, so every other byte of the
     file stays as authored;
-  * generates src/Diagnostics/packs/area_regroup_table.h, the compiled copy of the map that the pack
+  * generates src/Diagnostics/content/area_regroup_table.h, the compiled copy of the map that the pack
     loader's alias step reads.
 
 Usage:
@@ -26,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "src/Resources/diagnostics/core.json"
 MAP = ROOT / "tools/diagnostics/area_regroup_map.json"
-HEADER = ROOT / "src/Diagnostics/packs/area_regroup_table.h"
+HEADER = ROOT / "src/Diagnostics/content/area_regroup_table.h"
 
 LICENCE = """/*
  * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)

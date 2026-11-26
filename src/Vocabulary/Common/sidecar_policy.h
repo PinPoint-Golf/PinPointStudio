@@ -54,7 +54,7 @@ constexpr bool mayWriteSidecar(SidecarPolicy p) { return p == SidecarPolicy::Par
 // (swing_phasegrid.json, a JSON-era swing_summary.json) records the document's size and mtime when it
 // was built, and every reader of such a stamp asks HERE, so they all agree on what "stale" means
 // (issue #174: the Club delivery note counted copied grids as stale while the grid reader rebuilt them).
-// Here, beside the policy, so the phase-grid sampler's pure loader (Diagnostics/measures/measure_sample.h) asks the
+// Here, beside the policy, so the phase-grid sampler's pure loader (Diagnostics/model/measure_sample.h) asks the
 // same rule without including the swing store; SwingStore::sameDocumentStamp (swing_store.h) is this function
 // (platform refactor P-3).
 //

@@ -121,7 +121,7 @@ struct ChartShotFindings {
 
     // ADDED 14 Oct (additive; nothing above changed). Which reading drove each FIRED condition on
     // this shot: the ledger row's drivingMeasureId, resolved through the pack's condition link
-    // (src/Diagnostics/engine/condition_reading.h). `measureId` is the ledger's own id, EMPTY when
+    // (src/Diagnostics/content/condition_reading.h). `measureId` is the ledger's own id, EMPTY when
     // the row named none; metricKey/phase are then the condition's first reading with a key.
     // phase is the Phase enum id (-1 none); metricKey "" when the reading has no curve key.
     struct Reading {

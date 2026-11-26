@@ -60,7 +60,7 @@
 #include "work_ons.h"
 #include "condition_role_pack.h"    // conditionRoleFor, FactKind
 #include "session_spread.h"
-#include "../engine/characteristic.h"
+#include "../model/characteristic.h"
 
 #include <QDate>
 #include <QHash>

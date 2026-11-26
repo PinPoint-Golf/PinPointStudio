@@ -1162,16 +1162,17 @@ Printed by every mode; they never fail the check.
 | CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `session_setup_lint_test` |
 | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | `run_headless_selftest`, `synthetic_devices_off_test`, `synthetic_devices_test` |
 | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | `rtm_check`, `rtm_selftest` |
-| CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `architecture_lint_test`, `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
+| CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `architecture_lint_test`, `diagnostics_dir_order_check`, `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
 
 ## Labelled tests
 
-441 tests are registered in the source; 16 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+442 tests are registered in the source; 17 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
 | `architecture_lint_test` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `diagnostics_dir_order_check` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `perspective_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `quit_pins_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `quit_pins_synthetic_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |

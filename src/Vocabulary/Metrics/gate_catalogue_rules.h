@@ -134,7 +134,7 @@ inline void appendRules(std::vector<GateEntry> &c)
                         "this club, from earlier sessions. With too few earlier shots there is no usual to judge "
                         "against, so the check is not made; a topped or duffed shot is still caught by its "
                         "fixed floor."),
-         "src/Diagnostics/measures/live_measure_source.cpp", "docs/design/shot_outcomes_design.md §3.3");
+         "src/Diagnostics/engine/live_measure_source.cpp", "docs/design/shot_outcomes_design.md §3.3");
     rule(c, "rule.diag.inferredContext", diag, "Club assumed", "club assumed",
          QStringLiteral("When a shot has no club set, its readings are judged against the default club's range and "
                         "trusted less, so a finding is kept but marked: the deviation is real, the range it was "

@@ -65,8 +65,8 @@
 #include "charts/charts_posture_presenter.h"
 #include "charts/charts_delivery_presenter.h"
 #include "charts/session_wrist.h"
-#include "../../../Diagnostics/norms/norm.h"
-#include "../../../Diagnostics/norms/norm_provider.h"
+#include "../../../Diagnostics/model/norm.h"
+#include "../../../Diagnostics/content/norm_provider.h"
 #include "tests/charts_maths_fixture.h"
 
 #include <QQmlContext>

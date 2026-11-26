@@ -107,8 +107,8 @@
 #include "../../Gui/diagnostics/spread_readout.h"   // REPORTi: the habit runs the report reads (5.6c)
 #include "../derived/sequence_checks.h"         // REPORTj: the session's sequence reading (5.6c)
 #include "../../Vocabulary/LaunchMonitor/launch_monitor_reading.h"
-#include "../measures/measure_sample.h"
-#include "../norms/norm_provider.h"   // EVT13n: the norm set a corridor edit saves
+#include "../model/measure_sample.h"
+#include "../content/norm_provider.h"   // EVT13n: the norm set a corridor edit saves
 
 #include <QCoreApplication>
 #include <QDateTime>

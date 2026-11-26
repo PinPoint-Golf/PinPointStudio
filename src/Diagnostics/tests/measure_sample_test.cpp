@@ -1,4 +1,4 @@
-// Reading a MEASURE off a stored swing (src/Diagnostics/measures/measure_sample.h).
+// Reading a MEASURE off a stored swing (src/Diagnostics/model/measure_sample.h).
 //
 // This is the half of norm_measure_source.h that nothing implemented until stage 6: the corridor
 // editor's live histogram is the safety mechanism against a corridor that grades everyone Action,
@@ -26,7 +26,7 @@
 //   cmake --build build/analyzer-tests --target measure_sample_test
 //   ctest --test-dir build/analyzer-tests -R measure_sample --output-on-failure
 
-#include "../measures/measure_sample.h"
+#include "../model/measure_sample.h"
 #include "../../Stores/swing_store.h"   // LazyDocument: the parse shared with the summary reader
 #include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
 

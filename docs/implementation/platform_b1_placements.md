@@ -128,7 +128,8 @@ and R11 ruled as recommended, and the ruled items built, the 9 go to 0. No recom
 - **The file-by-file list** comes with B1.19's dry run for a second look; what is ruled now is the folder names,
   their order and the ring change in part 2.
 - **C9 for part 2. Part 1 changes no ring; it is a change because IM §2 ("The packs") and CLS-PACKS-NORMS name these paths.** Waits: B1.18, B1.19.
-- **Ruled:** as proposed: the folders `model` → `content` → `engine` → `derived`, each including only itself and those before it, checked by a test; `dag_layout` and `corridor_plot` to `src/Gui/diagnosticmodel/layout/` (the Solution Architect, 24 Nov 2026).
+- **Ruled:** as proposed: the folders `model` → `content` → `engine` → `derived`, each including only itself and those before it, checked by a test; `dag_layout` and `corridor_plot` to `src/Gui/diagnosticmodel/layout/` (the Solution Architect, 24 Nov 2026). The order of `engine` and `derived` is superseded by the file list's ruling, below.
+- **Ruled, the file list (the second look):** option (B), the derived facts below the engine: the folders `model` → `content` → `derived` → `engine`, lowest first, each including only itself and those before it, with seven files placed against the kinds above: the two provider interfaces (`norm_provider.h`, `pack_provider.h`) and the condition reading (`condition_reading.h`) in `content`; the exclusion rule (`excludes_rule.h`), the measure sample (`measure_sample`) and the delivery-grid numbers (`delivery_grid_numbers.h`) in `model`; the themes pack (`swing_themes_pack.h`) in `derived` (the Solution Architect, 26 Nov 2026)[^r8-list]. Built in B1.19 by `tools/refactor/maps/B1.19-diagnostics.map` (54 files), checked by the test `diagnostics_dir_order_check` (`tools/refactor/dir_order_check.py`: 0 upward includes, 0 folder cycles); the four global include paths under `src/Diagnostics` are removed.
 
 ### R9 · What clears a store door's A5 line
 - **Today.** Lint A5 exempts `src/Export`, but counts two of its files by name as store doors
@@ -279,6 +280,7 @@ call, and the chart files' inventory.
 [^plan-224]: The plan's "Mandatory carry-ins" (ii), the #224-B row; audit findings F-11, B-09, B-10, C-14, B-15 and A-20 (`docs/implementation/swe-audit/findings/`).
 [^cm]: The context-map side track's placements, 24 Nov 2026; kept for later by the Product Owner.
 [^b09]: `docs/implementation/swe-audit/findings/B-diagnostics.md`, B-09 and B-10.
+[^r8-list]: `build/platform/B1/DECISION-R8-files.md`, the choice put to the Solution Architect on 26 Nov 2026 at 18:24 and ruled at 20:15. Under R8's first order 20 includes went upward, 15 of them from firing a shot's findings and reducing a session's diagnosis (`engine`) into the derived facts they use; under (B), 1 (`context_tree.h`'s include of the whole characteristic pack), narrowed before the move by B1.19a.
 [^j88]: J-88, approved as J-95 (`docs/implementation/swe-audit/06a-judgement-calls.md`); `src/Gui/tests/architecture_lint_test.cpp`, `countedStoreDoor()`.
 [^j110]: The plan's "Rulings of 24 Nov": "Lint A5 counts `Export/rule_data_reads.cpp` as a store door, with one allowlist line cleared in Stage B (J-110)", Solution Architect.
 [^pr21]: Solution Architect, 24 Nov 2026: the corridor scan keeps its direct read as a recorded exception (P-3's summaries proposal, part (b), option 2). It is being written into the IM's FILE-SHOT-07 row by item P-3b.

@@ -18,7 +18,7 @@
 
 #include "upper_body_metrics.h"
 
-#include "../Diagnostics/measures/anatomy_vocabulary.h"
+#include "../Diagnostics/model/anatomy_vocabulary.h"
 
 #include <algorithm>
 #include <array>

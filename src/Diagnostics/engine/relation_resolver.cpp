@@ -17,7 +17,7 @@
  */
 
 #include "relation_resolver.h"
-#include "excludes_rule.h"
+#include "../model/excludes_rule.h"
 
 #include <QSet>
 

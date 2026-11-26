@@ -85,7 +85,7 @@
 #include "Diagnostics/derived/shot_outcomes_pack.h"
 #include "Diagnostics/derived/swing_themes.h"
 #include "Diagnostics/derived/swing_areas_pack.h"
-#include "Diagnostics/packs/characteristic_pack.h"
+#include "Diagnostics/content/characteristic_pack.h"
 #include "Stores/swing_store.h"
 #include "Gui/report/report_athlete_stamps.h"   // the report's left-out stamps (R2-B1)
 #include "Gui/report/report_meta.h"

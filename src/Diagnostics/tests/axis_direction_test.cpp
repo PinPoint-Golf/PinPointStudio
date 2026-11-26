@@ -12,7 +12,7 @@
 //   cmake --build build/analyzer-tests --target axis_direction_test
 //   ctest --test-dir build/analyzer-tests -R axis_direction --output-on-failure
 
-#include "../packs/characteristic_pack.h"
+#include "../content/characteristic_pack.h"
 
 #include <QFile>
 #include <QSet>

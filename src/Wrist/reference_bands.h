@@ -20,7 +20,7 @@
 
 #include "../Vocabulary/Analysis/wrist_assessment_types.h"
 #include "../Vocabulary/Analysis/reference_band_context.h"   // BandTuning, BandContext (vocabulary since refactor 7.3)
-#include "../Diagnostics/norms/norm_provider.h"
+#include "../Diagnostics/content/norm_provider.h"
 
 #include <QString>
 

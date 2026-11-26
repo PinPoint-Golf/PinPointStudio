@@ -20,7 +20,7 @@
 #include "../../src/Stores/phase_grid_store.h"   // the phase grid's file door: a tool over bare folders (P-3)
 
 #include "Vocabulary/Club/club_vocabulary.h"
-#include "Diagnostics/norms/norm_measure_source.h"
+#include "Diagnostics/engine/norm_measure_source.h"
 #include "Stores/swing_doc.h"
 #include "Stores/swing_store.h"
 

@@ -73,7 +73,7 @@ pp_add_test(atomic_write_test
 pp_add_test(isolated_stores_test
     SOURCES isolated_stores_test.cpp ${PP_SRC}/App/studio_profile.cpp ${PP_SRC}/Stores/studio_profile_store.cpp
             ${PP_SRC}/Stores/rig_store.cpp
-            ${CORE}/../Diagnostics/engine/pack_io.cpp
+            ${PP_SRC}/Diagnostics/model/pack_io.cpp
     INCLUDE ${CORE}  LINK pp_platform
     AUTOMOC)
 # The advisory folder lock (folder_lock.*, R-PERS-6): two lock objects on one folder — the second is

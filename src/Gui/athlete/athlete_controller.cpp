@@ -23,7 +23,7 @@
 #include "../../Vocabulary/Club/club_vocabulary.h"
 #include "../../Vocabulary/Club/club_standards.h"
 #include "../../Vocabulary/Common/height_text.h"
-#include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
+#include "../../Diagnostics/content/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include "../../DomainModel/session.h"   // the move: the Unassigned session by its folder (step 5.1); the Wrist ★'s edge
 #include "../../DomainModel/shot.h"      // the Wrist ★'s edge: a Shot's ref and folder, through its Session (step 5.7b)
 #include "../session/session_list_presenter.h"   // the one session list: each athlete's activity (step 5.7b)

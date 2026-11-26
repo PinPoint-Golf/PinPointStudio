@@ -724,25 +724,25 @@ set(PP_QML_SOURCES
     src/Gui/diagnosticmodel/gate_count_reads.h   # the count made: the index sum, the fallback, the walk (P-3b)
     src/Gui/diagnosticmodel/corridor_grid_read.h   # the folder read of a swing's grid, defined in model_browser.cpp (B1.14, R11)
     src/Gui/diagnosticmodel/model_browser.cpp
-    src/Diagnostics/measures/anatomy_vocabulary.h
-    src/Diagnostics/measures/anatomy_vocabulary.cpp
-    src/Diagnostics/measures/measure_facets.h
-    src/Diagnostics/measures/measure_facets.cpp
-    src/Diagnostics/measures/measure_vocabulary.h
-    src/Diagnostics/engine/characteristic.h
-    src/Diagnostics/engine/characteristic.cpp
-    src/Diagnostics/engine/pack_io.h
-    src/Diagnostics/engine/pack_io.cpp
-    src/Diagnostics/packs/characteristic_pack.h
-    src/Diagnostics/packs/characteristic_pack.cpp
-    src/Diagnostics/packs/pack_provider.h
-    src/Diagnostics/packs/resource_pack_provider.cpp
-    src/Diagnostics/packs/memory_pack_provider.cpp
-    src/Diagnostics/norms/memory_norm_provider.cpp
+    src/Diagnostics/model/anatomy_vocabulary.h
+    src/Diagnostics/model/anatomy_vocabulary.cpp
+    src/Diagnostics/model/measure_facets.h
+    src/Diagnostics/model/measure_facets.cpp
+    src/Diagnostics/model/measure_vocabulary.h
+    src/Diagnostics/model/characteristic.h
+    src/Diagnostics/model/characteristic.cpp
+    src/Diagnostics/model/pack_io.h
+    src/Diagnostics/model/pack_io.cpp
+    src/Diagnostics/content/characteristic_pack.h
+    src/Diagnostics/content/characteristic_pack.cpp
+    src/Diagnostics/content/pack_provider.h
+    src/Diagnostics/content/resource_pack_provider.cpp
+    src/Diagnostics/content/memory_pack_provider.cpp
+    src/Diagnostics/content/memory_norm_provider.cpp
     src/Gui/diagnosticmodel/layout/corridor_plot.h
     src/Gui/diagnosticmodel/layout/corridor_plot.cpp
-    src/Diagnostics/packs/file_pack_provider.cpp
-    src/Diagnostics/packs/merged_pack_provider.cpp
+    src/Diagnostics/content/file_pack_provider.cpp
+    src/Diagnostics/content/merged_pack_provider.cpp
     src/Diagnostics/engine/characteristic_engine.h
     src/Diagnostics/engine/characteristic_engine.cpp
     src/Diagnostics/engine/relation_resolver.h
@@ -751,35 +751,35 @@ set(PP_QML_SOURCES
     src/Diagnostics/engine/fire_findings.cpp
     src/Gui/diagnosticmodel/layout/dag_layout.h
     src/Gui/diagnosticmodel/layout/dag_layout.cpp
-    src/Diagnostics/norms/norm.h
-    src/Diagnostics/norms/norm.cpp
-    src/Diagnostics/norms/context_tree.h
-    src/Diagnostics/norms/context_tree.cpp
-    src/Diagnostics/norms/norm_pack.h
-    src/Diagnostics/norms/norm_pack.cpp
-    src/Diagnostics/norms/norm_provider.h
-    src/Diagnostics/norms/norm_measure_source.h
-    src/Diagnostics/norms/metric_corridor.h
+    src/Diagnostics/model/norm.h
+    src/Diagnostics/model/norm.cpp
+    src/Diagnostics/model/context_tree.h
+    src/Diagnostics/model/context_tree.cpp
+    src/Diagnostics/content/norm_pack.h
+    src/Diagnostics/content/norm_pack.cpp
+    src/Diagnostics/content/norm_provider.h
+    src/Diagnostics/engine/norm_measure_source.h
+    src/Diagnostics/engine/metric_corridor.h
     src/Diagnostics/engine/diagnostics_health.h
     src/Diagnostics/engine/diagnostics_health.cpp
-    src/Diagnostics/packs/screen_pack.h
-    src/Diagnostics/packs/screen_pack.cpp
-    src/Diagnostics/packs/drill_pack.h
-    src/Diagnostics/packs/drill_pack.cpp
-    src/Diagnostics/packs/gate_words_pack.h
-    src/Diagnostics/packs/gate_words_pack.cpp
-    src/Diagnostics/packs/reference_pack.cpp
-    src/Diagnostics/measures/measure_sample.h
-    src/Diagnostics/measures/measure_sample.cpp
+    src/Diagnostics/content/screen_pack.h
+    src/Diagnostics/content/screen_pack.cpp
+    src/Diagnostics/content/drill_pack.h
+    src/Diagnostics/content/drill_pack.cpp
+    src/Diagnostics/content/gate_words_pack.h
+    src/Diagnostics/content/gate_words_pack.cpp
+    src/Diagnostics/content/reference_pack.cpp
+    src/Diagnostics/model/measure_sample.h
+    src/Diagnostics/model/measure_sample.cpp
     src/Stores/phase_grid_store.h      # the phase grid's file door (FILE-SHOT-07; platform refactor P-3)
     src/Stores/phase_grid_store.cpp
-    src/Diagnostics/measures/live_measure_source.h
-    src/Diagnostics/measures/live_measure_source.cpp
-    src/Diagnostics/norms/resource_norm_provider.cpp
-    src/Diagnostics/norms/file_norm_provider.cpp
+    src/Diagnostics/engine/live_measure_source.h
+    src/Diagnostics/engine/live_measure_source.cpp
+    src/Diagnostics/content/resource_norm_provider.cpp
+    src/Diagnostics/content/file_norm_provider.cpp
     src/Stores/rule_data_reads.cpp
-    src/Diagnostics/norms/merged_norm_provider.cpp
-    src/Diagnostics/packs/layered_set.h
+    src/Diagnostics/content/merged_norm_provider.cpp
+    src/Diagnostics/content/layered_set.h
     # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository
     # interface, and the store that is the one door to their files.
     src/DomainModel/rule_data_repository.h

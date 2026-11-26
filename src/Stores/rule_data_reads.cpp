@@ -17,7 +17,7 @@
  */
 
 // RuleDataStore's reads that the norm stack needs (refactor step 7.1; P11: the rules open no file). The
-// norm leaves in src/Diagnostics/norms take RuleFile values; this is where their bytes are read, through
+// norm leaves in src/Diagnostics/content take RuleFile values; this is where their bytes are read, through
 // the store's one reader and its PINPOINT_CORE_* seam. A translation unit of its own, apart from
 // rule_data_store.cpp, so it links wherever the norm stack does (the offline tools and the light tests)
 // without RuleData and the settings file coming with it. The store is still the one door to the files

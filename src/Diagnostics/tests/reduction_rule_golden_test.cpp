@@ -56,12 +56,12 @@
 #include "../../Stores/rule_data_install.h"
 #include "../../Stores/rule_data_store.h"   // the norm factories by path (refactor step 7.1)
 #include "../../Stores/phase_grid_store.h"   // the phase grid's file door (P-3)
-#include "../engine/pack_io.h"
-#include "../norms/context_tree.h"
-#include "../norms/norm_pack.h"
-#include "../packs/characteristic_pack.h"
-#include "../packs/drill_pack.h"
-#include "../packs/swing_themes_pack.h"
+#include "../model/pack_io.h"
+#include "../model/context_tree.h"
+#include "../content/norm_pack.h"
+#include "../content/characteristic_pack.h"
+#include "../content/drill_pack.h"
+#include "../derived/swing_themes_pack.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>

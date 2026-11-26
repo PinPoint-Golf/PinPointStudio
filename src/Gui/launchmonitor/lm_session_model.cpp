@@ -32,14 +32,14 @@
 #include "../../Vocabulary/Metrics/measurement.h"                       // the Shot's set: a row's readings (refactor 6.1a)
 #include "../../Vocabulary/Metrics/metric_catalogue.h"                 // the low point from the attack angle: its label
 #include "../../Vocabulary/Common/figure_format.h"                      // pm: the app's one ± (the low point from the attack angle)
-#include "../../Diagnostics/measures/measurement_precedence.h" // which source wins for a metric (R-INS-3)
+#include "../../Diagnostics/model/measurement_precedence.h" // which source wins for a metric (R-INS-3)
 #include "../trust/trust_readings.h"
 
-#include "../../Diagnostics/norms/context_tree.h"
-#include "../../Diagnostics/norms/metric_corridor.h"
-#include "../../Diagnostics/norms/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/packs/pack_provider.h"
+#include "../../Diagnostics/model/context_tree.h"
+#include "../../Diagnostics/engine/metric_corridor.h"
+#include "../../Diagnostics/engine/shot_direction_bounds.h"   // the one direction rule's boundaries (refactor 6.3b)
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/content/pack_provider.h"
 
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"
 #include "../../Vocabulary/Metrics/variability/variability_typicality.h"

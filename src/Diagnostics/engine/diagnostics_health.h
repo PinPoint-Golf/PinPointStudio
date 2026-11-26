@@ -18,11 +18,11 @@
 
 #pragma once
 
-#include "../packs/characteristic_pack.h" // CharacteristicPack, ValidationIssue
-#include "../packs/drill_pack.h"     // DrillSet, for the unknownDrillRef / drillNo* checks
-#include "../norms/norm_provider.h"
-#include "../packs/reference_pack.h" // ReferenceSet, for referenceHealth()
-#include "../packs/screen_pack.h"    // ScreenSet, for the unknownScreenRef / screenNo* checks
+#include "../content/characteristic_pack.h" // CharacteristicPack, ValidationIssue
+#include "../content/drill_pack.h"     // DrillSet, for the unknownDrillRef / drillNo* checks
+#include "../content/norm_provider.h"
+#include "../content/reference_pack.h" // ReferenceSet, for referenceHealth()
+#include "../content/screen_pack.h"    // ScreenSet, for the unknownScreenRef / screenNo* checks
 #include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <optional>

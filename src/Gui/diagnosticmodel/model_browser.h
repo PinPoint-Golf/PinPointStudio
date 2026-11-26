@@ -18,13 +18,13 @@
 
 #pragma once
 
-#include "../../Diagnostics/packs/drill_pack.h"
-#include "../../Diagnostics/packs/gate_words_pack.h"
-#include "../../Diagnostics/measures/measure_sample.h"
+#include "../../Diagnostics/content/drill_pack.h"
+#include "../../Diagnostics/content/gate_words_pack.h"
+#include "../../Diagnostics/model/measure_sample.h"
 #include "gate_counts.h"   // ModelGateCounts and the count's door to the session indexes (platform refactor P-3b)
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Diagnostics/packs/screen_pack.h"
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/content/pack_provider.h"
+#include "../../Diagnostics/content/screen_pack.h"
 #include "../../Vocabulary/Metrics/metric_catalogue.h"
 
 #include <QFutureWatcher>

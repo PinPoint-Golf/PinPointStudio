@@ -40,16 +40,16 @@ set(SRC ${GUI}/..)                         # src
 # providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
 set(RULE_DATA_SOURCES
     ${SRC}/DomainModel/rule_data.cpp ${SRC}/Stores/rule_data_store.cpp
-    ${SRC}/Diagnostics/packs/drill_pack.cpp ${SRC}/Diagnostics/packs/screen_pack.cpp
-    ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
-    ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
-    ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
-    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
-    ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
-    ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-    ${SRC}/Diagnostics/engine/characteristic.cpp ${SRC}/Diagnostics/measures/measure_facets.cpp
-    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    ${SRC}/Diagnostics/content/drill_pack.cpp ${SRC}/Diagnostics/content/screen_pack.cpp
+    ${SRC}/Diagnostics/content/reference_pack.cpp ${SRC}/Diagnostics/content/gate_words_pack.cpp
+    ${SRC}/Diagnostics/content/resource_pack_provider.cpp ${SRC}/Diagnostics/content/file_pack_provider.cpp
+    ${SRC}/Diagnostics/content/merged_pack_provider.cpp ${SRC}/Diagnostics/content/memory_pack_provider.cpp
+    ${SRC}/Diagnostics/content/resource_norm_provider.cpp ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+    ${SRC}/Diagnostics/content/merged_norm_provider.cpp ${SRC}/Diagnostics/content/memory_norm_provider.cpp
+    ${SRC}/Diagnostics/model/norm.cpp ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
+    ${SRC}/Diagnostics/model/pack_io.cpp ${SRC}/Diagnostics/content/characteristic_pack.cpp
+    ${SRC}/Diagnostics/model/characteristic.cpp ${SRC}/Diagnostics/model/measure_facets.cpp
+    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
 
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
@@ -82,15 +82,15 @@ pp_add_test(chart_metrics_test
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/engine/pack_io.cpp   # the registries' shared vocabulary and LoadResult<T>
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp   # the registries' shared vocabulary and LoadResult<T>
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     LINK    Qt6::Qml  AUTOMOC)
 
@@ -383,22 +383,22 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/LaunchMonitor/gspro_reading.cpp
             ${SRC}/LaunchMonitor/premier_monitor.cpp
             ${SRC}/LaunchMonitor/premier_session_parser.cpp
-            ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
+            ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-            ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/packs/characteristic_pack.cpp
-            ${SRC}/Diagnostics/packs/reference_pack.cpp
-            ${SRC}/Diagnostics/engine/characteristic.cpp
-            ${SRC}/Diagnostics/engine/pack_io.cpp
-            ${SRC}/Diagnostics/measures/measure_facets.cpp
-            ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/norms/norm.cpp
-            ${SRC}/Diagnostics/norms/norm_pack.cpp
-            ${SRC}/Diagnostics/norms/context_tree.cpp
-            ${SRC}/Diagnostics/norms/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/norms/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
+            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
+            ${SRC}/Diagnostics/content/characteristic_pack.cpp
+            ${SRC}/Diagnostics/content/reference_pack.cpp
+            ${SRC}/Diagnostics/model/characteristic.cpp
+            ${SRC}/Diagnostics/model/pack_io.cpp
+            ${SRC}/Diagnostics/model/measure_facets.cpp
+            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Diagnostics/model/norm.cpp
+            ${SRC}/Diagnostics/content/norm_pack.cpp
+            ${SRC}/Diagnostics/model/context_tree.cpp
+            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
+            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
+            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
             # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
@@ -738,6 +738,15 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME move_files_selftest
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/refactor/move_files.py --self-test)
     set_tests_properties(move_files_selftest PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
+    # tools/refactor/dir_order_check.py (platform refactor B1.19): src/Diagnostics's folders in their ruled order,
+    # model -> content -> derived -> engine, a file including only its own folder and those before it, with no folder
+    # cycle. --self-test first plants an upward include in a fixture tree in a temporary directory and must see it red,
+    # then green; then the real tree is read. Tests are skipped: they include across folders and into src/Gui by design.
+    add_test(NAME diagnostics_dir_order_check
+             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/refactor/dir_order_check.py --self-test
+                     --order model,content,derived,engine --cycles)
+    set_tests_properties(diagnostics_dir_order_check PROPERTIES TIMEOUT 60)
+    pp_requirement(diagnostics_dir_order_check CTL-BT-40)   # red then green on its fixture, so a check that stops matching fails
     # #195 moved the governing documents into governance/artefacts/ (governance/artefacts/README.md): fail when a
     # tracked file still cites one at its old path, by name or by a relative link; the dated records that keep the old
     # spelling are listed in the script with a reason. Exit 77, a skip, where there is no git.

@@ -25,8 +25,8 @@
 //   build/charts-build/build.sh tests condition_reading_test
 //   build/charts-build/build.sh ctest condition_reading
 
-#include "../engine/condition_reading.h"
-#include "../measures/measure_facets.h"
+#include "../content/condition_reading.h"
+#include "../model/measure_facets.h"
 
 #include <QFile>
 

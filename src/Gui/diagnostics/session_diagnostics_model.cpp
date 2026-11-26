@@ -21,16 +21,16 @@
 #include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
-#include "../../Diagnostics/measures/live_measure_source.h"
-#include "../../Diagnostics/measures/session_measure_source.h"
-#include "../../Diagnostics/measures/measure_facets.h"
-#include "../../Diagnostics/norms/norm_provider.h"
-#include "../../Diagnostics/engine/condition_reading.h"
+#include "../../Diagnostics/engine/live_measure_source.h"
+#include "../../Diagnostics/engine/session_measure_source.h"
+#include "../../Diagnostics/model/measure_facets.h"
+#include "../../Diagnostics/content/norm_provider.h"
+#include "../../Diagnostics/content/condition_reading.h"
 #include "../../Diagnostics/engine/fire_findings.h"   // the shot's findings and derived data, pure (refactor step 3.3)
 #include "../../Diagnostics/engine/session_reduction.h"   // SessionReductionInput: the owner's input (its athlete's hand)
-#include "../../Diagnostics/engine/pack_io.h"
-#include "../../Diagnostics/packs/pack_provider.h"
-#include "../../Diagnostics/packs/screen_pack.h"
+#include "../../Diagnostics/model/pack_io.h"
+#include "../../Diagnostics/content/pack_provider.h"
+#include "../../Diagnostics/content/screen_pack.h"
 #include "../../App/shot_command_door.h"   // the golfer's commands forward to the Shot's and Session's (step 3.4b-i)
 #include "../../Stores/session_diagnostics_files.h"   // the history read: the athlete's other sessions' ledgers
 #include "../../Stores/swing_paths.h"

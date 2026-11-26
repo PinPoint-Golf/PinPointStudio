@@ -20,7 +20,7 @@
 
 #include "../Vocabulary/Analysis/analysis_tuning.h"
 #include "../Vocabulary/Common/pp_tuned_constants.h"
-#include "../Diagnostics/measures/measurement_precedence.h"   // findByPrecedence: the one rule (6.1a)
+#include "../Diagnostics/model/measurement_precedence.h"   // findByPrecedence: the one rule (6.1a)
 
 #include <algorithm>
 #include <cmath>

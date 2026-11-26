@@ -31,7 +31,7 @@
 #include "../../Diagnostics/derived/series/variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
 #include "consistency_env.h"        // consistencyEnvGeneration: a norm or pack save makes the scales again (5.5a)
-#include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save
+#include "../../Diagnostics/content/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save
 #include "../variability/variability_facade.h"                 // variabilityResult, typicalityTracePayload
 #include "../../Vocabulary/Metrics/variability/variability_grader.h"      // the trace and ordinal graders
 #include "../../Vocabulary/Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)

@@ -313,7 +313,7 @@ struct MetricSeries {
 };
 
 // Finding a series by its metric, best instrument first, is the one precedence rule's (findByPrecedence,
-// Diagnostics/measures/measurement_precedence.h; refactor 6.1a, R-INS-3): this layer's own two-rung copy is gone.
+// Diagnostics/model/measurement_precedence.h; refactor 6.1a, R-INS-3): this layer's own two-rung copy is gone.
 
 // A metric scored against its reference band.
 struct ScoredMetric {
