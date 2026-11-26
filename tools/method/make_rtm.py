@@ -55,8 +55,10 @@ The flags, in this order (rtm.md and the self-test use the same numbers):
   12 A row not delivered, with no open issue and no accepted gap (exempt: release never, won't have, withdrawn).
   13 A baseline line whose gap has closed: the line must come out, so the baseline only shrinks.
 An observation counts only when its "What was seen" starts with "pass". A corpus line (Kind E3, Record "corpus:
-<session date> shot <n>, captured on <commit>") counts for E6 as well, never ages, and an open bug naming its row
-shows beside it (flag 6) without removing it.
+<session date> shot <n>[ at <HH:MM> UTC][, captured on <commit>]") counts for E6 as well, never ages, and an open bug
+naming its row shows beside it (flag 6) without removing it. The time of day is required, on each, where two swings
+(two observation ids) share a date and a shot number, and must then tell them apart; the build is given only when the
+swing records one.
 Warnings never fail the check: a proposed row with no issue; a design document no row cites; an open `engineering`
 issue with neither a Requirement: nor a Control: line; an issue a row cites that the snapshot lacks; an accepted gap
 that is no longer open; a gate-list test the source does not register.
@@ -110,9 +112,11 @@ REQ_FIND = re.compile(r'(?<![A-Za-z0-9-])(' + REQ_ID + r')(?![A-Za-z0-9-])')
 ISSUE_REF = re.compile(r'(?<![\w&/])#([0-9]+)\b')
 QML_REQ_LINE = re.compile(r'^\s*//\s*REQ:(.*)$')
 # A corpus swing replayed (Kind E3) also meets E6, in every area, with no build or age limit (test_strategy.md §3, §4;
-# the Solution Architect, 26 Nov 2026). Its Record names the session date, the shot number and the build that
-# captured the swing, and nothing else (POL-7: never a golfer).
-CORPUS_RECORD = re.compile(r'^corpus: ([0-9]{4}-[0-9]{2}-[0-9]{2}) shot ([0-9]+), captured on ([0-9a-f]{7,40})$')
+# the Solution Architect, 26 Nov 2026). Its Record names the session date and the shot number; the time of day (UTC)
+# only where two swings share both; the build that captured the swing only when the swing records one ("evidence
+# regardless of the build": the Solution Architect, 26 Nov 2026); and nothing else (POL-7: never a golfer).
+CORPUS_RECORD = re.compile(r'^corpus: ([0-9]{4}-[0-9]{2}-[0-9]{2}) shot ([0-9]+)'
+                           r'(?: at ((?:[01][0-9]|2[0-3]):[0-5][0-9]) UTC)?(?:, captured on ([0-9a-f]{7,40}))?$')
 
 FLAG_TITLES = {
     1: 'rtm.md is stale',
@@ -329,6 +333,7 @@ def parse_observations(text):
     if not rows or [c.strip() for c in rows[0]] != OBS_HEADER:
         raise RtmError('%s: the header must be exactly: %s' % (P_OBS, ','.join(OBS_HEADER)))
     out = []
+    swings = {}  # (session date, shot) -> [(observation id, time of day, line)]: two swings must be told apart
     for n, r in enumerate(rows[1:], 2):
         if not any(c.strip() for c in r):
             continue
@@ -345,9 +350,18 @@ def parse_observations(text):
             cm = CORPUS_RECORD.match(d['Record'])
             if d['Kind'] != 'E3' or not cm:
                 raise RtmError('%s:%d: a corpus line is Kind E3 and its Record is exactly "corpus: <session date> shot '
-                               '<n>, captured on <commit>", for example "corpus: 2026-08-04 shot 7, captured on '
-                               '1a2b3c4d": a date, a shot number and a build, never a golfer' % (P_OBS, n))
-            corpus = cm.group(3)
+                               '<n>[ at <HH:MM> UTC][, captured on <commit>]", for example "corpus: 2026-08-04 shot 7, '
+                               'captured on 1a2b3c4d": a date and a shot number, a time of day only where two swings '
+                               'share both, the build only when the swing records one, never a golfer' % (P_OBS, n))
+            corpus = {'captured': cm.group(4)}
+            key, tod = (cm.group(1), cm.group(2)), cm.group(3)
+            others = [s for s in swings.get(key, []) if s[0] != d['Id']]
+            if others and (tod is None or any(s[1] is None or s[1] == tod for s in others)):
+                raise RtmError('%s:%d: %s and %s (line %d) share %s shot %s: each must name its own time of day, '
+                               '"corpus: %s shot %s at <HH:MM> UTC"' % (P_OBS, n, d['Id'], others[0][0], others[0][2],
+                                                                        key[0], key[1], key[0], key[1]))
+            if not any(s[0] == d['Id'] for s in swings.get(key, [])):
+                swings.setdefault(key, []).append((d['Id'], tod, n))
         out.append({'id': d['Id'], 'line': n, 'date': d['Date'], 'reqs': reqs, 'build': d['Build'],
                     'kind': d['Kind'], 'passed': d['What was seen'].lower().startswith('pass'), 'corpus': corpus})
     return out
@@ -1285,7 +1299,9 @@ def render(m, gaps, warns):
             iss = ', '.join('#%d %s' % (n, m['issues'][n]['state'] if n in m['issues'] else '(not in the snapshot)')
                             for n in r['all_issues'])
             obs = ', '.join('%s %s %s %s%s' % (o['id'], o['kind'], 'pass' if o['passed'] else 'fail', o['build'],
-                                                ' (a corpus swing: E3 and E6, captured on build %s)' % o['corpus']
+                                                (' (a corpus swing: E3 and E6, captured on build %s)'
+                                                 % o['corpus']['captured'] if o['corpus']['captured']
+                                                 else ' (a corpus swing: E3 and E6)')
                                                 if o['corpus'] else '') for o in r['obs'])
             uc = m['uc'].get(rid, {}).get('use_cases', '')
             L.append('| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |' % tuple(md_cell(x) for x in (
@@ -1888,6 +1904,57 @@ def self_test():
                 refused_here = str(e)
             ok(refused_here is not None and 'rtm_observations.csv:3' in refused_here,
                'a corpus line naming anything but a date, a shot number and a build is refused: %r' % bad)
+
+        # The captured-on build is optional (the swing's date is the proof); a time of day tells apart two swings
+        # that share a date and a shot number, and is then required on each of them.
+        def corpus_lines(*records):
+            return FIX_OBS.split('OBS-2')[0] + ''.join(
+                'OBS-%d,2026-11-26,REQ-CAP-1,unknown,E3,a corpus swing read,pass: detected,"%s",agent\n' % (n, rec)
+                for n, rec in enumerate(records, 2))
+
+        def refusal(obs):
+            fx = dict(green_files)
+            fx[P_OBS] = obs
+            try:
+                generate(make_fixture(base, fx))
+            except RtmError as e:
+                return str(e)
+            return None
+
+        def accepted(obs):
+            fx = dict(green_files)
+            fx[P_OBS] = obs
+            try:
+                return run(fx)[1]
+            except RtmError as e:
+                return None, None, None, str(e)
+
+        mn, gn, wn, tn = accepted(corpus_lines('corpus: 2026-08-04 shot 7'))
+        ok(mn is not None and 'E6' in mn['req']['rows']['REQ-CAP-1']['present'] and not gn
+           and '(a corpus swing: E3 and E6)' in tn,
+           'a corpus line with no build is accepted, meets E6, and the matrix names no build%s' % (
+               '' if mn is not None else ' (refused: %s)' % tn))
+        mt, gt, wt, tt = accepted(corpus_lines('corpus: 2026-07-10 shot 1 at 17:58 UTC, captured on 1a2b3c4d',
+                                               'corpus: 2026-07-10 shot 1 at 18:31 UTC'))
+        ok(mt is not None and 'E6' in mt['req']['rows']['REQ-CAP-1']['present'] and not gt,
+           'two swings sharing a date and a shot number are accepted when each names its time of day%s' % (
+               '' if mt is not None else ' (refused: %s)' % tt))
+        for clash in (('corpus: 2026-07-10 shot 1, captured on 1a2b3c4d', 'corpus: 2026-07-10 shot 1, captured on '
+                       '1a2b3c4d'),
+                      ('corpus: 2026-07-10 shot 1 at 17:58 UTC, captured on 1a2b3c4d', 'corpus: 2026-07-10 shot 1, '
+                       'captured on 1a2b3c4d'),
+                      ('corpus: 2026-07-10 shot 1 at 17:58 UTC', 'corpus: 2026-07-10 shot 1 at 17:58 UTC')):
+            e = refusal(corpus_lines(*clash))
+            ok(e is not None and 'rtm_observations.csv:4' in e and 'share' in e,
+               'two swings sharing a date and a shot number, not told apart by a time of day, are refused: %r' % (
+                   clash,))
+        for bad in ('corpus: 2026-07-10 shot 1 at 25:00 UTC', 'corpus: 2026-07-10 shot 1 at 17:60 UTC',
+                    'corpus: 2026-07-10 shot 1 at 9:05 UTC', 'corpus: 2026-07-10 shot 1 at 17:58',
+                    'corpus: 2026-07-10 shot 1 at 17:58 UTC captured on 1a2b3c4d',
+                    'corpus: 2026-07-10 shot 1, captured on 1a2b3c4d at 17:58 UTC'):
+            e = refusal(corpus_lines(bad))
+            ok(e is not None and 'rtm_observations.csv:3' in e, 'a corpus line with a bad time of day is refused: %r'
+               % bad)
 
         # --rename: a mechanical rename of an unlabelled test swaps its one baseline line; each refusal leaves it.
         ren = dict(green_files)
