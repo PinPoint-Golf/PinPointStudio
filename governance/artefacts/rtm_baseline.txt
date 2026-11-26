@@ -595,7 +595,6 @@
 4 quit_pin.startup
 4 quit_pin.warm-up
 4 quit_pin.work-ons
-4 quit_pins_selftest
 4 reanalysis_controller_test
 4 recording_contract_test
 4 recording_repository_test

@@ -37,13 +37,30 @@ EXPECTED FAILURES. A pin whose failure is an observed, filed fault carries its i
 runs. If it fails the way the issue says (the same check), the test reports Not Run (exit 77) with the issue number,
 never Passed; if it now passes, or fails some other way, the test FAILS, so a fix or a new fault is seen.
 
-Exit: 0 every run clean; 1 a run not clean; 77 Not Run (no fixture for a busy pin, or a known, filed failure).
+A PIN THAT NEEDS A STAND-IN DEVICE (`synthetic` below; src/Core/synthetic_devices.h) runs only against an app built
+with the stand-ins: a Debug build, where the option PP_SYNTHETIC_DEVICES is on by default. The driver turns the stand-in
+on (PINPOINT_PROBE_SYNTHETIC=<parts>, and PINPOINT_PROBE_SYNTHETIC_SLOW=<part>.<step>:<ms> for a `slow` pin), and the
+stand-in logs "[HeadlessProbe] synthetic: <part>" once as it starts. The pin is Not Run (exit 77), NEVER passed, when
+the app's build tree says it was built without the option (its CMakeCache.txt; nothing is launched), or when that line
+is not in the log before the quit (a trigger pin waits SYNTH_WAIT_S for it, then stops the run). A run that also fails a
+check the stand-in's absence does not explain (the exit code, a fault line, after-shutdown, slow, written, the guard)
+FAILS: a crash is never reported as Not Run. `--selftest-synthetic` proves it (quit_pins_synthetic_selftest).
+
+Exit: 0 every run clean; 1 a run not clean; 77 Not Run (no fixture for a busy pin, a known, filed failure, or a pin's
+stand-in device not built or not started).
 """
 import argparse, hashlib, os, re, shutil, signal, subprocess, sys, threading, time
 
 LIMIT_S = 5.0          # quit request -> process gone: GU-10's 5 s, ruled by the Product Owner (lifecycle model 1.7)
 MEM_CAP_MB = 6144      # the agents' render guard (AG-16): kill above a 6 GB footprint
 WARM_TIMEOUT_S = 400   # a pose pin's run: a cold CoreML compile is about 97 s, the Debug app slower
+SYNTH_WAIT_S = 60.0    # a trigger pin's stand-in line must come this soon after the launch, else the run is stopped
+# The stand-in's start line (synthetic_devices.h, logStarted): "[HeadlessProbe] synthetic: <part>", then a space or
+# the line's end, so "camera" is not matched by "camera-x", and "synthetic switch ignored: ..." matches no part.
+SYNTH_LINE = r"\[HeadlessProbe\] synthetic: %s(\s|$)"
+# The checks a missing stand-in explains (its work, and its owner's lines, never ran): with the line absent these are
+# dropped and the run is Not Run; any other failed check still fails the pin.
+SYNTH_EXPLAINS = {"synthetic", "vacuous", "after", "ran-on"}
 
 # A fault after the quit request (GAP-21's kind, and crashes). Matched case-sensitively, on lines after the request.
 FAULTS = [
@@ -88,6 +105,9 @@ REANALYSIS_NOT_AFTER = [r"\[WristAnalysis\] \d+ metrics, score", r"\[Reanalysis\
 # whose files must be byte-identical to the fixture's after the run ("written"). fixture: needs make_fixture.sh's library. pose_home: share one scratch
 # home across this pin's runs (True), or across every "shared" pin's, so the CoreML compile cache a finished load
 # leaves is reused (a cold compile is ~97 s). The warm-up pin keeps its own: its load is always abandoned part-way.
+# synthetic: the stand-in devices the pin needs (their parts, PINPOINT_PROBE_SYNTHETIC), each of which must log its
+# start line before the quit, else the pin is Not Run (the docstring). slow: one PINPOINT_PROBE_SYNTHETIC_SLOW value
+# (<part>.<step>:<ms>). selftest_only: the driver's own proof, never a ctest of its own and never in --list.
 PINS = {
     # ---- start-up (APP-S1 -> S2), headless, an empty scratch library ----
     "startup":      dict(at="startup", busy=r"QUIT-PIN: quit requested \(startup",
@@ -132,6 +152,14 @@ PINS = {
                          ran_on=r"\[WristAnalysis\]", ran_on_from=REANALYSIS_STOPPED, unchanged=FIX_REANALYSE,
                          what="a re-analysis running while the warm-up builds on the inference thread (J2 and S2, S5); "
                               "the quit stops it and nothing is written (#294)"),
+    # ---- the stand-in devices' Not Run path (quit_pins_synthetic_selftest): "selftest" is a part no stand-in
+    # provides, so these pins are Not Run against every app, unless a plant supplies the line ----
+    "_synthetic-selftest": dict(at="ms:1", synthetic=["selftest"], slow="selftest.stop:1", selftest_only=True,
+                         busy=r"QUIT-PIN: quit requested \(ms:1 ",
+                         what="the 'ready' pin, needing a stand-in no build has: Not Run unless its line is planted"),
+    "_synthetic-selftest-trigger": dict(at="trigger", synthetic=["selftest"], selftest_only=True,
+                         busy=SYNTH_LINE % "selftest",
+                         what="a trigger pin whose stand-in never starts: the run is stopped at SYNTH_WAIT_S, Not Run"),
 }
 # pin -> (issue number, the checks it fails as the issue says): only an observed, filed fault. Every run must fail,
 # only on those checks, and a "slow" run must still be gone within KNOWN_SLOW_CEILING_S; anything else FAILS.
@@ -180,6 +208,8 @@ class Run:
         self.peak_mb = 0
         self.guard_killed = False
         self.trigger_sent = False
+        self.synth_seen = set()       # the stand-in parts whose start line has been logged
+        self.synth_stopped = False    # the run was stopped at SYNTH_WAIT_S with a stand-in's line still missing
 
     def launch(self):
         p = PINS[self.pin]
@@ -192,12 +222,22 @@ class Run:
                "--timeout", str(WARM_TIMEOUT_S if p.get("pose_home") else 150), "--log", self.log]
         for e in p.get("env", []):
             cmd += ["--env", e.replace("@LIB@", self.lib)]
+        if p.get("synthetic"):
+            cmd += ["--env", "PINPOINT_PROBE_SYNTHETIC=" + ",".join(p["synthetic"])]
+        if p.get("slow"):
+            cmd += ["--env", "PINPOINT_PROBE_SYNTHETIC_SLOW=" + p["slow"]]
         cmd += ["--", "--quit-pin-at", at, "--quit-pin-route", p.get("route", "quit")]
         self.t0 = now()
         self.proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                                      errors="replace", start_new_session=True)
         threading.Thread(target=self.guard, daemon=True).start()
         threading.Thread(target=self.watch_gone, daemon=True).start()
+        synth = {part: re.compile(SYNTH_LINE % re.escape(part)) for part in p.get("synthetic", [])}
+        if synth and p["at"] == "trigger":
+            # A trigger pin's quit waits for its busy marker, which a stand-in that never started never logs: bound it.
+            t = threading.Timer(self.args._synth_wait, self.synth_deadline)
+            t.daemon = True
+            t.start()
         busy, also = re.compile(p["busy"]), re.compile(p["busy_also"]) if p.get("busy_also") else None
         seen_busy, seen_also = False, also is None
         for raw in self.proc.stderr:
@@ -207,6 +247,8 @@ class Run:
             m = re.search(r"run_headless: checked: pid (\d+) ", line)
             if m:
                 self.app_pid = int(m.group(1))
+            if self.t_quit is None:
+                self.synth_seen |= {part for part, rx in synth.items() if rx.search(line)}
             if self.t_quit is None and "QUIT-PIN: quit requested" in line:
                 self.t_quit = t
                 self.do_plant()
@@ -220,11 +262,35 @@ class Run:
         if self.t_gone is None:
             self.t_gone = now()
 
+    def synth_deadline(self):
+        missing = set(PINS[self.pin].get("synthetic", [])) - self.synth_seen
+        if missing and self.t_quit is None and self.proc.poll() is None:
+            self.synth_stopped = True
+            print("SYNTHETIC: no start line from %s within %.0f s of the launch: the run is stopped"
+                  % (", ".join(sorted(missing)), self.args._synth_wait))
+            self.kill()
+
     def do_plant(self):
         """A test of the oracle, never of the app: break this run on purpose at the quit request."""
         plant = getattr(self, "plant", None)
-        if plant == "abort" and self.app_pid:
-            os.kill(self.app_pid, signal.SIGABRT)                        # must fail "exit"
+        if plant in ("synthetic-line", "synthetic-near"):
+            # The stand-in's start line just before the quit (it must then go on to the oracle and pass), or near
+            # misses there and the real line only after the quit (each must still be Not Run).
+            i = max(k for k, (_, l) in enumerate(self.lines) if "QUIT-PIN: quit requested" in l)
+            tq = self.lines[i][0]
+            if plant == "synthetic-line":
+                self.lines[i:i] = [(tq - 0.001, "[HeadlessProbe] synthetic: selftest (planted)")]
+            else:
+                self.lines[i:i] = [(tq - 0.003, "[HeadlessProbe] synthetic: selftest-other (planted)"),
+                                   (tq - 0.002, "[HeadlessProbe] synthetic switch ignored: PINPOINT_PROBE_SYNTHETIC "
+                                                "selftest (planted)"),
+                                   (tq - 0.001, "[HeadlessProbe] not started: selftest (planted)")]
+                self.lines.append((now() + 0.001, "[HeadlessProbe] synthetic: selftest (planted, after the quit)"))
+            return
+        if plant == "kill" and self.app_pid:
+            # SIGKILL, not SIGABRT: an abort makes macOS write a crash report and show "PinPoint Studio quit
+            # unexpectedly" on the owner's screen; a kill leaves neither, and fails "exit" the same way (128+9).
+            os.kill(self.app_pid, signal.SIGKILL)                        # must fail "exit"
         elif plant == "hang" and self.app_pid:
             os.kill(self.app_pid, signal.SIGSTOP)                        # must fail "slow"
             threading.Timer(LIMIT_S + 2.0, lambda: os.kill(self.app_pid, signal.SIGCONT)).start()
@@ -316,6 +382,10 @@ class Run:
     def verdict(self):
         """[(check, message)] of what failed; empty = clean."""
         p, bad = PINS[self.pin], []
+        if self.synth_stopped:
+            # Stopped by the driver, not by the app: its exit code and its missing quit say nothing about the app.
+            return [("synthetic", "the stand-in's line %s never came: the run was stopped at %.0f s"
+                     % (" and ".join("/%s/" % (SYNTH_LINE % part) for part in p["synthetic"]), self.args._synth_wait))]
         if self.guard_killed:
             bad.append(("guard", "the memory guard killed it (peak %.0f MB)" % self.peak_mb))
         if self.rc != 0:
@@ -327,6 +397,10 @@ class Run:
             return bad
         before = [l for t, l in self.lines if t <= self.t_quit]
         after = [l for t, l in self.lines if t > self.t_quit]
+        for part in p.get("synthetic", []):
+            if not any(re.search(SYNTH_LINE % re.escape(part), l) for l in before):
+                bad.append(("synthetic", "the stand-in '%s' never logged \"[HeadlessProbe] synthetic: %s\" before the "
+                            "quit (not started: a build without it, or its gate refused)" % (part, part)))
         if not any(re.search(p["busy"], l) for l in before):
             bad.append(("vacuous", "the busy marker /%s/ was not in the log before the quit" % p["busy"]))
         if p.get("busy_also") and not any(re.search(p["busy_also"], l) for l in before):
@@ -400,7 +474,7 @@ def selftest(a):
     that must still pass: both lines just before the quit, and ViTPose's fp16 fallback warning after it."""
     me = [sys.executable, "-I", os.path.abspath(__file__), "--app", a.app, "--repo", a.repo, "--runs", "1",
           "--pin", "ready"]
-    want = {None: (0, "PASS: ready"), "abort": (1, "[exit]"), "hang": (1, "[slow]"),
+    want = {None: (0, "PASS: ready"), "kill": (1, "[exit]"), "hang": (1, "[slow]"),
             "nomarker": (1, "[vacuous]"), "fault": (1, "[fault]"),
             "shutdown-app": (1, "[after-shutdown]"), "shutdown-model": (1, "[after-shutdown]"),
             "shutdown-near": (0, "PASS: ready")}
@@ -435,6 +509,74 @@ def selftest(a):
     return 1 if bad else 0
 
 
+def app_has_stand_ins(app):
+    """Whether the app was configured with the stand-in devices, from its build tree's CMakeCache.txt (the folder
+    holding the binary or one of the four above it; the path is not resolved, so a link reads its own tree): True or
+    False by PP_SYNTHETIC_DEVICES, False for a tree configured before the option existed, None when no tree is found
+    (an installed app: the run then decides by the stand-in's line alone). A message only: a run never passes without
+    the stand-in's line, whatever this says."""
+    d = os.path.dirname(os.path.abspath(app))
+    for _ in range(5):
+        cache = os.path.join(d, "CMakeCache.txt")
+        if os.path.isfile(cache):
+            with open(cache, errors="replace") as f:
+                m = re.search(r"^PP_SYNTHETIC_DEVICES:BOOL=(.*)$", f.read(), re.M)
+            return (m.group(1).strip().upper() in ("ON", "1", "TRUE", "YES", "Y")) if m else False, cache
+        d = os.path.dirname(d)
+    return None, None
+
+
+def selftest_synthetic(a):
+    """quit_pins_synthetic_selftest: a pin that needs a stand-in device is Not Run (77), never passed, when the app was
+    built without the stand-ins or the stand-in's line is not in the log before the quit; and a crash is still a FAIL.
+    The pins are _synthetic-selftest (the 'ready' pin needing the part "selftest", which no stand-in provides) and
+    _synthetic-selftest-trigger. The planted line shows the gate opens on the line alone, so the 77 is not hard-wired
+    (BT-40)."""
+    if a.app == "OFF":
+        print("NOT RUN: the tests tree opted out of the app (PP_APP_BINARY=OFF): the stand-in path is NOT checked")
+        return 77
+    if not a.app or not os.path.exists(a.app):
+        print("FAIL: no app binary at '%s'" % a.app); return 1
+    me = [sys.executable, "-I", os.path.abspath(__file__), "--repo", a.repo, "--runs", "1"]
+    work = lambda name: ["--work", os.path.join(a.work, "synthetic-" + name)]
+    # An app tree configured without the option: a link to the real binary beside a cache that says OFF.
+    fake = os.path.join(a.work, "synthetic-unbuilt-tree")
+    shutil.rmtree(fake, ignore_errors=True)
+    os.makedirs(fake)
+    with open(os.path.join(fake, "CMakeCache.txt"), "w") as f:
+        f.write("CMAKE_BUILD_TYPE:STRING=Release\nPP_SYNTHETIC_DEVICES:BOOL=OFF\n")
+    os.symlink(os.path.abspath(a.app), os.path.join(fake, "PinPointStudio"))
+    real = ["--app", a.app, "--_ignore-build"]
+    cases = [  # (name, args, exit, texts that must be in the output, texts that must not)
+        ("unbuilt", ["--app", os.path.join(fake, "PinPointStudio"), "--pin", "_synthetic-selftest"], 77,
+         ["NOT RUN", "built without the stand-in devices"], ["run 1:"]),
+        ("absent", real + ["--pin", "_synthetic-selftest"], 77,
+         ["NOT RUN", "[synthetic]", "never logged"], ["PASS"]),
+        ("near-and-late", real + ["--pin", "_synthetic-selftest", "--_plant", "synthetic-near"], 77,
+         ["NOT RUN", "[synthetic]"], ["PASS"]),
+        ("crash", real + ["--pin", "_synthetic-selftest", "--_plant", "kill"], 1,
+         ["FAIL", "[exit]", "[synthetic]"], ["NOT RUN", "PASS"]),
+        ("trigger-bounded", real + ["--pin", "_synthetic-selftest-trigger", "--_synth-wait", "8"], 77,
+         ["NOT RUN", "the run was stopped at 8 s"], ["PASS"]),
+        ("line", real + ["--pin", "_synthetic-selftest", "--_plant", "synthetic-line"], 0,
+         ["PASS: _synthetic-selftest"], ["NOT RUN", "[synthetic]"]),
+    ]
+    bad = 0
+    for name, args, rc, want, never in cases:
+        r = subprocess.run(me + work(name) + args, capture_output=True, text=True)
+        missing = [t for t in want if t not in r.stdout]
+        found = [t for t in never if t in r.stdout]
+        ok = r.returncode == rc and not missing and not found
+        bad += not ok
+        print("%s %-16s: exit %d (want %d)%s%s" % ("ok  " if ok else "FAIL", name, r.returncode, rc,
+              "; does NOT say %s" % missing if missing else "", "; says %s" % found if found else ""))
+        if not ok:
+            print("    " + r.stdout.replace("\n", "\n    "))
+    print("PASS: a pin needing a stand-in is never passed without it" if not bad
+          else "FAIL: %d case(s) not as planned" % bad)
+    return 1 if bad else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--app"); ap.add_argument("--repo"); ap.add_argument("--work"); ap.add_argument("--pin")
@@ -442,15 +584,24 @@ def main():
     ap.add_argument("--fixture", default="/mnt/swingdata/scratch/quit-pins-fixture")
     ap.add_argument("--list", action="store_true")
     # The oracle's own proof (quit_pins_selftest): each plant must turn a clean pin into a FAIL on the named check.
-    ap.add_argument("--_plant", choices=["abort", "hang", "nomarker", "fault", "shutdown-app", "shutdown-model",
-                                         "shutdown-near", "nostop", "written"], default=None)
+    ap.add_argument("--_plant", choices=["kill", "hang", "nomarker", "fault", "shutdown-app", "shutdown-model",
+                                         "shutdown-near", "nostop", "written", "synthetic-line", "synthetic-near"],
+                    default=None)
     ap.add_argument("--selftest", action="store_true")
+    # The stand-in path's own proof (quit_pins_synthetic_selftest), and its two test-only knobs: launch whatever the
+    # app's build tree says, and a shorter wait for a trigger pin's stand-in line.
+    ap.add_argument("--selftest-synthetic", action="store_true")
+    ap.add_argument("--_ignore-build", action="store_true")
+    ap.add_argument("--_synth-wait", type=float, default=SYNTH_WAIT_S)
     a = ap.parse_args()
     if a.selftest:
         return selftest(a)
+    if a.selftest_synthetic:
+        return selftest_synthetic(a)
     if a.list:
         for k, v in PINS.items():
-            print("%-24s %s" % (k, v["what"]))
+            if not v.get("selftest_only"):
+                print("%-24s %s" % (k, v["what"]))
         return 0
     if a.pin not in PINS:
         print("FAIL: unknown pin '%s' (--list)" % a.pin); return 1
@@ -464,6 +615,12 @@ def main():
         print("NOT RUN: no fixture library at %s/lib (zsh src/Gui/tests/quit_pins/make_fixture.sh builds it)"
               % a.fixture)
         return 77
+    if p.get("synthetic") and not a._ignore_build:
+        built, cache = app_has_stand_ins(a.app)
+        if built is False:
+            print("NOT RUN: the app was built without the stand-in devices (PP_SYNTHETIC_DEVICES is not ON in %s; a "
+                  "Debug build has them): %s is NOT checked" % (cache, ", ".join(p["synthetic"])))
+            return 77
     print("PIN %s: %s" % (a.pin, p["what"]))
     results = []
     for n in range(1, a.runs + 1):
@@ -482,6 +639,13 @@ def main():
             print("    [%s] %s" % (check, msg))
         print("    log: %s" % r.log)
         results.append((bad, dt))
+        checks = {c for c, _ in bad}
+        if "synthetic" in checks and checks <= SYNTH_EXPLAINS and not any(b for b, _ in results[:-1]):
+            # The stand-in never started, and nothing else failed in this run or an earlier one: Not Run, NEVER
+            # passed; no further run. (An earlier run's failure is not hidden: the loop goes on, and the pin FAILS.)
+            print("NOT RUN: %s needs the stand-in device(s) %s, which did not start: the quit is NOT checked"
+                  % (a.pin, ", ".join(p["synthetic"])))
+            return 77
     failed = [c for bad, _ in results for c, _ in bad]
     if not failed:
         print("PASS: %s exits clean, %d runs of %d" % (a.pin, a.runs, a.runs))

@@ -659,7 +659,7 @@ endif()
 # finds) started headless through tools/probe/run_headless.sh and quit at each point of start-up, during and after the
 # pose warm-up, and while a re-analysis runs; each pin twice. quit_pins/quit_pin.py is the driver and the oracle (exit
 # code 0, gone within 5 s of the quit, no teardown fault line, no work run on after the application has gone, the
-# pin's busy marker before the quit). One ctest per pin; quit_pins_selftest proves the oracle catches a planted abort,
+# pin's busy marker before the quit). One ctest per pin; quit_pins_selftest proves the oracle catches a planted kill,
 # hang, missing marker, fault line and after-shutdown line, lets the near misses pass, and (with the fixture) catches a
 # re-analysis log without the stop and a swing written after all (#294). Not Run (77):
 # a busy pin with no fixture library (quit_pins/make_fixture.sh), or a pin that fails as its filed issue says (KNOWN;
@@ -674,12 +674,35 @@ if(UNIX AND Python3_Interpreter_FOUND)
                      --repo ${PP_REPO_ROOT} --work ${CMAKE_CURRENT_BINARY_DIR}/quit_pins_work)
     add_test(NAME quit_pins_selftest COMMAND ${_pp_quit_cmd} --selftest)
     set_tests_properties(quit_pins_selftest PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE LABELS quit_pins)
+    pp_requirement(quit_pins_selftest CTL-BT-40)   # it proves the oracle can fail: each plant must turn a clean pin red
     foreach(_pin IN LISTS _pp_quit_pins)
         add_test(NAME quit_pin.${_pin} COMMAND ${_pp_quit_cmd} --pin ${_pin})
         set_tests_properties(quit_pin.${_pin} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77
                                                          LABELS quit_pins)
     endforeach()
+    # A pin that needs a stand-in device is Not Run (77), never passed, when the app was built without the stand-ins
+    # or the stand-in's "[HeadlessProbe] synthetic: <part>" line never comes before the quit. Proved on a test-only
+    # pin that names a part no stand-in provides: against an app tree whose cache has the option off (no launch), and
+    # launched (the line absent, a near-miss line, the line only after the quit), each 77; with the line planted before
+    # the quit it goes on to the oracle and passes, so the 77 is not hard-wired; a crash with the line absent still fails.
+    # About 20 s: five launches. Not Run itself only with -DPP_APP_BINARY=OFF.
+    add_test(NAME quit_pins_synthetic_selftest COMMAND ${_pp_quit_cmd} --selftest-synthetic)
+    set_tests_properties(quit_pins_synthetic_selftest PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE SKIP_RETURN_CODE 77
+                                                             LABELS quit_pins)
+    pp_requirement(quit_pins_synthetic_selftest CTL-BT-40)
 endif()
+
+# The stand-in devices' switches (src/Core/synthetic_devices.h; testing_developer_guide.md, "The quit pins"): the
+# parts list and the slow setting parsed strictly (valid, malformed), each read only under PINPOINT_HEADLESS_PROBE=1,
+# a malformed value logged and ignored, and the "[HeadlessProbe] synthetic: <part>" line the driver looks for. One
+# source built twice: with the option's macro at 1 (a Debug app) and at 0 (every other build: the switches do nothing).
+set(_pp_synth_sources quit_pins/synthetic_devices_test.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
+pp_add_test(synthetic_devices_test
+    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=1  LINK Qt6::Test  AUTOMOC)
+pp_add_test(synthetic_devices_off_test
+    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=0  LINK Qt6::Test  AUTOMOC)
+pp_requirement(synthetic_devices_test CTL-AG-15)
+pp_requirement(synthetic_devices_off_test CTL-AG-15)
 
 # governance/artefacts/design_system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
