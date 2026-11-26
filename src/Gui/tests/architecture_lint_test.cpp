@@ -88,7 +88,8 @@
 // the .cpp share one entry. A NEW file defaults to its directory's ring; a file in a directory that is
 // in neither table fails the test, so a new directory (src/Vocabulary/Recording, say) has to be
 // placed on purpose. Platform (ring 0) is a decision of this test, not of 03: logging and profiling
-// are used by every ring and no step removes them, so they sit inside Vocabulary.
+// are used by every ring and no step removes them, so they sit inside Vocabulary. src/Core is
+// Platform by its directory rule (R4), so a new file in Core is Platform unless it is named.
 //
 // THE ALLOW-LIST. Today's violations live in architecture_allowlist.txt beside this file, generated
 // once from the tree at the start of Step G — one line per file and rule, with the number of findings
@@ -165,7 +166,7 @@ const QVector<QPair<QString, int>> &dirRings()
         // The Vocabulary ring's one root folder, an area per subfolder; Analysis's shared types are its first area
         // (Solution Architect, 23 Nov 2026). The other areas below move under it in the platform refactor.
         { QStringLiteral("Vocabulary/"), Vocabulary },
-        { QStringLiteral("Core/"), Vocabulary },          // device / logging files below
+        { QStringLiteral("Core/"), Platform },            // the base layer; the device enumerator below (R4)
         { QStringLiteral("Pose/"), Rules },
         { QStringLiteral("Club/"), Rules },
         { QStringLiteral("Ball/"), Rules },
@@ -200,37 +201,8 @@ const QVector<QPair<QString, int>> &dirRings()
 const QHash<QString, int> &fileRings()
 {
     static const QHash<QString, int> t{
-        // Core: logging, profiling, machine queries, the two persistence mechanisms (the atomic
-        // write, the folder lock), the one worker pool, the process environment, path spelling, the
-        // release version and the settings handle are Platform; the device enumerator is an adapter. The
-        // studio profile has left for App/ (B1.9), Application by directory; the Core/ rule above becomes
-        // Platform next, and its Platform entries below then go (the Solution Architect, 24 Nov 2026: R1, R3, R4).
-        { QStringLiteral("Core/pp_debug"), Platform },
-        { QStringLiteral("Core/pp_log_stream"), Platform },
-        { QStringLiteral("Core/PpMessageLog"), Platform },
-        { QStringLiteral("Core/PpStatsLog"), Platform },
-        { QStringLiteral("Core/AnalysisProfileLog"), Platform },
-        { QStringLiteral("Core/pp_profiler"), Platform },
-        { QStringLiteral("Core/ort_log"), Platform },
-        { QStringLiteral("Core/cpu_topology"), Platform },
-        { QStringLiteral("Core/pp_gpu_metrics"), Platform },
-        { QStringLiteral("Core/pp_gpu_metrics_mac"), Platform },
-        { QStringLiteral("Core/pp_os_metrics"), Platform },
-        { QStringLiteral("Core/pp_model_path"), Platform },
-        // The persistence mechanisms every ring may use (refactor step 2.0; R-PERS-2, R-PERS-6).
-        { QStringLiteral("Core/atomic_write"), Platform },
-        { QStringLiteral("Core/folder_lock"), Platform },
-        // The post-shot step timer every ring may use (refactor 3.7-S): Qt only, header-only, like atomic_write.
-        { QStringLiteral("Core/post_shot_trace"), Platform },
-        // The one worker pool, its serial lanes and the post-to-owner receiver (refactor step 3.1; R-CON-5;
-        // Mark, 15 Nov 2026: D15, IM-S3-8).
-        { QStringLiteral("Core/work_pool"), Platform },
-        // The process environment, path spelling per operating system and the release version (R1).
-        { QStringLiteral("Core/headless_probe"), Platform },
-        { QStringLiteral("Core/same_folder"), Platform },
-        { QStringLiteral("Core/version"), Platform },
-        // The settings handle (R3): A8 still keeps it out of Analysis and the inner rings.
-        { QStringLiteral("Core/pp_settings"), Platform },
+        // Core: the directory is Platform (dirRings(), R4); the device enumerator is its one recorded exception,
+        // an adapter until Stage D moves it out (the Solution Architect, 24 Nov 2026: R4).
         { QStringLiteral("Core/device_enumerator"), Adapters },
         // Analysis: the per-shot stages' pure rules (their shared vocabulary is Vocabulary/Analysis/); reading a recorded MP4 is the store's (the recorded products' JSON form is Vocabulary/Analysis/, R10).
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
@@ -790,6 +762,11 @@ void selfTest()
               && countRule(run("Export/x.cpp", QStringLiteral("#include \"../Core/pp_settings.h\"\n")), "A8") == 0
               && countRule(run("Core/x.cpp", QStringLiteral("#include \"pp_settings.h\"\n")), "A1") == 0,
           QStringLiteral("A8 and A1 pass the settings handle from the adapters and from Platform"));
+    const auto coreNew = run("Core/x.cpp", QStringLiteral("#include \"../Vocabulary/Metrics/metric_catalogue.h\"\n"));
+    check(countRule(coreNew, "A1") == 1 && coreNew.first().text.contains(QStringLiteral("Platform → Vocabulary"))
+              && countRule(run("Core/device_enumerator.cpp", QStringLiteral("#include \"../Buffer/source_ring.h\"\n")), "A1") == 0,
+          QStringLiteral("A1 treats a new Core file as Platform (it may not include Vocabulary); the device enumerator, "
+                         "Core's one recorded exception, is an adapter (R4)"));
     check(countRule(run("Gui/x/PpY.qml", QStringLiteral("Item {\n  SessionSeriesModel { id: m }\n  ChartsTracesPresenter {\n  }\n"
                                                         "  property SessionSeriesModel ref: null\n  ChartMetrics { }\n}\n")), "A2") == 2,
           QStringLiteral("A2 catches QML creating scoped types; passes a typed property and a view-local helper"));
@@ -885,6 +862,7 @@ void selfTest()
     check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Vocabulary/Analysis/gate_record.h")) == Vocabulary
               && ringOf(QStringLiteral("Core/pp_debug.cpp")) == Platform && ringOf(QStringLiteral("Gui/diagnostics/x.h")) == Adapters
               && ringOf(QStringLiteral("Core/pp_settings.h")) == Platform && ringOf(QStringLiteral("Core/version.h")) == Platform
+              && ringOf(QStringLiteral("Core/zz_new_file.h")) == Platform && ringOf(QStringLiteral("Core/device_enumerator.h")) == Adapters
               && ringOf(QStringLiteral("Kinematics/kf3_smoother.h")) == Rules && ringOf(QStringLiteral("Gui/app/app_info.cpp")) == Adapters
               && ringOf(QStringLiteral("NoSuchDir/x.h")) == -1 && ringOf(QStringLiteral("Gui/shot/shot_processor.cpp")) == Application,
           QStringLiteral("the ring table: per-file entries over directory defaults; unknown directories have no ring"));

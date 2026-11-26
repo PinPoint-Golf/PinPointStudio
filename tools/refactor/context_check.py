@@ -37,7 +37,7 @@ ORDER = {ACQ: 0, DIA: 1, COA: 2}
 # ---- tags: IM 4.1's Context column. Longest directory prefix wins; a file stem overrides its directory. --------
 DIRS = {
     'Vocabulary/Analysis/': DIA, 'Vocabulary/Rig/': ACQ, 'Vocabulary/Metrics/': DIA,   # Rig: the device keys (rig_design.md §5)
-    'Vocabulary/Recording/': ACQ, 'Vocabulary/Identity/': S, 'Core/': S,
+    'Vocabulary/Recording/': ACQ, 'Vocabulary/Identity/': S, 'Core/': P,  # Core is Platform by directory (R4)
     'Vocabulary/Club/': S, 'Vocabulary/Common/': S, 'Vocabulary/LaunchMonitor/': ACQ,
     'Pose/': DIA, 'Club/': DIA, 'Ball/': DIA, 'Kinematics/': DIA, 'Timeline/': DIA, 'Diagnostics/': DIA,
     'Diagnostics/derived/': DIA,                       # the derived facts (from the Coaching folder, Stage B, Part 1)
@@ -52,18 +52,10 @@ DIRS = {
     'LLM/': HUB, 'STT/': HUB, 'TTS/': HUB, 'Secrets/': HUB, 'Update/': HUB,
 }
 FILES = {
-    # Platform (IM 4.1): logging, profiling, machine queries, the persistence mechanisms, the worker pool
-    'Core/pp_debug': P, 'Core/pp_log_stream': P, 'Core/PpMessageLog': P, 'Core/PpStatsLog': P,
-    'Core/AnalysisProfileLog': P, 'Core/pp_profiler': P, 'Core/ort_log': P, 'Core/cpu_topology': P,
-    'Core/pp_gpu_metrics': P, 'Core/pp_gpu_metrics_mac': P, 'Core/pp_os_metrics': P, 'Core/pp_model_path': P,
-    'Core/atomic_write': P, 'Core/folder_lock': P, 'Core/post_shot_trace': P, 'Core/work_pool': P,
-    'Core/headless_probe': P, 'Core/same_folder': P, 'Core/version': P,     # ruled R1 (24 Nov)
-    'Core/pp_settings': P,                                                  # ruled R3 (24 Nov): the settings handle
     'Vocabulary/Recording/frame_decode': ACQ,                                                   # ruled: part of the Recording contract
     'IMU/imu_calibration': ACQ, 'IMU/trunk_angles': ACQ, 'IMU/trunk_stand_tall': ACQ,   # ruled (L2)
     # to place (this script's placements):
     'Core/device_enumerator': ACQ,
-    'App/studio_profile': HUB,
     'Analysis/mp4_frame_reader': HUB,       # "the store's" (lint comment): persistence
     'Pose/motion_capture_probe': HUB,       # the hardware probe behind a setting
     'Audio/audio_output': HUB, 'Audio/audio_output_base': HUB, 'Audio/ting_player': HUB,   # feedback sound, presentation
