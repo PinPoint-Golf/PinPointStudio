@@ -82,10 +82,15 @@ Item {
     readonly property bool imuNeedsAttention: ImuHealth.anyNeedsCalibration(imuManager)
 
     // Lowest battery % across all connected IMUs (−1 when none report a level),
-    // sourced from the manager's aggregate so it tracks live battery updates.
-    // A reading below 50% raises a toolbar warning naming the level.
-    readonly property int  imuLowestBattery: imuManager.lowBatteryPercent
-    readonly property bool imuBatteryLow:    imuLowestBattery >= 0 && imuLowestBattery < 50
+    // and its band from the one C++ rule (battery_band.h: "ok", "low",
+    // "veryLow"; "" with no reading), both from the manager's aggregate so they
+    // track live battery updates. A low or very low band raises a toolbar
+    // warning naming the level; this file compares no level itself (AD-52).
+    readonly property int    imuLowestBattery: imuManager.lowBatteryPercent
+    readonly property string imuBatteryBand:   imuManager.lowBatteryBand
+    readonly property bool   imuBatteryLow:    imuBatteryBand === "low" || imuBatteryBand === "veryLow"
+    // The band's word, as on every battery screen: "low", "very low" ("" when ok).
+    readonly property string imuBatteryWord:   ({ low: qsTr("low"), veryLow: qsTr("very low") })[imuBatteryBand] || ""
 
     // ── Phone (PPCP) health, folded into the Cameras pill ──────────────────
     // There is no separate Phones pill — a phone's only reason to be on this
@@ -94,8 +99,12 @@ Item {
     // `ppcpHost` exists only in a `HAVE_PPCP_TRANSPORT` build (main.cpp), so
     // this guards the same way PhonesPanel.qml's `controller` does.
     readonly property bool   havePpcp:          typeof ppcpHost !== "undefined"
+    // The phone whose battery band is worst, and that band (the one C++ rule:
+    // a phone on a cable is never raised): the level names that phone.
     readonly property int    phoneLowestBattery: root.havePpcp ? ppcpHost.phoneLowestBatteryPct : -1
-    readonly property bool   phoneBatteryLow:    phoneLowestBattery >= 0 && phoneLowestBattery < 50
+    readonly property string phoneBatteryBand:   root.havePpcp ? ppcpHost.phoneLowestBatteryBand : ""
+    readonly property bool   phoneBatteryLow:    phoneBatteryBand === "low" || phoneBatteryBand === "veryLow"
+    readonly property string phoneBatteryWord:   ({ low: qsTr("low"), veryLow: qsTr("very low") })[phoneBatteryBand] || ""
     readonly property string phoneWorstThermal:  root.havePpcp ? ppcpHost.phoneWorstThermal : ""
     readonly property bool   phoneThermalWarn:   phoneWorstThermal === "serious" || phoneWorstThermal === "critical"
 
@@ -119,13 +128,13 @@ Item {
                                                 && (phoneArmState === "blocked" || phoneArmState === "stalled")
 
     // ── Device pill states — the device vocabulary ─────────────────────────
-    // "error" (a target in colorError): failed, or a battery at 20% or under;
+    // "error" (a target in colorError): failed, or a very low battery;
     // "attention" (a target in colorAttention): calibrate, low battery, sync,
     // arming, thermal, or only some of the session's devices connected;
     // "off" (the dashed ring): none connected; "ok" (a check): all connected and
     // fine. The value line always says which, in words.
     readonly property string camStatus: {
-        if ((root.phoneBatteryLow && root.phoneLowestBattery <= 20)
+        if (root.phoneBatteryBand === "veryLow"
                 || (root.phoneThermalWarn && root.phoneWorstThermal === "critical")) return "error"
         if (root.phoneBatteryLow || root.phoneThermalWarn || root.phoneArmWarn
                 || root.phoneSyncWarn || root.phoneArming || root.camNeedsAttention) return "attention"
@@ -133,7 +142,7 @@ Item {
         return root.camConnected < root.camEnabled ? "attention" : "ok"
     }
     readonly property string imuStatus: {
-        if (root.imuFailed || (root.imuBatteryLow && root.imuLowestBattery <= 20)) return "error"
+        if (root.imuFailed || root.imuBatteryBand === "veryLow") return "error"
         if (root.imuBatteryLow || root.imuNeedsAttention) return "attention"
         if (root.imuConnected === 0) return "off"
         return root.imuConnected < root.imuEnabled ? "attention" : "ok"
@@ -545,7 +554,7 @@ Item {
             active: camPopup.opened
             status: root.camStatus
             label: root.camTotal === 0 ? qsTr("none")
-                        : root.phoneBatteryLow ? qsTr("phone battery %1%").arg(root.phoneLowestBattery)
+                        : root.phoneBatteryLow ? qsTr("phone battery %1% · %2").arg(root.phoneLowestBattery).arg(root.phoneBatteryWord)
                         : root.phoneThermalWarn ? qsTr("phone %1").arg(root.phoneWorstThermal)
                         : root.phoneArmWarn ? qsTr("phone %1").arg(root.phoneArmState)
                         : root.phoneSyncWarn ? qsTr("sync ±%1ms").arg(root.phoneSyncSigmaMs.toFixed(1))
@@ -561,8 +570,8 @@ Item {
         // ── IMUs pill ───────────────────────────────────────────────────────
         // A failed connection, then low battery, take priority over the calibrate
         // hint in the value line — a dying sensor is time-critical, and the message
-        // names the level so the user knows how low (e.g. "battery 32%"). Critical
-        // (≤20%) and failed read red.
+        // names the level and the band's word (e.g. "battery 32% · low"). A very
+        // low battery and a failed connection read red.
         PpToolPill {
             id: imuPill
             glyph: "⦿"                 // ⦿
@@ -572,7 +581,7 @@ Item {
             status: root.imuStatus
             label: root.imuTotal === 0 ? qsTr("none")
                         : root.imuFailed ? qsTr("failed")
-                        : root.imuBatteryLow ? qsTr("battery %1%").arg(root.imuLowestBattery)
+                        : root.imuBatteryLow ? qsTr("battery %1% · %2").arg(root.imuLowestBattery).arg(root.imuBatteryWord)
                         : root.imuNeedsAttention ? qsTr("calibrate")
                         : root._countWords(root.imuTotal, root.imuEnabled, root.imuConnected)
             onClicked: {

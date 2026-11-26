@@ -50,6 +50,7 @@
 #include "ppcp_offer_controller.h"
 #include "ppcp_source_declaration.h"
 #include "ppcp_wired_link.h"
+#include "../Vocabulary/Rig/battery_band.h"
 
 using namespace Ppcp;
 
@@ -113,6 +114,25 @@ constexpr std::uint64_t kCodeLifetimeS = 300;
 
 // The keychain service the persisted pairings live under (RV 7.2c).
 const char *kPairingService = "golf.pinpoint.studio.ppcp.pairings";
+
+// One phone's battery, as the one rule (src/Vocabulary/Rig/battery_band.h) reads it: no level until an ack carried
+// one; charging only when the ack said so (`has_charging` is optional on the wire, and unknown counts as not
+// charging).
+pinpoint::rig::BatteryReading batteryReadingOf(const PpcpLiveSession::PeerHealth &health)
+{
+    pinpoint::rig::BatteryReading r;
+    if (health.valid && health.hasBatteryPct) r.levelPercent = static_cast<int>(health.batteryPct);
+    r.charging = health.valid && health.hasCharging && health.charging;
+    return r;
+}
+
+// One phone's battery band, as phones() and phoneHealth() both publish it: "ok", "low", "veryLow", or "" with no
+// reading. One builder, so the two cannot disagree.
+QString batteryBandFor(const PpcpLiveSession::PeerHealth &health)
+{
+    const pinpoint::rig::BatteryReading r = batteryReadingOf(health);
+    return QString::fromLatin1(pinpoint::rig::batteryBandKey(pinpoint::rig::batteryBand(r.levelPercent, r.charging)));
+}
 
 // The worst (largest) 6.1f sigma across every related timebase ONE phone's
 // live session currently holds, in milliseconds. -1 when it holds none yet.
@@ -2633,6 +2653,9 @@ QVariantMap PpcpHostService::phoneHealth(const QString &pairingId) const
     // reading yet" sentinel as the battery: -1, never a plausible-looking 0.
     out[QStringLiteral("charging")] = (health.valid && health.hasCharging)
                                      ? (health.charging ? 1 : 0) : -1;
+    // The battery band beside the level, from the one rule (a phone on a cable is never raised); "" with no
+    // reading. The same builder as phones() below, so the two cannot disagree.
+    out[QStringLiteral("batteryBand")] = batteryBandFor(health);
     out[QStringLiteral("storageFreeBytes")] = health.valid
         ? static_cast<qlonglong>(health.storageFreeBytes) : qlonglong(-1);
     out[QStringLiteral("syncSigmaMs")] = isLive
@@ -2737,6 +2760,8 @@ QVariantList PpcpHostService::phones() const
         // `has_charging` is optional on the wire.
         dev[QStringLiteral("charging")] = (health.valid && health.hasCharging)
                                          ? (health.charging ? 1 : 0) : -1;
+        // The battery band, from the one rule: published here AND in phoneHealth(), from the same builder.
+        dev[QStringLiteral("batteryBand")] = batteryBandFor(health);
         dev[QStringLiteral("storageFreeBytes")] = health.valid
             ? static_cast<qlonglong>(health.storageFreeBytes) : qlonglong(-1);
 
@@ -2793,16 +2818,23 @@ QVariantList PpcpHostService::phones() const
     return out;
 }
 
+pinpoint::rig::WorstBattery PpcpHostService::phoneWorstBattery() const
+{
+    std::vector<pinpoint::rig::BatteryReading> readings;
+    readings.reserve(m_phones.size());
+    for (const std::unique_ptr<Phone> &p : m_phones)
+        readings.push_back(batteryReadingOf(p->peer->liveSession().peerHealth()));
+    return pinpoint::rig::worstBattery(readings);
+}
+
 int PpcpHostService::phoneLowestBatteryPct() const
 {
-    int lowest = -1;
-    for (const std::unique_ptr<Phone> &p : m_phones) {
-        const PpcpLiveSession::PeerHealth &health = p->peer->liveSession().peerHealth();
-        if (!health.valid || !health.hasBatteryPct) continue;
-        const int pct = static_cast<int>(health.batteryPct);
-        if (lowest < 0 || pct < lowest) lowest = pct;
-    }
-    return lowest;
+    return phoneWorstBattery().levelPercent;
+}
+
+QString PpcpHostService::phoneLowestBatteryBand() const
+{
+    return QString::fromLatin1(pinpoint::rig::batteryBandKey(phoneWorstBattery().band));
 }
 
 QString PpcpHostService::phoneWorstThermal() const

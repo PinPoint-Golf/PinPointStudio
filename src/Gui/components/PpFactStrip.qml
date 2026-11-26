@@ -20,7 +20,7 @@
 // equal-width cells on the raised background, each a micro caps key over its value, with a
 // hairline between neighbours and none after the last. `cells` is the model, one entry per cell:
 //   { key: "Battery", val: "82%", tint: "good" }
-// `tint` colours the value: "accent", "good", "warn", "error", or absent/"" for ordinary text.
+// `tint` colours the value: "accent", "good", "attention", "warn", "error", or absent/"" for ordinary text.
 // Give it Layout.fillWidth from the card's column; it sizes its own height from its cells.
 
 import QtQuick

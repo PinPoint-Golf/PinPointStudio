@@ -25,6 +25,7 @@
 #include <QStringList>
 
 #include "types.h"
+#include "../../Vocabulary/Rig/battery_band.h"
 
 // The device-kind-agnostic slice of an IMU device, as ImuManager uses it.
 //
@@ -69,6 +70,14 @@ public:
     virtual bool    busy()            const = 0;
     virtual int     batteryPercent()  const = 0;
     virtual double  dataRateHz()      const = 0;
+
+    // The battery band of batteryPercent(): "ok", "low", "veryLow", or "" with no reading yet (the one rule,
+    // src/Vocabulary/Rig/battery_band.h; a sensor reports no charging). Each concrete class publishes it to QML as
+    // `batteryBand`, notified with batteryPercentChanged(), beside `batteryPercent`.
+    QString batteryBandKey() const
+    {
+        return QString::fromLatin1(pinpoint::rig::batteryBandKey(pinpoint::rig::batteryBand(batteryPercent(), false)));
+    }
 
     // "Is this device calibrated well enough to trust" — the ONE rule the session
     // toolbar, the IMU panel and setup all read (as the QML property

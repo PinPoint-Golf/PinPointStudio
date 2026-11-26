@@ -239,8 +239,10 @@ Item {
         readonly property bool failed:  ImuHealth.gaveUp(inst)   // the toolbar's rule too
         readonly property bool pending: inst !== null && !connected && !failed
         readonly property bool needsCal: connected && !calibratedOk
-        // Only once a connected device reports a level.
-        readonly property bool hasBattery: connected && !!inst && inst.batteryPercent >= 0
+        // Only once a connected device reports a level: the C++ rule's band of it
+        // ("ok", "low", "veryLow"; "" with no reading, battery_band.h).
+        readonly property string batteryBand: connected && !!inst && inst.batteryBand ? inst.batteryBand : ""
+        readonly property bool hasBattery: batteryBand !== ""
         // Session enablement — set from the imuDeviceList entry (manager-owned;
         // the Repeater model rebinds on imuDeviceListChanged).
         property bool deviceEnabled: true
@@ -332,16 +334,16 @@ Item {
                     visible: imuRowItem.hasBattery || imuRowItem.placement !== ""
                     topPadding: Theme.gap(4)
                     spacing: Theme.gap(6)
-                    // Battery, toned by charge (good >60%, attention >20%, error
-                    // ≤20%), with the level in words.
+                    // Battery: the level, toned by the C++ rule's band (ok green,
+                    // low amber, very low red), with the band's word when it is low.
                     PpChip {
                         id: batChip
                         visible: imuRowItem.hasBattery
                         readonly property int pct: inst ? inst.batteryPercent : 0
+                        readonly property string word: ({ low: qsTr("low"), veryLow: qsTr("very low") })[imuRowItem.batteryBand] || ""
                         text: Theme.caps(qsTr("Bat %1%")).arg(batChip.pct)
-                        tone: pct > 60 ? Theme.colorGood
-                            : pct > 20 ? Theme.colorAttention
-                            :            Theme.colorError
+                              + (batChip.word !== "" ? " · " + Theme.caps(batChip.word) : "")
+                        tone: Theme.toneColor(({ ok: "good", low: "attention", veryLow: "error" })[imuRowItem.batteryBand])
                     }
                     // The mount by name (`placement`, from the roles map), an
                     // untinted chip with no handler: stated, not judged.

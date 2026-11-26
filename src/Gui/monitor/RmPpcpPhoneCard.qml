@@ -55,10 +55,15 @@ Rectangle {
     implicitHeight: header.height + body.implicitHeight + Theme.gap(20)
 
     // ── Formatters — every one of them maps a sentinel to an em dash ────────
+    // The battery shows its level when the C++ rule gives it a band ("ok", "low",
+    // "veryLow"; "" or absent with no reading, battery_band.h), with the band's
+    // word when it is low; this card compares no level itself.
     function fmtBattery() {
-        if (!phone || phone.batteryPct === undefined || phone.batteryPct < 0) return "—"
+        if (!phone || !phone.batteryBand) return "—"
         var s = phone.batteryPct + "%"
         if (phone.charging === 1) s += " ⚡"
+        var word = ({ low: qsTr("low"), veryLow: qsTr("very low") })[phone.batteryBand]
+        if (word) s += " · " + word
         return s
     }
     function fmtThermal() {
@@ -106,10 +111,8 @@ Rectangle {
         return Theme.colorWarn
     }
     function batteryTint() {
-        if (!phone || phone.batteryPct === undefined || phone.batteryPct < 0) return Theme.colorText3
-        if (phone.batteryPct <= 15) return Theme.colorError
-        if (phone.batteryPct <= 30) return Theme.colorWarn
-        return Theme.colorText2
+        if (!phone || !phone.batteryBand) return Theme.colorText3
+        return Theme.toneColor(({ ok: "good", low: "attention", veryLow: "error" })[phone.batteryBand])
     }
 
     // One reading, label above value.
@@ -230,7 +233,8 @@ Rectangle {
             width: parent.width
             spacing: Theme.gap(10)
 
-            Reading { label: Theme.caps(qsTr("Battery"));  value: root.fmtBattery();  tint: root.batteryTint() }
+            // Wider than the other readings, so "20% · very low" is not cut off.
+            Reading { label: Theme.caps(qsTr("Battery"));  value: root.fmtBattery();  tint: root.batteryTint(); width: Theme.sp(140) }
             Reading { label: Theme.caps(qsTr("Thermal"));  value: root.fmtThermal();  tint: root.thermalTint() }
             Reading { label: Theme.caps(qsTr("Storage"));  value: root.fmtStorage() }
             Reading { label: Theme.caps(qsTr("Transport")); value: root.fmtTransport() }

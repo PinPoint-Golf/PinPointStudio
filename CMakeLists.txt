@@ -734,6 +734,8 @@ qt_add_executable(PinPointStudio
     # sees it if it is listed here — without the line, HmInstance links against
     # an ImuDeviceBase with no metaobject.
     src/Gui/imu/imu_device.h
+    # The one battery rule (header-only): every sensor, the phones and the Resource Monitor publish its band.
+    src/Vocabulary/Rig/battery_band.h
     src/Gui/imu/hm_instance.h                src/Gui/imu/hm_instance.cpp
     src/Gui/imu/trunk_ceremony_recorder.h    src/Gui/imu/trunk_ceremony_recorder.cpp
     # The one cloud-fallback piece of the speech-to-text, text-to-speech and AI Coach controllers.

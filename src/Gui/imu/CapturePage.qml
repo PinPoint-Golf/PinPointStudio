@@ -261,24 +261,27 @@ Item {
 
                         Item { Layout.fillWidth: true }
 
-                        // Battery badge
+                        // Battery badge: toned by the C++ rule's band of the level
+                        // ("ok", "low", "veryLow"; "" with no reading, battery_band.h),
+                        // the same bands as every battery screen; no level is compared here.
                         Rectangle {
-                            visible: ctrl && ctrl.imuConnected && ctrl.batteryPercent >= 0
+                            id: batBadge
+                            readonly property string band: ctrl && ctrl.imuConnected && ctrl.batteryBand ? ctrl.batteryBand : ""
+                            readonly property string tone: ({ ok: "good", low: "attention", veryLow: "error" })[band] || ""
+                            readonly property string word: ({ low: qsTr("low"), veryLow: qsTr("very low") })[band] || ""
+                            visible: band !== ""
                             radius: Theme.radius
-                            color: ctrl && ctrl.batteryPercent > 60 ? Theme.colorGoodLight
-                                 : Theme.colorWarnLight
+                            color: Theme.toneLight(tone)
                             border.width: 1
-                            border.color: ctrl && ctrl.batteryPercent > 60
-                                          ? Qt.alpha(Theme.colorGood, 0.25)
-                                          : Qt.alpha(Theme.colorWarn, 0.25)
+                            border.color: Qt.alpha(Theme.toneColor(tone), 0.25)
                             implicitWidth:  batLabel.implicitWidth + Theme.sp(10)
                             implicitHeight: batLabel.implicitHeight + Theme.sp(4)
 
                             Label {
                                 id: batLabel
                                 anchors.centerIn: parent
-                                text: ctrl ? ("BAT: " + ctrl.batteryPercent + "%") : ""
-                                color: ctrl && ctrl.batteryPercent > 60 ? Theme.colorGood : Theme.colorWarn
+                                text: ctrl ? ("BAT: " + ctrl.batteryPercent + "%" + (batBadge.word !== "" ? " · " + batBadge.word : "")) : ""
+                                color: Theme.toneColor(batBadge.tone)
                                 font.family:    Theme.fontData
                                 font.pixelSize: Theme.fontSzMicro
                             }

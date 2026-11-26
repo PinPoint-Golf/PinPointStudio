@@ -434,6 +434,12 @@ int ImuManager::lowBatteryPercent() const
     return lowest;
 }
 
+QString ImuManager::lowBatteryBand() const
+{
+    // A sensor reports no charging, so the worst band is the band of the lowest level.
+    return QString::fromLatin1(pinpoint::rig::batteryBandKey(pinpoint::rig::batteryBand(lowBatteryPercent(), false)));
+}
+
 // ---------------------------------------------------------------------------
 // Invokables
 // ---------------------------------------------------------------------------

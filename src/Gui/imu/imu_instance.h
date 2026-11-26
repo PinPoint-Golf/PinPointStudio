@@ -69,6 +69,8 @@ class ImuInstance : public ImuDeviceBase
     Q_PROPERTY(int     outputRateHz   READ outputRateHz   NOTIFY outputRateHzChanged)
     Q_PROPERTY(double  dataRateHz     READ dataRateHz     NOTIFY dataRateHzChanged)
     Q_PROPERTY(int     batteryPercent  READ batteryPercent  NOTIFY batteryPercentChanged)
+    // The band of batteryPercent ("ok", "low", "veryLow"; "" with no reading): ImuDeviceBase::batteryBandKey.
+    Q_PROPERTY(QString batteryBand     READ batteryBandKey  NOTIFY batteryPercentChanged)
     Q_PROPERTY(int     gimbalDropCount READ gimbalDropCount NOTIFY gimbalDropCountChanged)
     Q_PROPERTY(float angularVelocityDps READ angularVelocityDps NOTIFY angularVelocityDpsChanged)
     // The stillness and mount the trunk routine waits on (TrunkRoutine.qml), both from the RAW

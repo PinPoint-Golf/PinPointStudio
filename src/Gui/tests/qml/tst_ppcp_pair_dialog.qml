@@ -147,7 +147,7 @@ Item {
         property var phones: [{
             kind: "Phone", pairingId: "pair-one", alias: "", declaredName: "Pixel 8",
             name: "Pixel 8", status: "connected", persisted: true, invalidated: false,
-            transport: "wifi", counterpartId: "", batteryPct: 74, thermal: "nominal",
+            transport: "wifi", counterpartId: "", batteryPct: 74, batteryBand: "ok", thermal: "nominal",
             syncSigmaMs: 3.5, armState: "disarmed", armBlockedReason: "", armReadyMs: -1,
             dataRateStr: "—", model: "", backend: "PPCP", identifier: "pair-one",
             hasWarning: false
@@ -164,7 +164,7 @@ Item {
         function setStudioName(name) { fakePhoneHost.studioName = name }
 
         function phoneHealth(pairingId) {
-            return { batteryPct: 74, thermal: "nominal", syncSigmaMs: 3.5 }
+            return { batteryPct: 74, batteryBand: "ok", thermal: "nominal", syncSigmaMs: 3.5 }
         }
 
         // ⚠ EVERY REFERENCE IS `fakePhoneHost.`-QUALIFIED, AND THE UNQUALIFIED

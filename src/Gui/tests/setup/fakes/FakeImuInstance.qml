@@ -17,6 +17,7 @@ QtObject {
     property int    outputRateHz:      100
     property double dataRateHz:        0
     property int    batteryPercent:    -1
+    property string batteryBand:       ""     // the C++ rule's band of batteryPercent ("" = no reading)
     property int    gimbalDropCount:   0      // Settings ▸ IMUs reads it on a connected Witmotion
 
     // ── Live orientation ─────────────────────────────────────────────────

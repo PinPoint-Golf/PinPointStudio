@@ -68,6 +68,9 @@ class ImuManager : public QObject
     // level). Drives the toolbar IMU-pill low-battery warning. Notifies on live
     // battery updates as well as connect/disconnect (both change the minimum).
     Q_PROPERTY(int  lowBatteryPercent READ lowBatteryPercent NOTIFY batteryChanged)
+    // The band of that lowest level ("ok", "low", "veryLow"; "" when none reports a level): the one rule,
+    // src/Vocabulary/Rig/battery_band.h. The toolbar's IMU pill reads it; it compares no level itself.
+    Q_PROPERTY(QString lowBatteryBand READ lowBatteryBand NOTIFY batteryChanged)
     // ── Per-session IMU enablement (device ids excluded this session) ──────
     // Mirrors CameraManager::sessionCameraExcluded: manager-owned so the start
     // wizard, every toolbar IMU panel and the device rows share ONE list.
@@ -110,6 +113,7 @@ public:
     int          imuCount()           const;
     bool         anyConnecting()      const;
     int          lowBatteryPercent()  const;
+    QString      lowBatteryBand()     const;
 
     // Teardown stop-barrier (same contract as CameraManager): deregistering an
     // IMU source while a SwingWindow is live frees ring memory under the shot
@@ -280,7 +284,7 @@ signals:
     void imuScanErrorChanged();
     void imuScanActiveChanged();
     // Aggregate battery state changed — a connected IMU reported a new level, or
-    // the connected set changed. Backs the lowBatteryPercent property.
+    // the connected set changed. Backs the lowBatteryPercent and lowBatteryBand properties.
     void batteryChanged();
     // EventBuffer state may have changed (source register/deregister can pause
     // or auto-resume the shared buffer). Forwarded to

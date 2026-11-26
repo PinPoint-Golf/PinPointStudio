@@ -60,6 +60,7 @@ QtObject {
     property bool   imuConnected:      false
     property bool   busy:              false
     property int    batteryPercent:    -1
+    property string batteryBand:       ""     // the C++ rule's band of batteryPercent ("" = no reading)
     property double dataRateHz:        0
 
     property QtObject unitLowerArm: FakeHmUnit { unitLabel: "Lower arm" }

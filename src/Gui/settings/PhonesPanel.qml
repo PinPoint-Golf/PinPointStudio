@@ -497,6 +497,9 @@ SettingsPanelBase {
                 }
 
                 readonly property int    batteryPct: phoneRow.isConnected ? (health.batteryPct === undefined ? -1 : health.batteryPct) : -1
+                // The C++ rule's band of that level ("ok", "low", "veryLow"; "" with no
+                // reading, battery_band.h); a phone on a cable is never low.
+                readonly property string batteryBand: phoneRow.isConnected ? (health.batteryBand || "") : ""
                 readonly property string thermal:    phoneRow.isConnected ? (health.thermal || "") : ""
                 // 6.1f's clock agreement — THIS phone's own worst related-
                 // timebase sigma (PpcpHostService::worstSyncSigmaMsFor()), not
@@ -524,12 +527,14 @@ SettingsPanelBase {
                     { key: qsTr("Transport"),  val: capsRow.transport === "cable" ? qsTr("Cable")
                                                   : capsRow.transport === "wifi"  ? qsTr("Wi-Fi")
                                                   :                                 "—" },
-                    // Colour-coded the same way ImusPanel's battery chip is:
-                    // ≤20% / thermal critical reads red, <50% / elevated-or-
-                    // serious reads amber, otherwise the ordinary text colour.
-                    { key: qsTr("Battery"),    val: capsRow.batteryPct >= 0 ? (capsRow.batteryPct + "%") : "—",
-                                                tint: capsRow.batteryPct < 0 ? "" : capsRow.batteryPct <= 20 ? "error"
-                                                    : capsRow.batteryPct < 50 ? "warn" : "" },
+                    // Battery: toned by the C++ rule's band, as on every battery
+                    // screen: ok green, low amber with "low", very low red with
+                    // "very low". Thermal: critical reads red; serious or
+                    // elevated reads coral (colorWarn); otherwise ordinary text.
+                    { key: qsTr("Battery"),    val: capsRow.batteryBand === "" ? "—"
+                                                    : capsRow.batteryPct + "%"
+                                                      + (({ low: " · " + qsTr("low"), veryLow: " · " + qsTr("very low") })[capsRow.batteryBand] || ""),
+                                                tint: ({ ok: "good", low: "attention", veryLow: "error" })[capsRow.batteryBand] || "" },
                     { key: qsTr("Thermal"),    val: capsRow.thermal || "—",
                                                 tint: capsRow.thermal === "critical" ? "error"
                                                     : (capsRow.thermal === "serious" || capsRow.thermal === "elevated") ? "warn" : "" },

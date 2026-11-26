@@ -280,6 +280,8 @@ class HmInstance : public ImuDeviceBase
     Q_PROPERTY(bool        imuConnected      READ imuConnected      NOTIFY imuConnectedChanged)
     Q_PROPERTY(bool        busy              READ busy              NOTIFY busyChanged)
     Q_PROPERTY(int         batteryPercent    READ batteryPercent    NOTIFY batteryPercentChanged)
+    // The band of batteryPercent ("ok", "low", "veryLow"; "" with no reading): ImuDeviceBase::batteryBandKey.
+    Q_PROPERTY(QString     batteryBand       READ batteryBandKey    NOTIFY batteryPercentChanged)
     Q_PROPERTY(double      dataRateHz        READ dataRateHz        NOTIFY dataRateHzChanged)
     Q_PROPERTY(QString     deviceId          READ deviceId          CONSTANT)
     Q_PROPERTY(QString     deviceDescription READ deviceDescription NOTIFY deviceDescriptionChanged)

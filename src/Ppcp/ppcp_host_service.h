@@ -87,6 +87,7 @@
 
 class PpcpOfferController;
 namespace Ppcp { class PpcpWiredLink; }
+namespace pinpoint::rig { struct WorstBattery; }   // src/Vocabulary/Rig/battery_band.h
 // The preview consumer each connected phone's camera Sources get (see Phone).
 class VideoInputPpcp;
 
@@ -175,7 +176,13 @@ class PpcpHostService : public QObject
     // below).  `onDeclare()` and `dropPhone()` emit phoneHealthChanged() as
     // well as phonesChanged() so that the set these aggregate over changing
     // moves them too.
+    // The battery pair names ONE phone, the one whose battery band is worst (the one rule,
+    // src/Vocabulary/Rig/battery_band.h: very low before low before ok, then the lowest level), so the toolbar's
+    // "phone battery 40%" names the phone that raised it. With no phone charging that is the lowest level, as it
+    // always was; a phone on a cable is never raised, so a lower one charging does not take its place.
+    // `phoneLowestBatteryBand` is that phone's band: "ok", "low", "veryLow", or "" with no reading.
     Q_PROPERTY(int phoneLowestBatteryPct READ phoneLowestBatteryPct NOTIFY phoneHealthChanged)
+    Q_PROPERTY(QString phoneLowestBatteryBand READ phoneLowestBatteryBand NOTIFY phoneHealthChanged)
     // "" when no connected phone has a reading yet; otherwise the most severe
     // `ThermalLevel` any connected phone has reported ("nominal".."critical").
     Q_PROPERTY(QString phoneWorstThermal READ phoneWorstThermal NOTIFY phoneHealthChanged)
@@ -265,6 +272,7 @@ public:
     QVariantList outstandingCodes() const;
     QVariantList phones() const;
     int          phoneLowestBatteryPct() const;
+    QString      phoneLowestBatteryBand() const;
     QString      phoneWorstThermal() const;
     double       phoneWorstSyncSigmaMs() const;
 
@@ -932,6 +940,9 @@ private:
     // and the panel that refreshes a torch must not have to re-read the whole
     // phone list to do it (trap 1).
     QVariantList actuatorRowsFor(const Phone *ph) const;
+    // The connected phone whose battery band is worst, by the one rule (battery_band.h's worstBattery): backs
+    // phoneLowestBatteryPct and phoneLowestBatteryBand, so the two always name the same phone.
+    pinpoint::rig::WorstBattery phoneWorstBattery() const;
     // The one place a command is actually issued; both the Q_INVOKABLE and the
     // test seam funnel through it so neither can drift from the other.
     bool commandActuator(Phone *ph, const QString &actuatorId, bool on);

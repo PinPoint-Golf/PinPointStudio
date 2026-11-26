@@ -210,10 +210,13 @@ Rectangle {
                     { key: qsTr("Data rate"),
                       value: d.dataRateStr,
                       cls: d.dataRateHz > 0 ? "good" : "neutral" },
+                    // Toned by the C++ rule's band of the level ("ok", "low",
+                    // "veryLow"; "" with no reading, battery_band.h), with the
+                    // band's word when it is low; no level is compared here.
                     { key: qsTr("Battery"),
-                      value: d.batteryStr,
-                      cls: d.batteryPct >= 0 && d.batteryPct < 20 ? "warn"
-                         : d.batteryPct > 60 ? "good" : "neutral" },
+                      value: d.batteryStr
+                             + (({ low: " · " + qsTr("low"), veryLow: " · " + qsTr("very low") })[d.batteryBand] || ""),
+                      cls: ({ ok: "good", low: "attention", veryLow: "error" })[d.batteryBand] || "neutral" },
                     { key: qsTr("Gimbal drops"),
                       value: d.gimbalDropCountStr,
                       cls: d.gimbalDropCount > 0 ? "warn" : "neutral" },

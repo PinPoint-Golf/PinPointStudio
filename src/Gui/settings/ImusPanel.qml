@@ -51,6 +51,12 @@ SettingsPanelBase {
         }
 
         readonly property bool isConnected: inst !== null && inst.imuConnected
+        // The C++ rule's band of the battery level ("ok", "low", "veryLow"; "" with
+        // no reading, battery_band.h), and what this card shows for it: ok green,
+        // low amber with "low", very low red with "very low". No level is compared here.
+        readonly property string batteryBand: isConnected && !!inst && inst.batteryBand ? inst.batteryBand : ""
+        readonly property string batteryTone: ({ ok: "good", low: "attention", veryLow: "error" })[batteryBand] || ""
+        readonly property string batteryWord: ({ low: qsTr("low"), veryLow: qsTr("very low") })[batteryBand] || ""
         readonly property bool isExcluded:  appSettings.imuExcluded.indexOf(imuData.id) >= 0
         readonly property bool testOpen:    root.openTestId === imuData.id
 
@@ -80,10 +86,9 @@ SettingsPanelBase {
             if (imuData.hasMagnetometer)  sensors.push(qsTr("Mag"))
             var rates = imuData.supportedRatesHz || []
             var maxRate = rates.length > 0 ? Math.max.apply(null, rates) : 0
-            var batPct = (imuRow.isConnected && imuRow.inst && imuRow.inst.batteryPercent >= 0)
-                             ? imuRow.inst.batteryPercent : -1
-            // The battery reads green above 60%, amber above 20%, red at or below.
-            var batTint = batPct < 0 ? "" : batPct > 60 ? "good" : batPct > 20 ? "warn" : "error"
+            // The battery's level and the band's word, toned by the band (imuRow.batteryTone).
+            var batVal = (imuRow.batteryBand === "" || !imuRow.inst) ? "—"
+                       : imuRow.inst.batteryPercent + "%" + (imuRow.batteryWord !== "" ? " · " + imuRow.batteryWord : "")
             return [
                 { key: qsTr("Transport"),   val: imuData.transport || "—" },
                 { key: qsTr("Sensors"),     val: sensors.length > 0 ? sensors.join(" · ") : "—" },
@@ -92,7 +97,7 @@ SettingsPanelBase {
                 { key: qsTr("Gyro range"),  val: (imuData.gyroRangeMax > 0)
                                                     ? ("±" + imuData.gyroRangeMax.toFixed(0) + " °/s") : "—" },
                 { key: qsTr("Max rate"),    val: maxRate > 0 ? (maxRate + " Hz") : "—", tint: "accent" },
-                { key: qsTr("Battery"),     val: batPct >= 0 ? (batPct + "%") : "—",    tint: batTint }
+                { key: qsTr("Battery"),     val: batVal,                                tint: imuRow.batteryTone }
             ]
         }
 
@@ -603,9 +608,7 @@ SettingsPanelBase {
 
                             // Battery indicator
                             RowLayout {
-                                visible: imuRow.isConnected
-                                         && imuRow.inst !== null
-                                         && imuRow.inst.batteryPercent >= 0
+                                visible: imuRow.batteryBand !== ""
                                 spacing: Theme.gap(4)
 
                                 Text {
@@ -628,9 +631,7 @@ SettingsPanelBase {
                                         width:  parent.width * Math.max(0, Math.min(1, pct / 100.0))
                                         height: parent.height
                                         radius: parent.radius
-                                        color:  pct > 60 ? Theme.colorGood
-                                              : pct > 20 ? Theme.colorWarn
-                                              :             Theme.colorError
+                                        color:  Theme.toneColor(imuRow.batteryTone)
                                         Behavior on width { NumberAnimation { duration: Theme.durationFast } }
                                         Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                     }
@@ -638,12 +639,10 @@ SettingsPanelBase {
 
                                 Text {
                                     property int pct: imuRow.inst ? imuRow.inst.batteryPercent : 0
-                                    text:  pct + qsTr("%")
+                                    text:  pct + qsTr("%") + (imuRow.batteryWord !== "" ? " · " + imuRow.batteryWord : "")
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzMicro
-                                    color: pct > 60 ? Theme.colorGood
-                                         : pct > 20 ? Theme.colorWarn
-                                         :             Theme.colorError
+                                    color: Theme.toneColor(imuRow.batteryTone)
                                     Behavior on color { ColorAnimation { duration: Theme.durationFast } }
                                 }
                             }

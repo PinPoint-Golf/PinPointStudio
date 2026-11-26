@@ -20,15 +20,10 @@ calibration/WitmotionArmRoutine.qml | W12 | 4 | the Witmotion arm routine's held
 # ── The Consistency grade words (#219) ──
 components/ConsistencyVocabulary.qml | W12 | 1 | the grade words' vocabulary: a grade must be 0 to 5 (97)  # #219
 
-# ── Battery levels (#313) ──
-imu/CapturePage.qml | W12 | 3 | sensor battery bands (268, 271, 281)  # #313
-imu/PpImuPanel.qml | W12 | 2 | sensor chip battery bands (342, 343)  # #313
-settings/ImusPanel.qml | W12 | 6 | sensor card battery bands: strip, gauge, number (86 ×2, 631, 632, 644, 645)  # #313
-settings/PhonesPanel.qml | W12 | 3 | phone battery bands (531, 532, #313); phone sync spread above 5 ms (541, #314)  # #313 #314
-monitor/RmPpcpPhoneCard.qml | W12 | 4 | phone battery bands (110, 111, #313); phone sync spread above 2 ms (240, #314); zero padding (95, #319)  # #313 #314 #319
-session/PpSessionToolbar.qml | W12 | 5 | the session bar's battery bands (88, 98, 128, 136, #313); phone sync spread above 5 ms (112, #314)  # #313 #314
-
 # ── Sync, buffer, processor and disk warnings (#314) ──
+settings/PhonesPanel.qml | W12 | 1 | phone sync spread above 5 ms (541)  # #314
+monitor/RmPpcpPhoneCard.qml | W12 | 2 | phone sync spread above 2 ms (240, #314); zero padding (95, #319)  # #314 #319
+session/PpSessionToolbar.qml | W12 | 1 | phone sync spread above 5 ms (112)  # #314
 monitor/RmDeviceCard.qml | W12 | 1 | ring buffer above 85% full (277)  # #314
 monitor/RmSourceRow.qml | W12 | 2 | a frame gap above 100 ms; ring buffer above 85% full (111, 132)  # #314
 monitor/ScreenResourceMonitor.qml | W12 | 1 | a processor above 85% busy (985)  # #314

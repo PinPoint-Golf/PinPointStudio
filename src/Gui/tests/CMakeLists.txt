@@ -285,6 +285,14 @@ pp_add_test(device_key_test
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
     LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 
+# The one battery rule (src/Vocabulary/Rig/battery_band.h; IM §6.1 NOTDOM-6): every band edge (100, 50, 49, 21, 20,
+# 0), charging at each level, no reading, the spelling the screens read, and the worst of several devices. The
+# standard library only.
+pp_add_test(battery_band_test
+    SOURCES battery_band_test.cpp
+            ${SRC}/Vocabulary/Rig/battery_band.h
+    NO_QT)
+
 # The one GenICam pixel-format mapping (src/Video/genicam_pixel_format.h, platform refactor SD-5): for
 # each of the four sites that carried a copy (the enumeration's Aravis and Spinnaker branches, each
 # backend's queryCapabilities), every name maps exactly as that copy did, odd cases included.

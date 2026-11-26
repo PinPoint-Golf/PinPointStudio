@@ -24,6 +24,7 @@ QtObject {
     property bool imuScanActive: false
     property string imuScanError: ""
     property bool anyConnecting: false
+    property string lowBatteryBand: ""      // the C++ rule's band of the lowest sensor ("" = no reading)
 
     readonly property var imuDeviceList: {
         var out = []

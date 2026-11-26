@@ -23,6 +23,7 @@
 #include "imu_manager.h"
 #include "pp_debug.h"
 #include "../launchmonitor/launch_monitor_controller.h"   // its connected devices, in this list's vocabulary
+#include "../../Vocabulary/Rig/battery_band.h"                // the one battery rule: each sensor row's band
 
 #include <QDateTime>
 #include <QHash>
@@ -416,6 +417,10 @@ void ResourceMonitorController::refresh()
                 dev[QStringLiteral("status")]             = imuStatus;
                 dev[QStringLiteral("dataRateHz")]         = imuRate;
                 dev[QStringLiteral("batteryPct")]         = batPct;
+                // The band beside the level ("ok", "low", "veryLow"; "" with no reading), from the one rule; the
+                // card maps it to a tone and its words and compares no level (a sensor reports no charging).
+                dev[QStringLiteral("batteryBand")]        = QString::fromLatin1(
+                    pinpoint::rig::batteryBandKey(pinpoint::rig::batteryBand(batPct, false)));
                 dev[QStringLiteral("sourceName")]         = imuSrcName;
                 dev[QStringLiteral("ringFill")]           = fill;
                 dev[QStringLiteral("hasWarning")]         = capturing && imuSrc && imuSrc->stalled;
