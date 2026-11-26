@@ -36,9 +36,10 @@
 // themselves (copyToSelf, on by default — SMTP leaves nothing in Sent except on Gmail). compose() stays
 // as the fallback until then. The settings live in ppSettings() group "ReportSending" (provider, host,
 // port, security, username, copyToSelf); the password never does — it goes to the system's secure store
-// (mail_credentials.h) under "username@host", and any change of user name or server forgets it, so
-// `hasPassword` is always about the login on screen. The result arrives as sendFinished / testFinished;
-// the method is "smtp", and the send log then says "Sent", meaning the server accepted it.
+// through the credential store (src/Secrets/mail_credentials.h) under "username@host", and any change of
+// user name or server forgets it, so `hasPassword` is always about the login on screen. The result
+// arrives as sendFinished / testFinished; the method is "smtp", and the send log then says "Sent",
+// meaning the server accepted it.
 //
 // PINPOINT_MAIL_DRYRUN=1 (probes and tests; safe_probe sets it) logs the composed message — to,
 // reply-to, subject, body, the attachment's path and size — and returns method "dry-run" instead of
@@ -46,8 +47,8 @@
 // system clipboard alone, so a probe on Mark's desktop neither pops a Finder window nor overwrites
 // what he copied. send() and sendTest() log the message they would have sent (to, bcc, from, reply-to,
 // subject, attachment, encoded size), read no password, open no socket, and finish on the next event-loop
-// turn with method "dry-run"; the password store is the in-memory one (mail_credentials.h), so a probe
-// never touches the keychain. `lastAction` says what the last call did, for the probe to read back.
+// turn with method "dry-run"; the password store is the in-memory one (src/Secrets/secret_store.h), so a
+// probe never touches the keychain. `lastAction` says what the last call did, for the probe to read back.
 
 #include "smtp_client.h"
 

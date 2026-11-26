@@ -3,8 +3,9 @@
 
 # The message (report/smtp_message), the client (report/smtp_client) against a fake SMTP server in the
 # test's own process on 127.0.0.1, and the mailer's sending half (report/report_mailer.cpp). The password
-# store's portable half only (report/mail_credentials.cpp, PINPOINT_MAIL_CREDENTIALS=memory): its platform
-# half is the test's own and counts any call, so the keychain is never reached. Settings go to a scratch
+# through the credential store's portable half only (Secrets/mail_credentials.cpp, Secrets/secret_store.cpp,
+# PINPOINT_MAIL_CREDENTIALS=memory): its platform half is the test's own and counts any call, so the keychain
+# is never reached. Settings go to a scratch
 # INI (QSettings::setPath). The fake server's TLS is data/smtp/ (test-only CA + certificate, see README).
 #
 # The fake server needs TLS server mode, which OpenSSL's TLS backend does in memory; the test picks that
@@ -15,7 +16,7 @@ pp_add_test(report_smtp_test
     SOURCES report_smtp_test.cpp
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
-            ${GUI}/report/mail_credentials.cpp
+            ${SRC}/Secrets/mail_credentials.cpp ${SRC}/Secrets/secret_store.cpp
             ${GUI}/report/report_mailer.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -43,3 +44,15 @@ if(WIN32)
         message(WARNING "report_smtp_test: OpenSSL's DLLs not found, so its TLS cases will fail on Schannel.")
     endif()
 endif()
+
+# The credential store (src/Secrets/secret_store.h) and its first client, the report-sending password: the
+# old password's names on all three platforms, a password saved under them read back, read-once holding, and
+# the in-memory test mode. No platform file is linked: the test's own stand-in store counts every call, so no
+# keychain, Credential Manager or settings file is reached. The test lives in src/Secrets/tests; it is
+# registered here, beside the password's other test, until src/Secrets has a test directory of its own.
+pp_add_test(secret_store_test
+    SOURCES ${SRC}/Secrets/tests/secret_store_test.cpp
+            ${SRC}/Secrets/secret_store.cpp
+            ${SRC}/Secrets/mail_credentials.cpp
+    INCLUDE ${SRC})
+set_tests_properties(secret_store_test PROPERTIES TIMEOUT 60)

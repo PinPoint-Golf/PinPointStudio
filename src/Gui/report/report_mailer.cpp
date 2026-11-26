@@ -18,7 +18,7 @@
 
 #include "report_mailer.h"
 
-#include "mail_credentials.h"
+#include "../../Secrets/mail_credentials.h"
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
 

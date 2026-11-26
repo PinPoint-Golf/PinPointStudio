@@ -21,7 +21,7 @@ pp_add_test(report_list_test
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
-            ${GUI}/report/mail_credentials.cpp
+            ${SRC}/Secrets/mail_credentials.cpp ${SRC}/Secrets/secret_store.cpp   # the password, through the credential store
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp

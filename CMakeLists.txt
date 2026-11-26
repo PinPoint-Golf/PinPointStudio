@@ -766,7 +766,6 @@ qt_add_executable(PinPointStudio
     src/Gui/report/report_mailer.h           src/Gui/report/report_mailer.cpp
     src/Gui/report/smtp_message.h            src/Gui/report/smtp_message.cpp
     src/Gui/report/smtp_client.h             src/Gui/report/smtp_client.cpp
-    src/Gui/report/mail_credentials.h        src/Gui/report/mail_credentials.cpp
     src/Gui/shell/navigation_controller.h    src/Gui/shell/navigation_controller.cpp
     src/Gui/monitor/resource_monitor_controller.h src/Gui/monitor/resource_monitor_controller.cpp
     src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
@@ -1236,6 +1235,10 @@ target_sources(PinPointStudio PRIVATE
     src/Secrets/SecretsManager.cpp
     src/Secrets/SecretsBridge.h
     src/Secrets/SecretsBridge.cpp
+    # The credential store: its portable half, and its first client, the report-sending password;
+    # the platform halves are in the per-platform lines below.
+    src/Secrets/secret_store.h               src/Secrets/secret_store.cpp
+    src/Secrets/mail_credentials.h           src/Secrets/mail_credentials.cpp
 )
 
 # ── In-app update ─────────────────────────────────────────────────────────────
@@ -3100,7 +3103,7 @@ if(APPLE)
         src/Video/VideoInputApple.h
         src/Video/VideoInputApple.mm
         src/Gui/report/report_mailer_mac.mm
-        src/Gui/report/mail_credentials_mac.mm
+        src/Secrets/secret_store_mac.mm
     )
     # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice(). The app gets this file from pp_platform
     # (src/Core/CMakeLists.txt sets the same there); this line is for the offline targets below that still list it.
@@ -3171,19 +3174,19 @@ if(APPLE)
         "-framework Metal"        # pp_gpu_metrics_mac.mm — MTLDevice memory query
         "-framework Foundation"
         "-framework AppKit"       # report_mailer_mac.mm — NSSharingService (compose email)
-        "-framework Security"     # mail_credentials_mac.mm — the report-sending password, login keychain
+        "-framework Security"     # secret_store_mac.mm — the credential store (the report-sending password), login keychain
     )
 endif()
 # The session report's mail hand-off, Windows (Simple MAPI, loaded at run time) and Linux (xdg-email),
-# and the report-sending password's store: Credential Manager (advapi32) on Windows, the settings file on
-# Linux (mail_credentials_linux.cpp says why).
+# and the credential store's platform half: Credential Manager (advapi32) on Windows, the settings file on
+# Linux (secret_store_linux.cpp says why).
 if(WIN32)
     target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_win.cpp
-                                          src/Gui/report/mail_credentials_win.cpp)
+                                          src/Secrets/secret_store_win.cpp)
     target_link_libraries(PinPointStudio PRIVATE advapi32)
 elseif(UNIX AND NOT APPLE)
     target_sources(PinPointStudio PRIVATE src/Gui/report/report_mailer_linux.cpp
-                                          src/Gui/report/mail_credentials_linux.cpp)
+                                          src/Secrets/secret_store_linux.cpp)
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -3786,7 +3789,7 @@ if(PP_OPENSSL_FOUND AND TARGET ppcp)
     # keychain pairing store.  RV 7.2c became a SHOULD (libppcp erratum E56,
     # 25 August 2026) and the PRK moved into the application's own settings on
     # every platform, so PPCP no longer reaches Security.framework. (The
-    # report-sending password does, from mail_credentials_mac.mm; it is linked
+    # report-sending password does, from secret_store_mac.mm; it is linked
     # with AppKit in the macOS block above.)
     if(WIN32)
         # ppcp_rendezvous.cpp's Windows branch: GetAdaptersAddresses (RV 4.3d's

@@ -36,7 +36,8 @@
 
 #include "report/smtp_message.h"
 #include "report/smtp_client.h"
-#include "report/mail_credentials.h"
+#include "Secrets/mail_credentials.h"
+#include "Secrets/secret_store.h"
 #include "report/report_mailer.h"
 #include "../../Core/pp_settings.h"
 #include "../../Core/PpMessageLog.h"
@@ -71,15 +72,17 @@ static void check(bool c, const char *label)
     if (!c) ++g_fail;
 }
 
-// The platform halves are the test's. compose is never used here; the password store's must never be
+// The platform halves are the test's. compose is never used here; the credential store's must never be
 // reached at all (memory store), and counts if it is.
 static int g_platformStoreCalls = 0;
 namespace pinpoint::report {
 QString platformCompose(const QStringList &, const QString &, const QString &, const QString &, const QString &) { return {}; }
-bool    platformStoreMailPassword(const QString &, const QString &, QString *) { ++g_platformStoreCalls; return false; }
-QString platformReadMailPassword(const QString &) { ++g_platformStoreCalls; return {}; }
-bool    platformHasMailPassword(const QString &) { ++g_platformStoreCalls; return false; }
-bool    platformForgetMailPassword(const QString &) { ++g_platformStoreCalls; return true; }
+}
+namespace pinpoint::secrets {
+bool    platformWriteSecret(const NativeName &, const QString &, QString *) { ++g_platformStoreCalls; return false; }
+QString platformReadSecret(const NativeName &) { ++g_platformStoreCalls; return {}; }
+bool    platformHasSecret(const NativeName &) { ++g_platformStoreCalls; return false; }
+bool    platformRemoveSecret(const NativeName &) { ++g_platformStoreCalls; return true; }
 }
 
 // The app log, drained after every send (it keeps the last 500 lines), to show what it never holds.

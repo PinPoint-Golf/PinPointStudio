@@ -17,25 +17,26 @@
  */
 
 #include "mail_credentials.h"
+#include "secret_store.h"
 
-#include <QHash>
-
-// The portable half: the in-memory store for tests and probes, and the dispatch to the platform's.
+// The report-sending password through the credential store. The service's id and name are the ones the
+// mail password's own platform files used before the store existed (macOS: service "PinPoint Studio report
+// sending"; Windows: target "PinPointStudio/ReportSending/<account>"; Linux: ReportSending/password and
+// ReportSending/passwordAccount). Changing either loses every password a coach has saved.
 
 namespace pinpoint::report {
 
-namespace {
-QHash<QString, QString> &memoryStore()
+namespace S = pinpoint::secrets;
+
+const S::Service &mailPasswordService()
 {
-    static QHash<QString, QString> s;
+    static const S::Service s{ QStringLiteral("ReportSending"), QStringLiteral("PinPoint Studio report sending") };
     return s;
 }
-} // namespace
 
 bool mailCredentialsInMemory()
 {
-    return qEnvironmentVariable("PINPOINT_MAIL_CREDENTIALS") == QLatin1String("memory")
-           || qEnvironmentVariableIntValue("PINPOINT_MAIL_DRYRUN") == 1;
+    return S::secretsInMemory();
 }
 
 QString mailAccount(const QString &username, const QString &host)
@@ -52,36 +53,22 @@ bool storeMailPassword(const QString &account, const QString &password, QString 
         if (error) *error = QStringLiteral("There is no login to keep a password for.");
         return false;
     }
-    if (password.isEmpty()) return forgetMailPassword(account);
-    if (mailCredentialsInMemory()) {
-        memoryStore().insert(account, password);
-        return true;
-    }
-    return platformStoreMailPassword(account, password, error);
+    return S::writeSecret(mailPasswordService(), account, password, error);
 }
 
 QString readMailPassword(const QString &account)
 {
-    if (account.isEmpty()) return {};
-    if (mailCredentialsInMemory()) return memoryStore().value(account);
-    return platformReadMailPassword(account);
+    return S::readSecret(mailPasswordService(), account);
 }
 
 bool hasMailPassword(const QString &account)
 {
-    if (account.isEmpty()) return false;
-    if (mailCredentialsInMemory()) return memoryStore().contains(account);
-    return platformHasMailPassword(account);
+    return S::hasSecret(mailPasswordService(), account);
 }
 
 bool forgetMailPassword(const QString &account)
 {
-    if (account.isEmpty()) return true;
-    if (mailCredentialsInMemory()) {
-        memoryStore().remove(account);
-        return true;
-    }
-    return platformForgetMailPassword(account);
+    return S::removeSecret(mailPasswordService(), account);
 }
 
 } // namespace pinpoint::report

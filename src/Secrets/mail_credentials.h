@@ -19,19 +19,24 @@
 #pragma once
 
 // THE PASSWORD FOR SENDING REPORTS (docs/design/session_report_design.md §8.3, option B) — the coach's
-// mail login's password (an app password for Gmail and iCloud), kept in the system's secure store and
-// never in the INI: the login keychain on macOS (mail_credentials_mac.mm), Windows Credential Manager
-// (mail_credentials_win.cpp). Linux is not a studio platform and has no store every desktop shares, so
-// there it sits in the settings file, and that file says so (mail_credentials_linux.cpp).
+// mail login's password (an app password for Gmail and iCloud), kept in the credential store
+// (secret_store.h) and never in the INI: the login keychain on macOS, Windows Credential Manager. Linux is
+// not a studio platform and has no store every desktop shares, so there it sits in the settings file, and
+// that file says so (secret_store_linux.cpp). It is the store's first client.
 //
 // `account` is "username@host" — one password per login per server, so a password is never offered to
 // a server it was not typed for.
 //
-// PINPOINT_MAIL_CREDENTIALS=memory, or PINPOINT_MAIL_DRYRUN=1, keeps them in a map in this process instead:
-// tests and probes never read or write the real keychain. The switch is here (mail_credentials.cpp, which
-// is portable) so a test links that file alone and supplies the platform half itself.
+// Its names on each platform are the ones it had before the store existed (moved from src/Gui/report,
+// 26 Nov 2026), so a password a coach saved before is still found: service "ReportSending", shown as
+// "PinPoint Studio report sending" (secret_store.h, nativeName(); secret_store_test pins them).
+//
+// PINPOINT_MAIL_CREDENTIALS=memory, or PINPOINT_MAIL_DRYRUN=1, keeps them in a map in this process instead
+// (the store's in-memory test mode, secret_store.cpp): tests and probes never read or write the real keychain.
 
 #include <QString>
+
+namespace pinpoint::secrets { struct Service; }
 
 namespace pinpoint::report {
 
@@ -44,10 +49,6 @@ bool    forgetMailPassword(const QString &account);                  // true whe
 
 bool    mailCredentialsInMemory();
 
-// The platform half, one file each. Same contracts as above.
-bool    platformStoreMailPassword(const QString &account, const QString &password, QString *error);
-QString platformReadMailPassword(const QString &account);
-bool    platformHasMailPassword(const QString &account);
-bool    platformForgetMailPassword(const QString &account);
+const pinpoint::secrets::Service &mailPasswordService();             // the store's service for it
 
 } // namespace pinpoint::report

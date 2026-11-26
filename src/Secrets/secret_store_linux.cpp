@@ -16,29 +16,26 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "mail_credentials.h"
+#include "secret_store.h"
 
 // THE LINUX "STORE" IS THE SETTINGS FILE, AND THAT IS NOT A SECURE STORE. Linux is not a studio platform
 // (the studios run macOS and Windows), and there is no secret store every desktop shares — libsecret needs
 // a running keyring daemon, KWallet another — so rather than a dependency for a platform no coach sends
-// from, the password sits in ppSettings() under ReportSending/password, readable by anyone who can read
-// this user's home folder. ReportSending/passwordAccount says which login it belongs to, so it is never
-// offered to another server. forgetSending() removes both.
+// from, the secret sits in ppSettings() under <service id>/password, readable by anyone who can read
+// this user's home folder. <service id>/passwordAccount says which account it belongs to, so it is never
+// offered to another server. One secret per service: writing another account's replaces it. Removing
+// takes both, for that account only. The report-sending password's keys are ReportSending/password and
+// ReportSending/passwordAccount, as they were before the store (nativeName(), secret_store.cpp).
 
-#include "../../Core/pp_settings.h"
+#include "../Core/pp_settings.h"
 
-namespace pinpoint::report {
+namespace pinpoint::secrets {
 
-namespace {
-const QString kPassword = QStringLiteral("ReportSending/password");
-const QString kAccount  = QStringLiteral("ReportSending/passwordAccount");
-} // namespace
-
-bool platformStoreMailPassword(const QString &account, const QString &password, QString *error)
+bool platformWriteSecret(const NativeName &name, const QString &password, QString *error)
 {
     QSettings s = ppSettings();
-    s.setValue(kAccount, account);
-    s.setValue(kPassword, password);
+    s.setValue(name.settingsAccountKey, name.account);
+    s.setValue(name.settingsSecretKey, password);
     s.sync();
     if (s.status() != QSettings::NoError) {
         if (error) *error = QStringLiteral("The password could not be saved in the settings file.");
@@ -47,27 +44,27 @@ bool platformStoreMailPassword(const QString &account, const QString &password, 
     return true;
 }
 
-QString platformReadMailPassword(const QString &account)
+QString platformReadSecret(const NativeName &name)
 {
     const QSettings s = ppSettings();
-    if (s.value(kAccount).toString() != account) return {};
-    return s.value(kPassword).toString();
+    if (s.value(name.settingsAccountKey).toString() != name.account) return {};
+    return s.value(name.settingsSecretKey).toString();
 }
 
-bool platformHasMailPassword(const QString &account)
+bool platformHasSecret(const NativeName &name)
 {
-    return !platformReadMailPassword(account).isEmpty();
+    return !platformReadSecret(name).isEmpty();
 }
 
-bool platformForgetMailPassword(const QString &account)
+bool platformRemoveSecret(const NativeName &name)
 {
     QSettings s = ppSettings();
-    if (s.value(kAccount).toString() == account) {
-        s.remove(kPassword);
-        s.remove(kAccount);
+    if (s.value(name.settingsAccountKey).toString() == name.account) {
+        s.remove(name.settingsSecretKey);
+        s.remove(name.settingsAccountKey);
         s.sync();
     }
     return true;
 }
 
-} // namespace pinpoint::report
+} // namespace pinpoint::secrets

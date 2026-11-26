@@ -16,17 +16,21 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "mail_credentials.h"
+#include "secret_store.h"
 
 // THE WINDOWS STORE: Credential Manager (CredWriteW / CredReadW / CredDeleteW), a generic credential with
-// target "PinPointStudio/ReportSending/<username@host>", user name the account, persisted for this user on
+// target "PinPointStudio/<service id>/<account>" (the report-sending password's is
+// "PinPointStudio/ReportSending/<username@host>"), user name the account (both from nativeName(),
+// secret_store.cpp), persisted for this user on
 // this machine (CRED_PERSIST_LOCAL_MACHINE: not roamed to other PCs). Control Panel → Credential Manager →
 // Windows Credentials lists it under that target, so a coach can see and remove it there too.
 //
 // The secret is the password's UTF-8 bytes (at most CRED_MAX_CREDENTIAL_BLOB_SIZE, 2560 — far beyond any
 // app password). Advapi32, linked in CMakeLists.txt and named below for MSVC.
 //
-// ⚠ WRITTEN ON THE MAC, NOT YET COMPILED OR RUN ON WINDOWS — check it on the cabin PC.
+// ⚠ WRITTEN ON THE MAC. The calls are the mail password's, unchanged since it was written; only the names
+// are handed in. Checked on the Mac by a syntax-only compile against stub headers (26 Nov 2026), which is not
+// a Windows build: the cabin's app build compiles it.
 
 #include <QByteArray>
 
@@ -39,14 +43,9 @@
 #pragma comment(lib, "advapi32.lib")
 #endif
 
-namespace pinpoint::report {
+namespace pinpoint::secrets {
 
 namespace {
-
-std::wstring target(const QString &account)
-{
-    return (QStringLiteral("PinPointStudio/ReportSending/") + account).toStdWString();
-}
 
 QString lastErrorWords(DWORD code)
 {
@@ -60,15 +59,15 @@ QString lastErrorWords(DWORD code)
 
 } // namespace
 
-bool platformStoreMailPassword(const QString &account, const QString &password, QString *error)
+bool platformWriteSecret(const NativeName &name, const QString &password, QString *error)
 {
     QByteArray secret = password.toUtf8();
     if (secret.size() > CRED_MAX_CREDENTIAL_BLOB_SIZE) {
         if (error) *error = QStringLiteral("That password is too long to keep.");
         return false;
     }
-    std::wstring t = target(account);
-    std::wstring user = account.toStdWString();
+    std::wstring t = name.windowsTarget.toStdWString();
+    std::wstring user = name.windowsUser.toStdWString();
 
     CREDENTIALW cred = {};
     cred.Type = CRED_TYPE_GENERIC;
@@ -88,9 +87,9 @@ bool platformStoreMailPassword(const QString &account, const QString &password, 
     return true;
 }
 
-QString platformReadMailPassword(const QString &account)
+QString platformReadSecret(const NativeName &name)
 {
-    const std::wstring t = target(account);
+    const std::wstring t = name.windowsTarget.toStdWString();
     PCREDENTIALW cred = nullptr;
     if (!CredReadW(t.c_str(), CRED_TYPE_GENERIC, 0, &cred) || !cred) return {};
     QString pw;
@@ -100,10 +99,10 @@ QString platformReadMailPassword(const QString &account)
     return pw;
 }
 
-bool platformHasMailPassword(const QString &account)
+bool platformHasSecret(const NativeName &name)
 {
     // CredReadW is the only lookup by target; it reads the blob too, but asks nothing of the user.
-    const std::wstring t = target(account);
+    const std::wstring t = name.windowsTarget.toStdWString();
     PCREDENTIALW cred = nullptr;
     if (!CredReadW(t.c_str(), CRED_TYPE_GENERIC, 0, &cred) || !cred) return false;
     const bool has = cred->CredentialBlobSize > 0;
@@ -111,11 +110,11 @@ bool platformHasMailPassword(const QString &account)
     return has;
 }
 
-bool platformForgetMailPassword(const QString &account)
+bool platformRemoveSecret(const NativeName &name)
 {
-    const std::wstring t = target(account);
+    const std::wstring t = name.windowsTarget.toStdWString();
     if (CredDeleteW(t.c_str(), CRED_TYPE_GENERIC, 0)) return true;
     return GetLastError() == ERROR_NOT_FOUND;
 }
 
-} // namespace pinpoint::report
+} // namespace pinpoint::secrets

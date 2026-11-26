@@ -40,7 +40,8 @@
 #include "../../Stores/session_store.h"        // the index the rows are a view of
 #include "../../Stores/session_index_summary.h"   // its entries' summaries' file work, as main.cpp sets it (5.7a-P1)
 #include "report/report_mailer.h"
-#include "report/mail_credentials.h"
+#include "Secrets/mail_credentials.h"
+#include "Secrets/secret_store.h"
 #include "report/report_meta.h"
 #include "../../Diagnostics/derived/work_ons.h"
 #include "../../Stores/session_archiver.h"
@@ -83,12 +84,14 @@ QString platformCompose(const QStringList &to, const QString &, const QString &,
     g_platformFile = filePath;
     return {};
 }
-// The password store's platform half is the test's too, and refuses: nothing here may reach the keychain
+}
+// The credential store's platform half is the test's too, and refuses: nothing here may reach the keychain
 // (PINPOINT_MAIL_CREDENTIALS=memory is set in main, so these are never called).
-bool    platformStoreMailPassword(const QString &, const QString &, QString *e) { if (e) *e = QStringLiteral("test"); return false; }
-QString platformReadMailPassword(const QString &) { return {}; }
-bool    platformHasMailPassword(const QString &) { return false; }
-bool    platformForgetMailPassword(const QString &) { return true; }
+namespace pinpoint::secrets {
+bool    platformWriteSecret(const NativeName &, const QString &, QString *e) { if (e) *e = QStringLiteral("test"); return false; }
+QString platformReadSecret(const NativeName &) { return {}; }
+bool    platformHasSecret(const NativeName &) { return false; }
+bool    platformRemoveSecret(const NativeName &) { return true; }
 }
 
 static void touch(const QString &path, const QByteArray &bytes)
