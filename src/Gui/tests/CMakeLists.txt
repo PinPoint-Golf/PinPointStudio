@@ -620,8 +620,9 @@ endif()
 # THE QUIT PINS (SE-1b; testing_developer_guide.md "The quit pins"): the APP BINARY (the same one headless_probe_test
 # finds) started headless through tools/probe/run_headless.sh and quit at each point of start-up, during and after the
 # pose warm-up, and while a re-analysis runs; each pin twice. quit_pins/quit_pin.py is the driver and the oracle (exit
-# code 0, gone within 5 s of the quit, no teardown fault line, the pin's busy marker before the quit). One ctest per
-# pin; quit_pins_selftest proves the oracle catches a planted abort, hang, missing marker and fault line. Not Run (77):
+# code 0, gone within 5 s of the quit, no teardown fault line, no work run on after the application has gone, the
+# pin's busy marker before the quit). One ctest per pin; quit_pins_selftest proves the oracle catches a planted abort,
+# hang, missing marker, fault line and after-shutdown line, and lets the near misses pass. Not Run (77):
 # a busy pin with no fixture library (quit_pins/make_fixture.sh), or a pin that fails as its filed issue says (#294).
 # Label quit_pins: about 7–8 minutes in all, most of it the pose model's load (CoreML: 1–2 minutes each time it
 # finishes). Serial: one app at a time (AG-16).

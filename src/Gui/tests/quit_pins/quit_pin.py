@@ -22,6 +22,9 @@ A RUN IS CLEAN when all of these hold (the oracle; each is independent of what t
   2. the process is gone within LIMIT_S seconds of the quit request (GAP-20: a quit that waits with no window);
   3. no line after the quit request names a teardown fault (FAULTS below: a thread destroyed while running, a timer or
      a notifier touched from the wrong thread, an abort, a QML error; GAP-21);
+  3a. no line after the quit request shows work running on after the application object has gone (SHUTDOWN below,
+     the check "after-shutdown": Qt's "Please instantiate the QApplication object first", or a model file not found,
+     because its path is read from the application that has gone; GAP-21, seen for a re-analysis, #294);
   4. the pin's busy marker was in the log BEFORE the quit and its "done" marker was not (else the pin proved nothing
      and FAILS as vacuous), and its expected after-quit lines are there;
   5. the memory guard (AG-16) did not have to kill it.
@@ -49,6 +52,18 @@ FAULTS = [
     r"QMutex: destroying locked", r"QWaitCondition", r"QThreadStorage", r"Segmentation fault", r"Abort trap",
     r"\[HeadlessProbe\] REFUSED", r"TypeError", r"ReferenceError", r"QML .*: Binding loop",
     r"was deleted while", r"use after free", r"QCoreApplication::postEvent: Unexpected null receiver",
+]
+
+# Work running on after the application object has gone (GAP-21's kind; #294 observed it in a re-analysis). General,
+# for any stage or thread: any Qt function's "Please instantiate the Q...Application object first" warning, and any
+# model's "... model not found:" error (MoveNet, MediaPipe's two, the segmenter, ViTPose: each builds its path from
+# the application's folder, which reads as empty once the application has gone). The colon leaves out ViTPose's
+# "fp16 model not found at ...", a warning that falls back to the fp32 model, which a pose load logs at any time.
+# Matched on lines after the quit request, as FAULTS; reported as its own check, "after-shutdown", so KNOWN can admit
+# it for #294 without admitting the other faults.
+SHUTDOWN = [
+    r"Please instantiate the Q[A-Za-z]*Application object first",
+    r"[Mm]odel not found:",
 ]
 
 FIX_REANALYSE = "Nick-Henn/2026-10-13_Nick-Henn_Wrist_01/swing_0001"   # make_fixture.sh's one swing
@@ -102,11 +117,12 @@ PINS = {
                          what="a re-analysis running while the warm-up builds on the inference thread (J2 and S2, S5)"),
 }
 # pin -> (issue number, the checks it fails as the issue says): only an observed, filed fault. Every run must fail,
-# only on those checks, and a "slow" run must still be gone within KNOWN_SLOW_CEILING_S; anything else FAILS. The fix
+# only on those checks (#294's "after-shutdown": the re-analysis ran on after the application had gone, in every run
+# of both pins; #294's comment of 26 Nov), and a "slow" run must still be gone within KNOWN_SLOW_CEILING_S; anything else FAILS. The fix
 # for #294 updates the pin with it (a re-analysis finished and written at quit would show as "ran-on").
 KNOWN = {
-    "re-analysis":            (294, {"ran-on"}),
-    "re-analysis-in-warm-up": (294, {"ran-on", "slow"}),
+    "re-analysis":            (294, {"ran-on", "after-shutdown"}),
+    "re-analysis-in-warm-up": (294, {"ran-on", "slow", "after-shutdown"}),
 }
 KNOWN_SLOW_CEILING_S = 30.0
 FIX_ATHLETE_ID = "2c4b2cf0-e5a4-406f-88d0-5b3420257402"   # make_fixture.sh's golfer (its athlete.json)
@@ -200,6 +216,21 @@ class Run:
             threading.Timer(LIMIT_S + 2.0, lambda: os.kill(self.app_pid, signal.SIGCONT)).start()
         elif plant == "fault":
             self.lines.append((now() + 0.001, "QThread: Destroyed while thread is still running (planted)"))
+        elif plant in ("shutdown-app", "shutdown-model", "shutdown-near"):
+            t = now() + 0.001
+            planted = {"shutdown-app": ["QCoreApplication::applicationFilePath: Please instantiate the QApplication "
+                                        "object first (planted)"],
+                       "shutdown-model": ['[MoveNet] Model not found: "/../Resources/models/planted.onnx"']}
+            if plant == "shutdown-near":
+                # Near misses, which must NOT fail: both lines just before the quit, and the fp16 fallback after it.
+                i = max(k for k, (_, l) in enumerate(self.lines) if "QUIT-PIN: quit requested" in l)
+                tq = self.lines[i][0]
+                self.lines[i:i] = [(tq - 0.002, "QCoreApplication::applicationDirPath: Please instantiate the "
+                                                "QApplication object first (planted, before the quit)"),
+                                   (tq - 0.001, '[Segmenter] Model not found: "/planted-before-the-quit.onnx"')]
+                planted = {plant: ['[ViTPose -B ] fp16 model not found at "/planted.fp16.onnx" , falling back']}
+            for l in planted[plant]:
+                self.lines.append((t, l))
         elif plant == "nomarker":
             self.lines[:] = [(t, l) for t, l in self.lines if not re.search(PINS[self.pin]["busy"], l)]   # "vacuous"
 
@@ -293,6 +324,10 @@ class Run:
         faults = [l for l in after if any(re.search(f, l) for f in FAULTS)]
         if faults:
             bad.append(("fault", "teardown fault lines after the quit:\n      " + "\n      ".join(faults[:8])))
+        gone = [l for l in after if any(re.search(f, l) for f in SHUTDOWN)]
+        if gone:
+            bad.append(("after-shutdown", "work ran on after the application had gone: %d line(s):\n      %s"
+                        % (len(gone), "\n      ".join(gone[:8]))))
         dt = (self.t_gone or now()) - self.t_quit
         if dt > LIMIT_S:
             bad.append(("slow", "the process took %.1f s to go after the quit request (limit %.0f s)" % (dt, LIMIT_S)))
@@ -301,18 +336,23 @@ class Run:
 
 def selftest(a):
     """quit_pins_selftest: the oracle catches each planted break of a clean pin ("ready"), on the right check, and
-    passes the same pin unplanted. Proves the checks find faults rather than record today's behaviour (BT-7)."""
+    passes the same pin unplanted. Proves the checks find faults rather than record today's behaviour (BT-7).
+    "after-shutdown" gets two plants after the quit (Qt's warning from another of its functions than the one #294 saw,
+    and another model's not-found line than the segmenter's, so the patterns are shown general) and one near miss
+    that must still pass: both lines just before the quit, and ViTPose's fp16 fallback warning after it."""
     me = [sys.executable, "-I", os.path.abspath(__file__), "--app", a.app, "--repo", a.repo, "--runs", "1",
           "--pin", "ready"]
     want = {None: (0, "PASS: ready"), "abort": (1, "[exit]"), "hang": (1, "[slow]"),
-            "nomarker": (1, "[vacuous]"), "fault": (1, "[fault]")}
+            "nomarker": (1, "[vacuous]"), "fault": (1, "[fault]"),
+            "shutdown-app": (1, "[after-shutdown]"), "shutdown-model": (1, "[after-shutdown]"),
+            "shutdown-near": (0, "PASS: ready")}
     bad = 0
     for plant, (rc, text) in want.items():
         cmd = me + ["--work", os.path.join(a.work, "selftest-" + (plant or "clean"))] + (["--_plant", plant] if plant else [])
         r = subprocess.run(cmd, capture_output=True, text=True)
         ok = r.returncode == rc and text in r.stdout
         bad += not ok
-        print("%s plant %-8s: exit %d (want %d), %s %s" % ("ok  " if ok else "FAIL", plant or "none", r.returncode, rc,
+        print("%s plant %-14s: exit %d (want %d), %s %s" % ("ok  " if ok else "FAIL", plant or "none", r.returncode, rc,
                                                         "says" if text in r.stdout else "does NOT say", text))
         if not ok:
             print("    " + r.stdout.replace("\n", "\n    "))
@@ -327,7 +367,8 @@ def main():
     ap.add_argument("--fixture", default="/mnt/swingdata/scratch/quit-pins-fixture")
     ap.add_argument("--list", action="store_true")
     # The oracle's own proof (quit_pins_selftest): each plant must turn a clean pin into a FAIL on the named check.
-    ap.add_argument("--_plant", choices=["abort", "hang", "nomarker", "fault"], default=None)
+    ap.add_argument("--_plant", choices=["abort", "hang", "nomarker", "fault", "shutdown-app", "shutdown-model",
+                                         "shutdown-near"], default=None)
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
