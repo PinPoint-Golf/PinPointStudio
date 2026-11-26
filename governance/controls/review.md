@@ -2,14 +2,14 @@
 
 Reviewing the change, and putting it before the role that approves it. Each control is stated once, in the first stage where it applies; later stages list it by id. A listed id marked "(agents)" binds only agents. The control format and the terms are defined in [`README.md`](../README.md).
 
-**AG-21.** A step must get a fresh, independent reviewer agent (not a fork of the coordinator) when it moves files by script, is a cut-over, writes or migrates stored data, or changes how a store is read or written (the step list's Review column); the reviewer checks every definition-of-done bullet and the diff, and returns SIGNED OFF or CHANGES NEEDED before it reaches the role's list.
+**AG-21.** A step must get a fresh, independent reviewer agent (not a fork of the coordinator) when it moves files by script, is a cut-over, writes or migrates stored data, or changes how a store is read or written (its issue says which steps); the reviewer checks every definition-of-done bullet and the diff, and returns SIGNED OFF or CHANGES NEEDED before it reaches the role's list.
 Every other step is checked by its own tests, both lints and the Product Owner's look at the result. A fix found by a review is checked by the coordinator against the review's findings, not reviewed again[^ag-21d].
 Reviewers read, and run ctest on the implementer's build; they never edit, and rebuild only when the build is stale.
 *Why:* what lands on the owner's list should already have survived an independent check, so the review time goes on judgement.[^ag-21]
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review (this control is the review)
 
 **BT-41.** A reviewer must check, for every requirement or fix an item claims, that its evidence exists, is of a kind that can prove it ([`test_strategy.md`](../artefacts/test_strategy.md) §3), and was seen to fail in one of the strategy's forms (§5.1), from the recorded red run or observation, not from the implementer's word or a reading of the old code; a claim without it is signed off as "built, not verified", never as delivered or fixed.
-The reviewer reads the red log and the green log, and checks that the red was for the fault named, not another. A claim about a device or a shot with no observation on a named build stays "built, not verified" until it is observed.
+The reviewer reads the red log and the green log, and checks that the red was for the fault named, not another. A claim about a device or a shot with no observation on a named build stays "built, not verified" until it is observed. For a step without a review, the coordinator reads its red and green logs before committing it[^bt-41b].
 *Why:* reports have called work delivered from reading the code; and a test can be red for another fault than the one it is named for: #279's `test_23` failed on a regression found during the work and passes on the code before the fix, so it is not proof of #279's own fault.[^bt-41]
 *Owner:* Product Owner · *Stage:* Review · *Compliance:* a review (AG-21's reviewer)
 
@@ -61,4 +61,5 @@ Check each sheet yourself before showing it.
 [^om-13]: Product Owner, 25 Nov 2026 (#195, OM-13).
 [^ag-42]: Product Owner, 25 Nov 2026 ("the qml calibration is all or nothing; the option you proposed is not really in the spirit of the rule").
 [^bt-41]: Product Owner, 25 Nov 2026 ([POL-9](../policies.md): a fix's test is shown failing before the fix). #279's review for `test_23`. The control and its wording approved by the Product Owner and the Solution Architect, 26 Nov 2026.
+[^bt-41b]: Product Owner, 26 Nov 2026, with the steps that get no fresh review ([AG-21](review.md)).
 [^ag-24e]: Closing an issue is a "fixed" claim ([POL-9](../policies.md)): approved by the Product Owner and the Solution Architect, 26 Nov 2026.
