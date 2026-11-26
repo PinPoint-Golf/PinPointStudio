@@ -14,6 +14,14 @@ whichever exist. A path with an extension moves that one file. A destination end
 A map line `keep: <file>:<lines>` (docs only; the map is the only source) leaves those lines exactly as they are (a dated
 record); --verify passes the old spelling there only, and fails if a kept line changed. A keep that matches nothing is an
 error (B1.2c): on a doc the tool does not scan, a stale line number, or a line the map would not rewrite.
+A map line `hand: <new file> <- <source file>:<lines>[,<lines>...]` declares a file a brief splits out of another by
+hand, after the move (B1.7's capture_time_types.h out of swing_analysis.h); line numbers are the source's before the
+move, and each range is one block. The move makes no split. --verify then accepts exactly the split's lines: each block
+byte for byte in the new file, in order, whole and in the same namespace; the new file's other lines scaffold only
+(blank, comments, #pragma once, includes, an include guard, namespace lines); the blocks gone from the source, which may
+gain one include of the new file; an include of the source re-pointed at the new file (listed, anywhere); a build-file
+line naming only the new file. Anything else still fails, and a hand: line that matches nothing (no such new file, a
+source not in the base, a range past its end, blocks the new file does not hold) is refused.
 Options: --root <checkout> (default: this file's checkout); --allow-prose <file> (with --verify: prose edits in that
 doc, e.g. the IM rows a brief names, are listed instead of failing); --allow-code-path <file>:<lines> (with --verify:
 on exactly those lines of that file, a path in a C++ string changed to the map's image is listed instead of failing,
@@ -135,7 +143,7 @@ def parse_map(text):
     entries = []
     for n, raw in enumerate(text.splitlines(), 1):
         line = raw.split('#', 1)[0].strip()
-        if not line or line.startswith('keep:'):
+        if not line or line.startswith(('keep:', 'hand:')):
             continue
         parts = re.split(r'\s*(?:->|→)\s*', line)
         if len(parts) != 2 or not parts[0] or not parts[1]:
@@ -193,6 +201,175 @@ def keep_errors(keep):
             errs.append('keep: %s matches nothing: the tool does not scan that file (docs: docs/developer/, '
                         'docs/design/, governance/, BUILDING.md, README.md; never docs/implementation/)' % f)
     return errs
+
+
+# ── hand splits (`hand:`): a new file cut by hand out of another, declared in the map ───────────────────────────
+HAND_RE = re.compile(r'^hand:\s*(\S+)\s*(?:<-|←)\s*(\S+)$')
+
+
+def parse_hands(text):
+    """The map's `hand: <new file> <- <source file>:<lines>[,<lines>...]` lines: a header a brief splits out of another
+    by hand (B1.7's capture_time_types.h out of swing_analysis.h). Each range is one block, taken whole and unedited;
+    line numbers are the source's in the tree before the move, as keep:'s are. -> [(new, source, [(lo, hi)], map line)]."""
+    hands = []
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.split('#', 1)[0].strip()
+        if not line.startswith('hand:'):
+            continue
+        m = HAND_RE.match(line)
+        f, _, spec = (m.group(2) if m else '').rpartition(':')
+        if not m or not f or not re.match(r'^\d+(-\d+)?(,\d+(-\d+)?)*$', spec):
+            raise Fail('map line %d: want "hand: <new file> <- <source file>:<lines>": %s' % (n, raw))
+        ranges = []
+        for part in spec.split(','):
+            lo, _, hi = part.partition('-')
+            lo, hi = int(lo), int(hi or lo)
+            if lo < 1 or hi < lo:
+                raise Fail('map line %d: a line range runs from 1 upwards, low to high: %s' % (n, part))
+            ranges.append((lo, hi))
+        hands.append((m.group(1), f, ranges, n))
+    return hands
+
+
+def hand_errors(hands, plan, files, text_of=None):
+    """What a hand: line is refused for before any split is checked (the move and --verify alike): a file that is not
+    C++ under src/; a source that is not in the tree (it matches nothing); a new file the map moves or moves to; a line
+    two hand: lines both take. With text_of (--verify: the source's text in its base), a range past the source's end."""
+    errs, claimed = [], {}
+    dests = set(plan.moves.values())
+    for new, src, ranges, n in hands:
+        for p in (new, src):
+            if not p.startswith('src/') or not p.endswith(CPP_EXT) or norm(p) != p:
+                errs.append('hand: (map line %d) %s: a hand split is a C++ file under src/, from the repo root' % (n, p))
+        if new == src:
+            errs.append('hand: (map line %d) %s is split out of itself' % (n, new))
+        if new in plan.moves or new in dests:
+            errs.append('hand: (map line %d) %s is a move of the map, not a hand split' % (n, new))
+        if src not in files:
+            errs.append('hand: (map line %d) %s matches nothing: the source is not in the tree before the move' % (n, src))
+            continue
+        t = text_of(src) if text_of else None
+        if text_of and t is None:
+            errs.append('hand: (map line %d) %s is not a text file' % (n, src)); continue
+        count = len(t.splitlines()) if t is not None else None
+        for lo, hi in ranges:
+            if count is not None and hi > count:
+                errs.append('hand: (map line %d) %s:%d-%d matches nothing: the source has %d lines' % (n, src, lo, hi, count))
+            for i in range(lo, hi + 1):
+                if (src, i) in claimed:
+                    errs.append('hand: (map line %d) %s:%d is taken by map line %d too' % (n, src, i, claimed[(src, i)]))
+                    break
+                claimed[(src, i)] = n
+    return errs
+
+
+def brace_context(text):
+    """For each line (index 0 = line 1, plus one entry past the end), the C++ scope open at its start: a tuple of the
+    open namespaces' names (one entry per `::` part) and '{' for any other brace. Comments, strings and preprocessor
+    lines are skipped. A close with nothing open is recorded as '?'."""
+    cls = spans_cpp(text)
+    code = ''.join(ch if c == 'c' or ch == '\n' else ' ' for ch, c in zip(text, cls))
+    code = '\n'.join(' ' * len(l) if l.lstrip().startswith('#') else l for l in code.split('\n'))
+    starts = [0] + [m.end() for m in re.finditer('\n', code)]
+    if code.endswith('\n'):
+        starts.pop()
+    events = [(m.start(), m) for m in re.finditer(r'\bnamespace\s+([A-Za-z_][\w:]*)?\s*\{|\{|\}', code)]
+    stack, out, k = [], [], 0
+    for s in starts + [len(code) + 1]:
+        while k < len(events) and events[k][0] < s:
+            m = events[k][1]
+            if m.group(0) == '}':
+                if stack:
+                    stack.pop()
+                else:
+                    stack.append('?')
+            elif m.group(0) == '{':
+                stack.append(('{',))
+            else:
+                stack.append(tuple('ns:' + x for x in (m.group(1) or '(anonymous)').split('::')))
+            k += 1
+        out.append(tuple(x for e in stack for x in (e if isinstance(e, tuple) else (e,))))
+    return out
+
+
+SCAFFOLD_RES = (re.compile(r'^#\s*pragma\s+once$'), re.compile(r'^#\s*(?:include|import)\s*(?:"[^"]+"|<[^>]+>)$'),
+                re.compile(r'^#\s*endif$'),
+                re.compile(r'^namespace\s+[A-Za-z_][\w:]*\s*\{$'), re.compile(r'^\}$'))
+
+
+def check_hand_file(new, blocks, base_text, nt, old_tree, new_tree, plan):
+    """--verify on a declared hand split: each block of its source (in its base) is in the new file byte for byte, in
+    the declared order, whole (its braces balance) and in the same scope (namespaces, nesting); every other line is
+    scaffold (scaffold_lines); the braces balance; every include resolves, never through an include directory, and a
+    taken one names the map's image of what it named in the source. -> (bad lines, the reviewer's line or None)."""
+    bad = []
+    if nt is None:
+        return ['hand: %s is not a text file' % new], None
+    nl = nt.splitlines(keepends=True)
+    ctx_n = brace_context(nt)
+    used, cur, ctx_cache, srcs = {}, 0, {}, []
+    for src, (lo, hi), n in blocks:
+        st = base_text(src)
+        if src not in ctx_cache:
+            ctx_cache[src] = brace_context(st)
+        ctx_s, block = ctx_cache[src], st.splitlines(keepends=True)[lo - 1:hi]
+        if ctx_s[lo - 1] != ctx_s[hi]:
+            bad.append('hand: (map line %d) %s:%d-%d is not whole: its braces do not balance' % (n, src, lo, hi))
+        k = next((k for k in range(cur, len(nl) - len(block) + 1) if nl[k:k + len(block)] == block), None)
+        if k is None:
+            bad.append('hand: (map line %d) %s matches nothing: it does not hold %s:%d-%d byte for byte%s' % (
+                n, new, src, lo, hi, ' after the blocks declared before it' if cur else ''))
+            continue
+        if ctx_n[k] != ctx_s[lo - 1]:
+            bad.append('hand: (map line %d) %s:%d: %s:%d-%d sits in %s there, in %s in its source' % (
+                n, new, k + 1, src, lo, hi, '::'.join(ctx_n[k]) or 'the global scope', '::'.join(ctx_s[lo - 1]) or
+                'the global scope'))
+        for x in range(hi - lo + 1):
+            used[k + x] = (src, lo + x)
+        cur = k + len(block)
+        srcs.append('%s:%d-%d' % (src, lo, hi))
+    scaffold = scaffold_lines(nt)
+    for i, line in enumerate(nl):
+        if i not in used and i + 1 not in scaffold:
+            bad.append('%s:%d: in a hand split, a line that is neither taken from its source nor scaffold (blank, a '
+                       'comment, #pragma once, an include, a guard, a namespace line): %s' % (new, i + 1, line.rstrip('\r\n')))
+        m = INC_RE.match(line.rstrip('\r\n'))
+        if not m:
+            continue
+        h1, t1 = new_tree.resolve(new, m.group(2))
+        if h1 in (None, 'ambiguous', 'base'):
+            bad.append('%s:%d: "%s" %s' % (new, i + 1, m.group(2), 'resolves only through an include directory'
+                                           if h1 == 'base' else 'does not resolve'))
+        elif i in used:
+            src, sl = used[i]
+            h0, t0 = old_tree.resolve(src, m.group(2))
+            if h0 not in (None, 'ambiguous') and plan.fwd('src/' + t0) != 'src/' + t1:
+                bad.append('%s:%d: "%s" resolves to %s, not %s (what it named in %s:%d)' % (
+                    new, i + 1, m.group(2), 'src/' + t1, plan.fwd('src/' + t0), src, sl))
+    if ctx_n[-1]:
+        bad.append('%s: its braces do not balance at the end (%s still open)' % (new, '::'.join(ctx_n[-1])))
+    if bad:
+        return bad, None
+    return bad, 'hand split %s: %d lines taken byte for byte from %s; %d other lines, all scaffold: read by the reviewer' % (
+        new, len(used), ', '.join(srcs) or 'nothing', len(nl) - len(used))
+
+
+def scaffold_lines(text):
+    """Line numbers (1-based) of a C++ file's scaffold: blank, a comment, #pragma once, an #include or #import, an
+    include guard (#ifndef G, then #define G with no value, #endif), a namespace opened or closed; a trailing comment
+    allowed. Any other #define is not scaffold: it could switch code on in every file that includes the new one."""
+    cls = spans_cpp(text)
+    out, off, guard = set(), 0, None
+    for n, line in enumerate(text.splitlines(keepends=True), 1):
+        body = ''.join(ch if c != 'm' else ' ' for ch, c in zip(line, cls[off:off + len(line)])).strip()
+        off += len(line)
+        g = re.match(r'^#\s*ifndef\s+(\w+)$', body)
+        d = re.match(r'^#\s*define\s+(\w+)$', body)
+        if not body or g or (d and d.group(1) == guard) or any(r.match(body) for r in SCAFFOLD_RES):
+            out.add(n)
+        if body:
+            guard = g.group(1) if g else None                      # a guard's #define comes right after its #ifndef
+    return out
 
 
 class Plan:
@@ -1717,6 +1894,11 @@ def build_plan(root, map_path):
     for k in sorted(plan.keep):
         if k not in files and plan.moves.get(k) not in files:
             plan.errors.append('keep: %s is not in the tree' % k)
+    # hand: the move makes no split (the brief does, by hand, after it), and an --over-work replay may run after the
+    # split; so it refuses only what holds either way: the source in the tree, a new file the map moves. --verify
+    # checks the rest against its base.
+    plan.hands = parse_hands(text)
+    plan.errors.extend(hand_errors(plan.hands, plan, files | set(plan.moves)))
     return plan, files
 
 
@@ -1785,6 +1967,10 @@ def print_report(rw, plan, quiet, dry):
     say('== lines kept as they are (--keep / keep:; dated records): %d' % len(r.kept))
     for p, ln, a, b in r.kept:
         say('  %s:%d  %s' % (p, ln, 'kept; the move would have made it: ' + b.strip() if a != b else 'kept (nothing to rewrite there)'))
+    hands = getattr(plan, 'hands', [])
+    say('== hand splits declared (hand:; the brief makes each after the move, --verify checks it): %d' % len(hands))
+    for new, src, ranges, n in hands:
+        say('  %s <- %s:%s' % (new, src, ','.join('%d-%d' % r if r[0] != r[1] else '%d' % r[0] for r in ranges)))
     say("== can't place (not rewritten; read each): %d" % len(r.unplaced))
     if not quiet:
         for p, ln, t, why in r.unplaced:
@@ -1846,6 +2032,7 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
     entries = parse_map(map_text)
     keep = parse_keeps(map_text)
     bad_keep = keep_errors(keep)
+    hands = parse_hands(map_text)
     base_modes = {}
     for rec in git(root, 'ls-tree', '-r', '-z', base).split('\0'):
         if rec:
@@ -1860,6 +2047,8 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
     expect = {plan.moves.get(p, p): p for p in base_files}       # new path -> base path
     maps_dir = 'tools/refactor/'
     for w in sorted(work - set(expect)):
+        if w in {h[0] for h in hands}:
+            continue                                               # a hand split: checked below, line by line
         (listed if w.startswith(maps_dir) else bad).append('added file %s%s' % (
             w, ' (the map or the tool: read by the reviewer)' if w.startswith(maps_dir) else ': not a move of the map'))
     for w, b in sorted(expect.items()):
@@ -1882,12 +2071,68 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
             work_texts[w] = read_text(os.path.join(root, w))
         return work_texts[w]
 
+    # hand splits (hand:): the new file holds the declared lines byte for byte, plus scaffold only; the source loses
+    # exactly those lines and may gain an include of the new file; an includer of the source may point at the new file
+    # instead; a build file may gain a line naming it. Everything else in those files is checked as before.
+    hand_new, taken, splits_of = collections.OrderedDict(), collections.defaultdict(set), collections.defaultdict(set)
+    hand_bad = hand_errors(hands, plan, base_files, base_text)
+    bad.extend(hand_bad)
+    for new, src, ranges, n in ([] if hand_bad else hands):
+        if new in base_files:
+            bad.append('hand: (map line %d) %s is in the base: a hand split is a new file' % (n, new)); continue
+        if new not in work:
+            bad.append('hand: (map line %d) %s matches nothing: no such file in the tree' % (n, new)); continue
+        for r in ranges:
+            hand_new.setdefault(new, []).append((src, r, n))
+            taken[src].update(range(r[0], r[1] + 1))
+        splits_of[src].add(new)
+    for new in hand_new:
+        bad_n, ln = check_hand_file(new, hand_new[new], base_text, work_text(new), old_tree, new_tree, plan)
+        bad.extend(bad_n)
+        if ln:
+            listed.append(ln)
+
+    def hand_include(b, w, line, old=None):
+        """The new file an include line of w names, when the hand: rules allow it: an include of a split added in its
+        source (old None), or one that named the source in the base now naming its split (old: the base line)."""
+        mn = INC_RE.match(line.rstrip('\r\n'))
+        if not mn:
+            return None
+        h1, t1 = new_tree.resolve(w, mn.group(2))
+        if h1 in (None, 'ambiguous', 'base'):
+            return None
+        if old is None:
+            return 'src/' + t1 if 'src/' + t1 in splits_of.get(b, ()) else None
+        mo = INC_RE.match(old.rstrip('\r\n'))
+        if not mo or old[len(old.rstrip('\r\n')):] != line[len(line.rstrip('\r\n')):] or mo.group(1) != mn.group(1) \
+                or re.sub(r'\s+', ' ', mo.group(3)[1:]).strip() != re.sub(r'\s+', ' ', mn.group(3)[1:]).strip():
+            return None                                            # only the path changed (and the comment's spacing)
+        h0, t0 = old_tree.resolve(b, mo.group(2))
+        if h0 in (None, 'ambiguous') or (h0 == 'rel' and h1 != 'rel'):
+            return None
+        return 'src/' + t1 if 'src/' + t1 in splits_of.get('src/' + t0, ()) else None
+
     build_old = {p: base_text(p) for p in base_files if file_kind(p) == 'build' and in_scope(p)}
     build_new = {p: work_text(p) for p in work if file_kind(p) == 'build' and in_scope(p)}
     vars_old = CMakeVars({k: v for k, v in build_old.items() if v is not None})
     vars_new = CMakeVars({k: v for k, v in build_new.items() if v is not None})
     ip_old = Interp(plan, old_tree, vars_old)
     ip_new = Interp(plan, new_tree, vars_new)
+
+    def hand_build_line(w, line, ln):
+        """A build-file line that names only hand-split files (a source list's new entry), or None."""
+        cls = spans_cmake(line)
+        body = ''.join(ch if c != 'm' else ' ' for ch, c in zip(line, cls))
+        toks, seps = tokens_and_seps(body.rstrip('\r\n'))
+        if not hand_new or not toks or any(x.strip() for x in seps):
+            return None
+        names = []
+        for t in toks:
+            m = ip_new.meaning(t, w, 'build', ln)
+            if m is None or m[1] or m[0] not in hand_new:
+                return None
+            names.append(m[0])
+        return names
     # kept lines (--keep / keep:): each must sit unchanged in an equal block of its file's diff, whatever else changed
     # around it (an --allow-prose file included); the final pass reads it at its line in the work tree
     work_keep = collections.defaultdict(set)
@@ -1950,12 +2195,27 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
         tbl = lint_table_lines(ot) if kind == 'lint' else context_table_lines(ot) if kind == 'context' else set()
         tbl_new = lint_table_lines(nt) if kind == 'lint' else context_table_lines(nt) if kind == 'context' else set()
         code_ok = allow_code.get(w, set()) | allow_code.get(b, set())
-        sm = difflib.SequenceMatcher(None, ol, nl, autojunk=False)
-        for op, i1, i2, j1, j2 in sm.get_opcodes():
+        # a hand split's lines leave both sides before the diff: the source's taken lines (checked in the new file) and
+        # the work's lines that only name the new file (an include of it in its source; a build list's entry)
+        oi = [i for i in range(len(ol)) if i + 1 not in taken.get(b, ())]
+        nj = []
+        for j in range(len(nl)):
+            if kind == 'cpp' and hand_include(b, w, nl[j]):
+                continue                                           # listed by the include pass below
+            names = hand_build_line(w, nl[j], j + 1) if kind == 'build' else None
+            if names:
+                listed.append('%s:%d: a line naming the hand split %s added: %s' % (w, j + 1, ', '.join(names), nl[j].strip()))
+                continue
+            nj.append(j)
+        sm = difflib.SequenceMatcher(None, [ol[i] for i in oi], [nl[j] for j in nj], autojunk=False)
+        for op, a1, a2, b1, b2 in sm.get_opcodes():
             if op == 'equal':
                 continue
-            pairs = list(zip(range(i1, i2), range(j1, j2))) if (i2 - i1) == (j2 - j1) else []
+            olds_, news_ = oi[a1:a2], nj[b1:b2]                    # the real line indices
+            pairs = list(zip(olds_, news_)) if len(olds_) == len(news_) else []
             for i, j in pairs:
+                if kind == 'cpp' and hand_include(b, w, nl[j], ol[i]):
+                    continue                                       # re-pointed at a hand split: listed below
                 why = check_pair(ol[i], nl[j], b, w, kind, ip_old, ip_new, plan, j + 1 in code_ok, (i + 1, j + 1))
                 if why is None:
                     continue
@@ -1967,14 +2227,14 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
                 else:
                     bad.append('%s:%d: %s\n      - %s\n      + %s' % (w, j + 1, why, ol[i].rstrip('\r\n'), nl[j].rstrip('\r\n')))
             if not pairs:
-                for i in range(i1, i2):
+                for i in olds_:
                     if i + 1 in tbl:
                         listed.append('%s:%d (base): a %s table line deleted: %s' % (b, i + 1, kind, ol[i].strip()))
                     elif kind == 'build' and only_dirs(ol[i], b, ip_old):
                         listed.append('%s:%d (base): an include directory line deleted: %s' % (b, i + 1, ol[i].strip()))
                     else:
                         bad.append('%s:%d (base): line deleted: %s' % (b, i + 1, ol[i].rstrip('\r\n')))
-                for j in range(j1, j2):
+                for j in news_:
                     if j + 1 in tbl_new:
                         listed.append('%s:%d: a %s table line added: %s' % (w, j + 1, kind, nl[j].strip()))
                     else:
@@ -1990,6 +2250,13 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
             continue
         olds = [(n, m.group(2)) for n, l in enumerate(ot.splitlines(), 1) for m in [INC_RE.match(l)] if m]
         news = [(n, m.group(2)) for n, l in enumerate(nt.splitlines(), 1) for m in [INC_RE.match(l)] if m]
+        if b in splits_of:                                         # a hand split's source: its include of the split
+            nls = nt.splitlines()
+            for n1, c in list(news):
+                h = hand_include(b, w, nls[n1 - 1])
+                if h:
+                    news.remove((n1, c))
+                    listed.append('%s:%d: an include of its hand split %s added: %s' % (w, n1, h, nls[n1 - 1].strip()))
         if len(olds) != len(news):
             bad.append('%s: %d includes, the base had %d' % (w, len(news), len(olds))); continue
         for (n0, a), (n1, c) in zip(olds, news):
@@ -2000,6 +2267,10 @@ def verify(root, map_path, base, allow_prose, quiet, allow_code=None):
                 continue
             h1, t1 = new_tree.resolve(w, c)
             want = plan.fwd('src/' + t0)
+            if 'src/' + t0 in splits_of and h1 not in (None, 'ambiguous', 'base') and 'src/' + t1 in splits_of['src/' + t0] \
+                    and not (h0 == 'rel' and h1 != 'rel'):
+                listed.append('%s:%d: "%s" re-pointed from %s to its hand split %s' % (w, n1, c, 'src/' + t0, 'src/' + t1))
+                continue
             if h1 in (None, 'ambiguous') or 'src/' + t1 != want:
                 bad.append('%s:%d: "%s" resolves to %s, not %s' % (w, n1, c, t1, want))
             elif h1 == 'base' and plan.moved('src/' + t0):
@@ -2586,6 +2857,141 @@ def constructs_selftest(tmp, sh, tool, put, get, check):
             "can't place: ${WD} is undecided at this line (set under the undecided if at CMakeLists.txt:10)")
 
 
+def hand_selftest(tmp, sh, tool, put, get, check):
+    """The hand split (hand:, after B1.7): a header cut by hand out of another after the move, as B1.7 cut
+    capture_time_types.h out of swing_analysis.h. Declared in the map, --verify accepts exactly its lines (the taken
+    blocks, the new file's scaffold, the source's include of it, an includer re-pointed at it, a build list's entry);
+    undeclared, or with anything else changed, it fails. Pure Python: it runs on every platform."""
+    d4 = os.path.join(tmp, 'hand')
+    os.makedirs(d4)
+    sh(d4, 'init', '-q')
+    big = ('#pragma once\n'                                        # 1
+           '#include "../Core/log.h"\n'                            # 2
+           '#include "seg.h"\n'                                    # 3  the map moves seg.h
+           '\n'                                                    # 4
+           'namespace pp::analysis {\n'                            # 5
+           '\n'                                                    # 6
+           '// A binding.\n'                                       # 7  taken
+           'struct Binding {\n'                                    # 8
+           '    int role = 0;\n'                                   # 9
+           '};\n'                                                  # 10
+           '\n'                                                    # 11 taken
+           'inline int f() { return 1; }\n'                        # 12 stays
+           '\n'                                                    # 13
+           '// A track.\n'                                         # 14 taken
+           'struct Track {\n'                                      # 15
+           '    int n = 0;\n'                                      # 16
+           '};\n'                                                  # 17
+           '\n'                                                    # 18 taken
+           '} // namespace pp::analysis\n')                        # 19
+    H = {
+        'src/Analysis/big.h': big,
+        'src/Analysis/seg.h': '#pragma once\nstruct Seg {};\n',
+        'src/Core/log.h': '#pragma once\n',
+        'src/Recording/rec.h': '#pragma once\n#include "../Analysis/big.h"    // Binding\nstruct Rec {};\n',
+        'src/Gui/user.cpp': '#include "../Analysis/big.h"\n#include "../Core/log.h"\nint u() { return pp::analysis::f(); }\n',
+        'CMakeLists.txt': 'add_executable(app\n    src/Analysis/big.h\n    src/Analysis/seg.h\n    src/Recording/rec.h\n'
+                          '    src/Gui/user.cpp)\n',
+    }
+    for k, v in H.items():
+        put(d4, k, v)
+    sh(d4, 'add', '-A'); sh(d4, 'commit', '-q', '-m', 'base')
+    base4 = sh(d4, 'rev-parse', 'HEAD').strip()
+    move = 'src/Analysis/seg.h -> src/Common/\n'
+    hand = 'hand: src/Recording/types.h <- src/Analysis/big.h:7-11,14-18   # the brief\'s split\n'
+    put(tmp, 'h.map', move + hand)
+    put(tmp, 'h0.map', move)
+    mp4, mp0 = os.path.join(tmp, 'h.map'), os.path.join(tmp, 'h0.map')
+    rc, out = tool(d4, mp4, '--dry-run')
+    check(rc == 0, 'hand: a declared split passes the dry run before the split exists (the move makes no split)')
+    rc, out = tool(d4, mp4)
+    check(rc == 0 and 'done: 1 files moved' in out, 'hand: the move runs with a hand: line in its map')
+    # the brief's hand split, after the move: two blocks cut into a new header, the source includes it, one includer
+    # and the build list point at it
+    put(d4, 'src/Recording/types.h', '/*\n * The capture types (licence block).\n */\n#pragma once\n\n#include "../Core/log.h"\n\n'
+        'namespace pp::analysis {\n\n' + ''.join(big.splitlines(True)[6:11]) + ''.join(big.splitlines(True)[13:18]) +
+        '} // namespace pp::analysis\n')
+    b = get(d4, 'src/Analysis/big.h').splitlines(True)
+    put(d4, 'src/Analysis/big.h', ''.join(b[:3] + ['#include "../Recording/types.h" // Binding, Track\n'] + b[3:6] + b[11:13]
+                                          + b[18:]))
+    put(d4, 'src/Recording/rec.h', get(d4, 'src/Recording/rec.h').replace('"../Analysis/big.h"    //', '"types.h"    //'))
+    put(d4, 'CMakeLists.txt', get(d4, 'CMakeLists.txt').replace('    src/Recording/rec.h\n',
+                                                                '    src/Recording/rec.h\n    src/Recording/types.h\n'))
+    rc, out = tool(d4, mp4, '--verify', base4, '--no-configure-ok')
+    ok = rc == 0 and 'VERIFY PASSED' in out and 'hand split src/Recording/types.h: 10 lines taken byte for byte' in out \
+        and 'src/Analysis/big.h:4: an include of its hand split src/Recording/types.h added' in out \
+        and 'src/Recording/rec.h:2: "types.h" re-pointed from src/Analysis/big.h to its hand split' in out \
+        and 'CMakeLists.txt:5: a line naming the hand split src/Recording/types.h added' in out
+    check(ok, 'hand: a declared hand split passes --verify, each of its lines listed for the reviewer')
+    if not ok:
+        print('\n'.join('    | ' + l for l in out.splitlines()))
+    rc, out = tool(d4, mp0, '--verify', base4, '--no-configure-ok')
+    ok = rc == 1 and 'added file src/Recording/types.h: not a move of the map' in out \
+        and '(base): line deleted: struct Binding {' in out and 'rec.h:2: the include now points at Recording/types.h' in out
+    check(ok, 'hand: the same split undeclared fails --verify (the new file, the taken lines, the re-pointed include)')
+    if not ok:
+        print('\n'.join('    | ' + l for l in out.splitlines()))
+
+    def hand_case(what, hand_line, needle, extra_rel=None, fn=None, run=('--verify', base4, '--no-configure-ok')):
+        put(tmp, 'hx.map', move + hand_line)
+        before = get(d4, extra_rel) if extra_rel else None
+        if extra_rel:
+            put(d4, extra_rel, fn(before))
+        rc, out = tool(d4, os.path.join(tmp, 'hx.map'), *run)
+        if extra_rel:
+            put(d4, extra_rel, before)
+        check(rc == 1 and needle in out, what)
+        if not (rc == 1 and needle in out):
+            print('\n'.join('    | ' + l for l in out.splitlines()))
+
+    hand_case('hand: refused when it matches nothing: no such new file in the tree',
+              'hand: src/Recording/nothere.h <- src/Analysis/big.h:7-11\n', 'nothere.h matches nothing: no such file')
+    hand_case('hand: refused when it matches nothing: the new file does not hold the declared lines',
+              hand.replace('7-11,14-18', '7-11,12,14-18'), 'matches nothing: it does not hold src/Analysis/big.h:12')
+    hand_case('hand: refused when it matches nothing: a range past the source\'s end',
+              hand.replace('14-18', '14-40'), 'big.h:14-40 matches nothing: the source has 19 lines')
+    hand_case('hand: refused when it matches nothing: a source not in the tree (the move refuses it too)',
+              'hand: src/Recording/types.h <- src/Analysis/gone.h:1-2\n', 'gone.h matches nothing: the source is not in the tree',
+              run=('--dry-run',))
+    hand_case('hand: a malformed hand: line is refused', 'hand: src/Recording/types.h src/Analysis/big.h:7\n',
+              'want "hand: <new file> <- <source file>:<lines>"')
+    hand_case('hand: a declared split plus an unrelated bad include still fails', hand,
+              '"../Core/log.h" resolves to', 'src/Gui/user.cpp',
+              lambda s: s.replace('#include "../Analysis/big.h"', '#include "../Core/log.h"'))
+    hand_case('hand: a taken line edited in the new file fails (taken byte for byte)', hand,
+              'matches nothing: it does not hold src/Analysis/big.h:7-11', 'src/Recording/types.h',
+              lambda s: s.replace('int role = 0;', 'int role = 1;'))
+    hand_case('hand: a code line added to the new file fails (only scaffold besides the taken lines)', hand,
+              'neither taken from its source nor scaffold', 'src/Recording/types.h',
+              lambda s: s.replace('} // namespace', 'inline int g() { return 2; }\n} // namespace'))
+    tb = get(d4, 'src/Recording/types.h')
+    put(d4, 'src/Recording/types.h', tb.replace('#pragma once\n', '#ifndef TYPES_H\n#define TYPES_H\n', 1) + '#endif // TYPES_H\n')
+    rc, out = tool(d4, mp4, '--verify', base4, '--no-configure-ok')
+    put(d4, 'src/Recording/types.h', tb)
+    check(rc == 0 and 'VERIFY PASSED' in out, 'hand: an include guard (#ifndef, #define, #endif) in the new file is scaffold')
+    hand_case('hand: a #define added to the new file fails (an include guard only)', hand,
+              'neither taken from its source nor scaffold (blank, a comment, #pragma once, an include, a guard, a '
+              'namespace line): #define PP_SWITCH', 'src/Recording/types.h',
+              lambda s: s.replace('#pragma once\n', '#pragma once\n#ifndef TYPES_H\n#define TYPES_H\n#define PP_SWITCH\n', 1)
+              .replace('} // namespace pp::analysis\n', '} // namespace pp::analysis\n#endif\n'))
+    hand_case('hand: the taken blocks in another namespace fail', hand, 'sits in ns:pp::ns:other there, in ns:pp::ns:analysis',
+              'src/Recording/types.h', lambda s: s.replace('namespace pp::analysis {', 'namespace pp::other {'))
+    hand_case('hand: a taken line left in the source too fails (a split moves the lines)', hand,
+              'src/Analysis/big.h:9: line added: struct Binding {', 'src/Analysis/big.h',
+              lambda s: s.replace('inline int f()', '// A binding.\nstruct Binding {\n    int role = 0;\n};\n\ninline int f()'))
+    hand_case('hand: an include of the split added outside its source fails', hand,
+              'src/Gui/user.cpp: 3 includes, the base had 2', 'src/Gui/user.cpp',
+              lambda s: '#include "../Recording/types.h"\n' + s)
+    hand_case('hand: an includer of the source re-pointed at another file still fails', hand,
+              'src/Recording/rec.h:2: "../Core/log.h" resolves to', 'src/Recording/rec.h',
+              lambda s: s.replace('"types.h"', '"../Core/log.h"'))
+    hand_case('hand: a build line naming another new file still fails', hand,
+              'CMakeLists.txt:6: line added:     src/Recording/other.h', 'CMakeLists.txt',
+              lambda s: s.replace('    src/Recording/types.h\n', '    src/Recording/types.h\n    src/Recording/other.h\n'))
+    rc, out = tool(d4, mp4, '--verify', base4, '--no-configure-ok')
+    check(rc == 0, 'hand: verify passes again once each case is undone')
+
+
 def self_test():
     if shutil.which('git') is None:
         print('move_files_selftest: SKIPPED: no git on the PATH')
@@ -2943,6 +3349,7 @@ def self_test():
         else:
             print('  skip  --configure checks: Windows, or no cmake on the PATH')
         constructs_selftest(tmp, sh, tool, put, get, check)
+        hand_selftest(tmp, sh, tool, put, get, check)
     finally:
         shutil.rmtree(tmp, onerror=onerror)
     print('move_files_selftest: %s (%d failures)' % ('FAILED' if fails else 'PASSED', len(fails)))
