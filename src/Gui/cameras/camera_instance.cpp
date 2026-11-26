@@ -934,8 +934,11 @@ QString CameraInstance::cameraKey()              const
 {
     // The same spelling as CameraManager::cameraKey(): "Model|Serial", falling back
     // to "Model|DeviceId" when the camera reports no serial (DeviceKey's).
-    return pinpoint::rig::DeviceKey::camera(m_deviceDescription, m_deviceSerialNumber, m_deviceId)
-        .persistedCameraKey();
+    return deviceKey().persistedCameraKey();
+}
+pinpoint::rig::DeviceKey CameraInstance::deviceKey() const
+{
+    return pinpoint::rig::DeviceKey::camera(m_deviceDescription, m_deviceSerialNumber, m_deviceId);
 }
 QString CameraInstance::deviceAlias()            const { return m_deviceAlias; }
 

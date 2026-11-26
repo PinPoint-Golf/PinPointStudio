@@ -310,7 +310,7 @@ Item {
             d.imu.assign(uuid, "A")
             d.imu.connectDevice(uuid)
             var al = {}
-            al[d.imu._find(uuid).description + "|" + uuid] = d.imu._find(uuid).description + " " + uuid
+            al[d.imu.aliasKey(d.imu._find(uuid).description, uuid)] = d.imu._find(uuid).description + " " + uuid
             appSettings.imuAlias = al
             d.addWitmotion("WT-N", "", true)
             d.open()

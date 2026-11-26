@@ -41,7 +41,8 @@
 //   imu/roles                                        PlacementKey::persisted()
 //                                                     "<deviceId>", "<deviceId>#lowerArm", "<deviceId>#palm"
 //   analysis/clubLenPrior (SET-05)                   "<athlete uuid>|<club>|" + persistedCameraKey() of the
-//                                                     face-on camera (its typed key is C-1c's)
+//                                                     face-on camera: ClubLengthPriorKey::persisted()
+//                                                     (club_length_prior_key.h)
 //
 // A spelling reproduces today's open-coded expression exactly, whatever its parts hold: a camera with
 // no description still spells "|<id>", as today's code does. Only a null key spells the null string.

@@ -284,6 +284,9 @@ pp_add_test(device_key_test
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
     LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+# Its stored-key cases prove that a sensor's name and the learned club length, stored by today's build, are still
+# found after an update.
+pp_requirement(device_key_test REQ-INST-17)
 
 # The one battery rule (src/Vocabulary/Rig/battery_band.h; IM §6.1 NOTDOM-6): every band edge (100, 50, 49, 21, 20,
 # 0), charging at each level, no reading, the spelling the screens read, and the worst of several devices. The

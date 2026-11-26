@@ -58,6 +58,7 @@
 
 #include "../../Vocabulary/Identity/identity.h"           // ShotRef: the live join's write is keyed by it (step 2.4)
 #include "../../Vocabulary/Recording/recording.h"
+#include "../../Vocabulary/Rig/club_length_prior_key.h"   // ClubLengthPriorKey: the prior this shot joined (SET-05)
 #include "../../Vocabulary/Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
 #include "../../Club/club_length_fusion.h"        // LengthPriorState
@@ -115,10 +116,11 @@ struct CaptureCamera {
 struct CaptureSnapshot {
     pinpoint::recording::Recording recording;   // window = the frozen window; times window-relative
     CaptureAthlete                 athlete;
-    // The persistent club-length prior this shot joined (club_length_fusion.h), keyed
-    // athleteUuid|club|face-on cameraKey, and only while that camera is fixed in place: what
-    // ShotProcessor folds the fused length into after the analysis. Empty key = nothing to update.
-    QString                              lengthPriorKey;
+    // The persistent club-length prior this shot joined (club_length_fusion.h), keyed by the athlete,
+    // the club and the face-on camera (ClubLengthPriorKey), and only while that camera is fixed in
+    // place: what ShotProcessor folds the fused length into after the analysis. Null key = nothing to
+    // update.
+    pinpoint::rig::ClubLengthPriorKey    lengthPriorKey;
     pinpoint::analysis::LengthPriorState lengthPriorState;
     // The Recording's inputs as the export writes them (capture_export_facts.h), frozen here: each
     // camera's setup, search box and baseline; the host orientation filter setting; each host-fused

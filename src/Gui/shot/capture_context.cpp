@@ -329,8 +329,8 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
     r.integrity.windowEndUs   = window.endTimestampUs() - t0;
 
     // ── The persistent club-length prior (club_length_fusion.h) ──
-    // Keyed athleteUuid|clubName|cameraKey (a px prior is meaningless if the camera moves) and only
-    // trusted while that camera is marked fixed in place.
+    // Keyed by the athlete, the club and the face-on camera (ClubLengthPriorKey: a px prior is
+    // meaningless if the camera moves) and only trusted while that camera is marked fixed in place.
     pinpoint::SwingExportJob ctxJob;   // the fields captureAnalysisContext reads
     ctxJob.handedness     = athlete.handedness;
     ctxJob.athleteHeightM = athlete.heightM;
@@ -341,12 +341,15 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
         const CameraInstance *faceOnCtrl = nullptr;
         for (const CaptureCamera &c : cameras)
             if (c.ctrl && c.ctrl->perspective() == CameraInstance::FaceOn) { faceOnCtrl = c.ctrl; break; }
-        const QString faceOnKey = faceOnCtrl ? faceOnCtrl->cameraKey() : QString();
+        const pinpoint::rig::DeviceKey faceOn = faceOnCtrl ? faceOnCtrl->deviceKey() : pinpoint::rig::DeviceKey();
+        const QString faceOnKey = faceOn.persistedCameraKey();
         if (!faceOnKey.isEmpty() && fixedInPlace.value(faceOnKey).toBool()) {
             // Stashed even on a cold/absent entry — the update after the analysis still needs the
-            // key to seed a brand-new prior on the first confident fuse.
-            snap.lengthPriorKey = athlete.uuid + QLatin1Char('|') + athlete.sessionClub + QLatin1Char('|') + faceOnKey;
-            const QVariantMap prior = settings.clubLenPrior().value(snap.lengthPriorKey).toMap();
+            // key to seed a brand-new prior on the first confident fuse. The athlete's uuid is an
+            // AthleteId's own spelling (AthleteController::currentUuid), so it reads back unchanged.
+            snap.lengthPriorKey = pinpoint::rig::ClubLengthPriorKey(pinpoint::AthleteId::fromString(athlete.uuid),
+                                                                    athlete.sessionClub, faceOn);
+            const QVariantMap prior = settings.clubLenPrior().value(snap.lengthPriorKey.persisted()).toMap();
             if (!prior.isEmpty()) {
                 const int entryW = prior.value(QStringLiteral("frameW"), 0).toInt();
                 const int entryH = prior.value(QStringLiteral("frameH"), 0).toInt();

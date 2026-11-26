@@ -21,9 +21,9 @@
 // as today's code does, byte for byte, so no setting is migrated or lost.
 //
 // ⚠ THE FIXTURE IS NEVER BUILT WITH THE NEW TYPES. Every key it stores is spelled by today's code:
-// literals, the open-coded camera expression (copied from its sites), and today's functions
-// (camera_roi.h's key and tuningKey as they were before C-1b, copied below; imu_roles::aliasKey,
-// hm_unit_id::unitIdFor, capture_context.cpp's prior key). It is
+// literals, the open-coded expressions copied from their sites (the camera key; camera_roi.h's key and
+// tuningKey as they were before C-1b; imu_roles::aliasKey and capture_context.cpp's prior key as they
+// were before C-1c, which spell through the types now), and hm_unit_id::unitIdFor. It is
 // written through the REAL AppSettings into a scratch store, read back by a second AppSettings, and only
 // then looked up with the typed keys. A test that built the fixture with the types would prove nothing.
 //
@@ -35,6 +35,7 @@
 #include "imu/imu_role_map.h"
 #include "../../IMU/hm_unit_id.h"
 #include "../../Vocabulary/Rig/device_key.h"
+#include "../../Vocabulary/Rig/club_length_prior_key.h"
 
 #include <QCoreApplication>
 #include <QHash>
@@ -47,6 +48,8 @@
 
 using pinpoint::rig::DeviceKey;
 using pinpoint::rig::PlacementKey;
+using pinpoint::rig::ClubLengthPriorKey;
+using pinpoint::AthleteId;
 using CropEntry = DeviceKey::CropEntry;
 using TuningEntry = DeviceKey::TuningEntry;
 using Lane      = PlacementKey::Lane;
@@ -92,7 +95,19 @@ static const QString kClub    = QStringLiteral("7i");
 // Copied here so the test holds today's rule, not the type's.
 static QString todaysCameraKey(const Cam &c)
 {
-    return c.description + QStringLiteral("|") + (c.serial.isEmpty() ? c.id : c.serial);
+    return c.description + QLatin1Char('|') + (c.serial.isEmpty() ? c.id : c.serial);
+}
+
+// imu/alias's key, as imu_roles::aliasKey open-coded it before C-1c (imu_role_map.h:82 on 8273d1cf;
+// shot_processor.cpp:1005 spelled the same), and the seed imu_manager.cpp:183 gave a newly seen sensor:
+// that key with every '|' a space.
+static QString todaysAliasKey(const QString &description, const QString &deviceId)
+{
+    return description + QLatin1Char('|') + deviceId;
+}
+static QString todaysSeededAlias(const QString &description, const QString &deviceId)
+{
+    return QString(todaysAliasKey(description, deviceId)).replace(QLatin1Char('|'), QLatin1Char(' '));
 }
 
 // camera_roi.h's key() and tuningKey() as they were on 68d7461e, before C-1b spelled them through the
@@ -107,11 +122,13 @@ static QString todaysTuningKey(const QString &cameraKey, int perspective)
     return perspective == pp_camroi::kImpactPerspective ? cameraKey : cameraKey + QStringLiteral("#wide");
 }
 
-// SET-05's key, as capture_context.cpp:348 builds it.
-static QString todaysPriorKey(const QString &faceOnKey)
+// SET-05's key, as capture_context.cpp:348 built it on 8273d1cf, before C-1c:
+//   athlete.uuid + QLatin1Char('|') + athlete.sessionClub + QLatin1Char('|') + faceOnKey
+static QString todaysPriorKey(const QString &athleteUuid, const QString &club, const QString &faceOnKey)
 {
-    return kAthlete + QLatin1Char('|') + kClub + QLatin1Char('|') + faceOnKey;
+    return athleteUuid + QLatin1Char('|') + club + QLatin1Char('|') + faceOnKey;
 }
+static QString todaysPriorKey(const QString &faceOnKey) { return todaysPriorKey(kAthlete, kClub, faceOnKey); }
 
 static DeviceKey camKey(const Cam &c) { return DeviceKey::camera(c.description, c.serial, c.id); }
 static DeviceKey imuKey(const Imu &i) { return DeviceKey::sensor(i.description, i.id); }
@@ -157,8 +174,8 @@ static void testSpellings()
     }
     // 5. imu/alias: description|deviceId.
     same("5 imu alias", w.persistedWithDescription(), QStringLiteral("WT901BLE68|{767a6a67-1c2d-4e5f-8a9b-0c1d2e3f4a5b}"));
-    same("5 imu alias = today", w.persistedWithDescription(), pinpoint::imu_roles::aliasKey(kWit.description, kWit.id));
-    same("5 imu alias = today (wG3)", h.persistedWithDescription(), pinpoint::imu_roles::aliasKey(kHm.description, kHm.id));
+    same("5 imu alias = today", w.persistedWithDescription(), todaysAliasKey(kWit.description, kWit.id));
+    same("5 imu alias = today (wG3)", h.persistedWithDescription(), todaysAliasKey(kHm.description, kHm.id));
     // 6. imu/excluded: the bare device id.
     same("6 imu excluded", w.persistedId(), kWit.id);
     same("6 imu excluded (wG3)", h.persistedId(), kHm.id);
@@ -183,7 +200,7 @@ static void testSpellings()
     const Cam bare{ QString(), QString(), QStringLiteral("0x8020000005ac8514") };
     same("camera, empty description = today", camKey(bare).persistedCameraKey(), todaysCameraKey(bare));
     same("sensor, empty description = today", DeviceKey::sensor(QString(), kWit.id).persistedWithDescription(),
-         pinpoint::imu_roles::aliasKey(QString(), kWit.id));
+         todaysAliasKey(QString(), kWit.id));
 
     // A spelling of another kind, or of the null key, is the null string.
     same("camera has no sensor spelling", a.persistedWithDescription(), QString());
@@ -229,7 +246,7 @@ static void testRoundTrips()
     }
 
     for (const Imu &i : { kWit, kHm }) {
-        const QString wd = pinpoint::imu_roles::aliasKey(i.description, i.id);
+        const QString wd = todaysAliasKey(i.description, i.id);
         same("sensor parse→spell " + wd, DeviceKey::fromPersistedWithDescription(wd).persistedWithDescription(), wd);
         same("sensor bare parse→spell", DeviceKey::fromPersistedId(i.id).persistedId(), i.id);
         check("sensor spell→parse (with description)",
@@ -314,8 +331,8 @@ static void testIdentity()
 static void testSettingsFixture()
 {
     const QString camA = todaysCameraKey(kCamA), camB = todaysCameraKey(kCamB);
-    const QString witAlias = pinpoint::imu_roles::aliasKey(kWit.description, kWit.id);
-    const QString hmAlias  = pinpoint::imu_roles::aliasKey(kHm.description, kHm.id);
+    const QString witAlias = todaysAliasKey(kWit.description, kWit.id);
+    const QString hmAlias  = todaysAliasKey(kHm.description, kHm.id);
     const QString hmLower  = hmu::unitIdFor(kHm.id, hmu::kLowerArm), hmPalm = hmu::unitIdFor(kHm.id, hmu::kPalm);
     const QString prior    = todaysPriorKey(camA);   // camera A is the fixed face-on camera
     {
@@ -443,7 +460,7 @@ static DeviceFields deviceFields(const Cam &c)
 // The old site expression, verbatim but for the variable name (camera_manager.cpp:969 before C-1b).
 static QString todaysSiteKey(const DeviceFields &device)
 {
-    return device.description + QStringLiteral("|")
+    return device.description + QLatin1Char('|')
            + (device.capabilities.serialNumber.isEmpty() ? device.id : device.capabilities.serialNumber);
 }
 
@@ -486,7 +503,101 @@ static void testSites()
     // resource_monitor_controller.cpp:342, the sensor alias: description|deviceId, as it was open-coded.
     for (const Imu &i : { kWit, kHm })
         same("site sensor alias " + i.id, DeviceKey::sensor(i.description, i.id).persistedWithDescription(),
-             i.description + QStringLiteral("|") + i.id);
+             i.description + QLatin1Char('|') + i.id);
+
+    // C-1c's sensor sites. imu_roles::aliasKey (imu_manager.cpp's three alias reads and writes,
+    // sensorDisplayName) and shot_processor.cpp's export alias lookup spell through the type; the seed
+    // imu_manager.cpp gives a newly seen sensor asks the key for its parts, every '|' a space.
+    const QList<Imu> sensors{ kWit, kHm, { QString(), QStringLiteral("0x8020000005ac8514") },   // no description
+                              { QStringLiteral("Rig|Left|wrist"), QStringLiteral("{1}") },     // '|' in the description
+                              { QStringLiteral("Capteur é "), QStringLiteral("x") } };
+    for (const Imu &i : sensors) {
+        const QString today = todaysAliasKey(i.description, i.id);
+        same("site imu alias key (imu_roles::aliasKey) " + today, pinpoint::imu_roles::aliasKey(i.description, i.id), today);
+        same("site imu alias key (shot export) " + today, DeviceKey::sensor(i.description, i.id).persistedWithDescription(), today);
+        same("site imu alias seed " + today, pinpoint::imu_roles::seededAlias(DeviceKey::sensor(i.description, i.id)),
+             todaysSeededAlias(i.description, i.id));
+    }
+}
+
+// ── 7. SET-05: a club-length prior stored by today's code is found under the typed key ──────────────
+//
+// capture_context.cpp reads the prior and ShotProcessor writes it under ClubLengthPriorKey::persisted();
+// today's build stored it under the open-coded expression (todaysPriorKey). The store is written with
+// today's spelling, read back by a fresh AppSettings, and looked up with the typed key; then written
+// with the typed key, as the writer now does, and found with today's spelling.
+
+static void testClubLengthPrior()
+{
+    const QString unassigned = pinpoint::unassignedAthleteId().toString();
+    // The athlete's part. The capture path's uuid is AthleteController::currentUuid(), an AthleteId's own
+    // toString(), so the typed key reads it back byte for byte.
+    same("athlete uuid reads back", AthleteId::fromString(kAthlete).toString(), kAthlete);
+    same("Unassigned uuid reads back", AthleteId::fromString(unassigned).toString(), unassigned);
+
+    struct Case { const char *label; QString uuid, club; Cam cam; double lenM; };
+    const QList<Case> cases{
+        { "athlete, 7i, camera with a serial", kAthlete, kClub, kCamA, 0.94 },
+        { "athlete, driver, camera with no serial", kAthlete, QStringLiteral("Driver"), kCamB, 1.12 },
+        { "no athlete chosen", QString(), kClub, kCamA, 0.91 },
+        { "the Unassigned owner", unassigned, QStringLiteral("PW"), kCamA, 0.88 },
+        { "'|' in the camera's description", kAthlete, QStringLiteral("5i"),
+          { QStringLiteral("Rig|Cam A"), QStringLiteral("SN 9"), QStringLiteral("d") }, 0.97 },
+        { "a camera with no description", kAthlete, kClub,
+          { QString(), QString(), QStringLiteral("0x8020000005ac8514") }, 0.95 },
+    };
+    auto typed = [](const Case &c) {
+        return ClubLengthPriorKey(AthleteId::fromString(c.uuid), c.club, camKey(c.cam));
+    };
+    auto today = [](const Case &c) { return todaysPriorKey(c.uuid, c.club, todaysCameraKey(c.cam)); };
+
+    for (const Case &c : cases)
+        same(QStringLiteral("prior key = today: ") + QLatin1String(c.label), typed(c).persisted(), today(c));
+
+    {
+        AppSettings s;   // today's writer, today's keys
+        QVariantMap all;
+        for (const Case &c : cases) all[today(c)] = QVariantMap{ { "emaPx", 512.0 }, { "lenM", c.lenM } };
+        s.setClubLenPrior(all);
+    }
+    {
+        AppSettings r;   // a fresh load: the prior capture_context.cpp reads for each shot
+        QStringList want;
+        for (const Case &c : cases) {
+            want << typed(c).persisted();
+            check(QStringLiteral("prior found under the typed key: ") + QLatin1String(c.label),
+                  r.clubLenPrior().value(typed(c).persisted()).toMap().value("lenM").toDouble() == c.lenM);
+        }
+        QStringList got = r.clubLenPrior().keys();
+        got.sort(); want.sort();
+        check("analysis/clubLenPrior: stored keys = typed spellings", got == want);
+
+        // The writer (ShotProcessor::onAnalysisFinished): read, update, write back under the typed key.
+        QVariantMap all = r.clubLenPrior();
+        const QString key = typed(cases.first()).persisted();
+        QVariantMap entry = all.value(key).toMap();
+        entry[QStringLiteral("n")] = 7;
+        all[key] = entry;
+        r.setClubLenPrior(all);
+    }
+    AppSettings back;
+    check("the writer's update lands on today's entry",
+          back.clubLenPrior().size() == cases.size()
+              && back.clubLenPrior().value(today(cases.first())).toMap().value("n").toInt() == 7
+              && back.clubLenPrior().value(today(cases.first())).toMap().value("lenM").toDouble() == 0.94);
+
+    // Null means "nothing to learn for this shot": only a key with no face-on camera.
+    const AthleteId athlete = AthleteId::fromString(kAthlete);
+    check("null key", ClubLengthPriorKey().isNull() && ClubLengthPriorKey().persisted().isNull());
+    check("a sensor is no face-on camera", ClubLengthPriorKey(athlete, kClub, imuKey(kWit)).isNull());
+    check("no camera, no key", ClubLengthPriorKey(athlete, kClub, DeviceKey()).isNull());
+    check("no athlete still keys a prior", !ClubLengthPriorKey(AthleteId(), kClub, camKey(kCamA)).isNull());
+    check("equal parts, equal keys",
+          ClubLengthPriorKey(athlete, kClub, camKey(kCamA)) == ClubLengthPriorKey(athlete, kClub, camKey(kCamA)));
+    check("another camera is another prior",
+          ClubLengthPriorKey(athlete, kClub, camKey(kCamA)) != ClubLengthPriorKey(athlete, kClub, camKey(kCamB)));
+    check("another club is another prior",
+          ClubLengthPriorKey(athlete, kClub, camKey(kCamA)) != ClubLengthPriorKey(athlete, QStringLiteral("PW"), camKey(kCamA)));
 }
 
 // ── 6. A store written by today's code gives each role the same crop through cropFor ──────────────
@@ -522,6 +633,7 @@ int main(int argc, char **argv)
     testSettingsFixture();
     testSites();
     testFixtureCrops();
+    testClubLengthPrior();
     std::printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

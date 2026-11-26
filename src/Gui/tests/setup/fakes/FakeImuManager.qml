@@ -242,16 +242,22 @@ QtObject {
         s = (s || "").replace(/\{?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}?/g, "")
         return s.replace(/\s+/g, " ").trim()
     }
+    // The appSettings.imuAlias key, "<description>|<id>": the one place the fakes and the tests spell
+    // it, as imu_roles::aliasKey (DeviceKey::persistedWithDescription()) does in C++. It only spells.
+    function aliasKey(description, deviceId) {
+        return description + "|" + deviceId
+    }
     function displayNameForDevice(deviceId) {
         var d = _find(deviceId), desc = "", alias = ""
         var aliases = appSettings.imuAlias || ({})
         if (d) {
             desc = d.description
-            alias = d.alias || aliases[desc + "|" + deviceId] || ""
+            alias = d.alias || aliases[aliasKey(desc, deviceId)] || ""
         } else {
+            var tail = aliasKey("", deviceId)                 // "|<id>", as sensorDisplayName scans
             for (var key in aliases)
-                if (key.length > deviceId.length && key.slice(-(deviceId.length + 1)) === "|" + deviceId) {
-                    desc = key.slice(0, key.length - deviceId.length - 1); alias = aliases[key]; break
+                if (key.length > deviceId.length && key.slice(-tail.length) === tail) {
+                    desc = key.slice(0, key.length - tail.length); alias = aliases[key]; break
                 }
         }
         if (alias === desc + " " + deviceId) alias = ""

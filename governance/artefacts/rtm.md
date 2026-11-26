@@ -26,7 +26,7 @@
 | 1. rtm.md is stale | checked by `--check` | | | |
 | 2. An id cited anywhere does not exist, or is withdrawn | 0 | 0 | 0 | 0 |
 | 3. A delivered, built or partial row without evidence of every kind it needs | 310 | 0 | 310 | 0 |
-| 4. A test with no requirement or control label | 430 | 0 | 430 | 0 |
+| 4. A test with no requirement or control label | 429 | 0 | 429 | 0 |
 | 5. An open enhancement with no Requirement: line, or one naming an unknown id | 66 | 0 | 66 | 0 |
 | 6. An open bug naming a delivered row: the row is failing | 0 | 0 | 0 | 0 |
 | 7. A planned row whose issues are all closed | 0 | 0 | 0 | 0 |
@@ -438,7 +438,6 @@ None.
 - `4 design_system_tokens_check`: design_system_tokens_check has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
 - `4 det_rng_test`: det_rng_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
 - `4 device_clock_mapper_test`: device_clock_mapper_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
-- `4 device_key_test`: device_key_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
 - `4 diag_footer_test`: diag_footer_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
 - `4 diag_parallel_live_test`: diag_parallel_live_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
 - `4 diag_stage_panel_test`: diag_stage_panel_test has no requirement or control label: name what it proves with pp_requirement() (or a // REQ: line in a tst_*.qml file), or, for a mechanical rename, make_rtm.py --rename <old> <new>; a test that proves neither is an accepted gap, approved by the Solution Architect (baseline)
@@ -1382,7 +1381,7 @@ Status, Release and MoSCoW are the page's. **Supports** is the status the eviden
 | REQ-INST-14 | proposed · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #357 open | UC-1 |
 | REQ-INST-15 | planned (#350) | v2 | Should | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #350 open | UC-2 |
 | REQ-INST-16 | proposed · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #351 open | UC-2 |
-| REQ-INST-17 | proposed · to confirm | v1 | Must | E5 E6 E7 |  | E5 E6 E7 | page |  |  | #351 open | UC-2 |
+| REQ-INST-17 | proposed · to confirm | v1 | Must | E5 E6 E7 | E1 | E5 E6 E7 | page | `device_key_test` |  | #351 open | UC-2 |
 
 ### Non-functional: reliability
 
@@ -1465,10 +1464,11 @@ Status, Release and MoSCoW are the page's. **Supports** is the status the eviden
 
 ## Labelled tests
 
-433 tests are registered in the source; 3 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+433 tests are registered in the source; 4 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
+| `device_key_test` | E1 | REQ-INST-17 | macos | `src/Gui/tests/CMakeLists.txt` |
 | `rtm_check` | E1 | CTL-BT-39 | macos | `src/Gui/tests/CMakeLists.txt` |
 | `rtm_selftest` | E1 | CTL-BT-39 | macos | `src/Gui/tests/CMakeLists.txt` |
 | `secret_store_test` | E1 | REQ-PRIV-3 | macos | `src/Gui/tests/report_smtp_tests.cmake` |

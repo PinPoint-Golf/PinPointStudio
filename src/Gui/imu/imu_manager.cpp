@@ -175,12 +175,13 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
         if (dev.type != DeviceType::Imu) return;
         setImuScanError(QString());   // a device appeared — discovery is healthy
         // Seed alias for newly-seen device so it always has a value.
-        const QString imuKey = pinpoint::imu_roles::aliasKey(dev.description, dev.id);
+        const pinpoint::rig::DeviceKey sensor = pinpoint::rig::DeviceKey::sensor(dev.description, dev.id);
+        const QString imuKey = sensor.persistedWithDescription();
         AppSettings  fallback;
         AppSettings *s = m_appSettings ? m_appSettings : &fallback;
         QVariantMap aliasMap = s->imuAlias();
         if (!aliasMap.contains(imuKey)) {
-            aliasMap[imuKey] = QString(imuKey).replace(QLatin1Char('|'), QLatin1Char(' '));
+            aliasMap[imuKey] = pinpoint::imu_roles::seededAlias(sensor);
             s->setImuAlias(aliasMap);
         }
         // ⚠ THE MIGRATION HOOK, and this is the right one. A wG3 must be

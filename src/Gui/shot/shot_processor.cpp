@@ -585,7 +585,7 @@ void ShotProcessor::finishGatherAndLaunch()
             *m_swingWindow, cams, m_imuManager, m_appSettings,
             pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
             m_sessionType, static_cast<int>(m_shotSource), m_impactUs));
-        // Per-shot club-length prior stash: empty/cold when this shot has no athlete/club/fixed-in-place
+        // Per-shot club-length prior stash: null/cold when this shot has no club or no fixed-in-place
         // face-on camera, which onAnalysisFinished() reads as "nothing to persist".
         m_lengthPriorKey   = m_capture->lengthPriorKey;
         m_lengthPriorState = m_capture->lengthPriorState;
@@ -1002,7 +1002,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         const QString serial = dev.imuCapabilities.serialNumber.isEmpty()
                                    ? dev.id
                                    : dev.imuCapabilities.serialNumber;
-        const QString imuKey = dev.description + QStringLiteral("|") + dev.id;
+        const QString imuKey = pinpoint::rig::DeviceKey::sensor(dev.description, dev.id).persistedWithDescription();
         const QString alias  = imuAliases.value(imuKey).toString().trimmed();
         if (!alias.isEmpty())
             job.imuAliasBySerial.insert(serial, alias);
@@ -1593,11 +1593,11 @@ void ShotProcessor::onAnalysisFinished()
 
     // Persistent club-length prior update (club_length_fusion.h / plan: robust
     // club length — starry-shimmying-wind) — LIVE path only. m_lengthPriorKey was
-    // stashed from the capture snapshot (empty ⇒ no athlete/club/fixed-in-place
+    // stashed from the capture snapshot (null ⇒ no club or no fixed-in-place
     // face-on camera this shot, nothing to persist). Folds ONLY the PRIOR-FREE
     // fusedInstant* value into the prior — never the WITH-prior fusedPx, which
     // would self-reinforce (club_length_fusion.h updateLengthPrior comment).
-    if (m_analysisResult.ok && m_analysisResult.detail && !m_lengthPriorKey.isEmpty()) {
+    if (m_analysisResult.ok && m_analysisResult.detail && !m_lengthPriorKey.isNull()) {
         const pinpoint::analysis::ClubLengthEstimate &lengths = m_analysisResult.detail->shaft.lengths;
         const pinpoint::analysis::LengthFusionConfig cfg;   // defaults — live path doesn't sweep fusion.*
         if (lengths.fusedInstantPx > 0.0 && lengths.fusedInstantConf >= cfg.updateConfMin) {
@@ -1605,8 +1605,9 @@ void ShotProcessor::onAnalysisFinished()
                                                   lengths.fusedInstantConf, cfg);
             AppSettings  fallback;
             AppSettings *s = m_appSettings ? m_appSettings : &fallback;
+            const QString key = m_lengthPriorKey.persisted();   // "<athlete>|<club>|<camera>", today's spelling
             QVariantMap all   = s->clubLenPrior();
-            QVariantMap entry = all.value(m_lengthPriorKey).toMap();
+            QVariantMap entry = all.value(key).toMap();
             entry[QStringLiteral("emaPx")]          = m_lengthPriorState.emaPx;
             entry[QStringLiteral("varPx")]          = m_lengthPriorState.varPx;
             entry[QStringLiteral("n")]              = m_lengthPriorState.n;
@@ -1615,7 +1616,7 @@ void ShotProcessor::onAnalysisFinished()
             entry[QStringLiteral("frameW")]         = m_analysisResult.detail->shaft.frameWidth;
             entry[QStringLiteral("frameH")]         = m_analysisResult.detail->shaft.frameHeight;
             entry[QStringLiteral("lastUpdatedUtc")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-            all[m_lengthPriorKey] = entry;
+            all[key] = entry;
             s->setClubLenPrior(all);
         }
     }

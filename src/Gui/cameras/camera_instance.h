@@ -40,6 +40,7 @@
 #include "raw_video_frame.h"
 #include "ting_player.h"
 #include "types.h"
+#include "../../Vocabulary/Rig/device_key.h"
 
 namespace pinpoint { class EventBuffer; }
 
@@ -200,6 +201,9 @@ public:
     QString deviceDescription()   const;
     QString deviceSerialNumber()  const;
     QString cameraKey()           const;
+    // The device key cameraKey() spells: built from the device's own facts, for a caller that keys a
+    // map by something more than the camera (the club-length prior, SET-05).
+    pinpoint::rig::DeviceKey deviceKey() const;
     QString deviceAlias()         const;
     void    setDeviceAlias(const QString &alias);
     int     perspective() const;

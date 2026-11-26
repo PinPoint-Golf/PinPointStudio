@@ -389,7 +389,6 @@
 4 design_system_tokens_check
 4 det_rng_test
 4 device_clock_mapper_test
-4 device_key_test
 4 diag_footer_test
 4 diag_parallel_live_test
 4 diag_stage_panel_test

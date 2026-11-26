@@ -25,6 +25,7 @@
 #include <functional>
 
 #include "../../Vocabulary/Common/segment_role.h"
+#include "../../Vocabulary/Rig/device_key.h"
 
 // ---------------------------------------------------------------------------
 // Role-keyed IMU placement — the pure logic (session_wizard_refactor_design.md §4.13)
@@ -75,11 +76,20 @@ inline bool isPlacementRole(const QString &role)
 // arm. "D", "other" and "" have no role and answer "". Trunk roles have no letter.
 // ── A sensor's name, as the golfer may read it (Stage 5d) ────────────────────────────
 //
-// The alias map (AppSettings::imuAlias) is keyed "<description>|<deviceId>" — this is that
-// key, the ONE spelling; ImuManager builds and reads it only through here.
+// The alias map (AppSettings::imuAlias) is keyed "<description>|<deviceId>": the sensor key's
+// spelling with its description (DeviceKey::persistedWithDescription(), the one spelling). Key the
+// map by that spelling, never by DeviceKey equality: two descriptions of one id are two entries.
 inline QString aliasKey(const QString &description, const QString &deviceId)
 {
-    return description + QStringLiteral("|") + deviceId;
+    return rig::DeviceKey::sensor(description, deviceId).persistedWithDescription();
+}
+
+// imu/alias: the name a newly seen sensor is given, its key's parts with EVERY '|' a space (a '|'
+// inside the description too), as ImuManager has always seeded it. The camera's rule is the same
+// (pp_camroi::seededAlias). Here, beside the key, so a test calls it.
+inline QString seededAlias(const rig::DeviceKey &sensor)
+{
+    return QString(sensor.description() + QLatin1Char(' ') + sensor.id()).replace(QLatin1Char('|'), QLatin1Char(' '));
 }
 
 // The name to show for a sensor, from what is REMEMBERED — it may be switched off and so absent
