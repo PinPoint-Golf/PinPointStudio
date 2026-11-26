@@ -33,30 +33,112 @@ This governance applies to PinPoint Studio only. Its sibling repositories (the p
 | **Exception** | An approved departure from a control, recorded in the exceptions register (below), with its reason. | the allowlists |
 | **Compliance** | How a control is checked: an automated test or lint, named; a review; a recorded approval (by the role named); a statement in the commit or the plan; or "none yet". | each control |
 
-## The layout
+## How it fits together
 
-- [`roles.md`](roles.md): the four roles that approve changes, the documents each owns, and the agent roles.
-- [`policies.md`](policies.md): the principles.
-- [`controls/`](controls/), by stage of work, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work. [`controls/product/`](controls/product/) holds the controls on what the product must do: [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md), [`ui-behaviour.md`](controls/product/ui-behaviour.md) and [`capture-and-session.md`](controls/product/capture-and-session.md); the build and review stages point to them.
-- [`procedures/`](procedures/README.md): step-by-step procedures, including the release procedures and the capture and corpus collection protocols.
-- [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md).
-- [`artefacts/`](artefacts/README.md): the governing specifications (the requirements and the use cases over them, the information model, the lifecycle model, the design system, the sign conventions, the normative reference, the IMU frame contract, the test strategy and its observations register), each with its owning role.
-- [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here.
+The documents here fall into four groups, each named by the question it answers[^groups]:
 
-Each control is written once, in the first stage where it applies; later stages list it by id with a few plain words and a link, never a copy. Every control id appears in at least one stage or kind of work[^structure].
+1. [**Product: what we build and why.**](#1-product-what-we-build-and-why) The requirements, the use cases over them, the norms, and the controls on what the product must do.
+2. [**Architecture and platform: how it is shaped.**](#2-architecture-and-platform-how-it-is-shaped) The information model, the lifecycle model, the sign conventions, the IMU frame contract and the design system.
+3. [**Assurance: how we know it works.**](#3-assurance-how-we-know-it-works) The test strategy, the observations register, the traceability matrix (planned) and the exception lists the lints read.
+4. [**Method and tools: how we work.**](#4-method-and-tools-how-we-work) The policies, the controls by stage, the procedures, the guidance, the roles, and the tools that check them.
 
-## A control's format
+The register of artefacts, [`artefacts/README.md`](artefacts/README.md), says what each governing document governs; the tables below link to it and add the owner, the question and what checks each one. Each owner is the one that [`roles.md`](roles.md) ("The documents each role owns") and the register name.
 
+### The trace chain
+
+How a need travels from the golfer's goal to a release, and which document shapes or checks each step. A solid arrow is a step in the chain; a dotted arrow is a document read or applied beside it, not a step. A dashed box is planned: ruled, not built yet.
+
+```mermaid
+flowchart TD
+    EP["Epics (EP-n)<br/>use_cases.md · Product Owner"]
+    UC["Use cases (UC-n)<br/>use_cases.md · Product Owner"]
+    REQ["Requirements (REQ-…)<br/>requirements.md · Product Owner"]
+    subgraph SHAPE["Shaped by"]
+        IM["Information model<br/>Solution Architect"]
+        LC["Lifecycle model<br/>Solution Architect"]
+        SC["Sign conventions, IMU frame contract<br/>Solution Architect"]
+        DS["Design system<br/>Design Lead"]
+        NR["Normative reference: the norms<br/>Coaching Lead"]
+        PC["Product controls<br/>each control's owner"]
+    end
+    CODE["Code"]
+    LINT["Lints: architecture, design system, QML rule"]
+    EXC["Exception lists<br/>each lint's owner"]
+    TS["Test strategy<br/>Solution Architect"]
+    TEST["Tests, each naming what it proves"]
+    OBS["Observations register<br/>rtm_observations.csv · Solution Architect"]
+    RTM["Traceability matrix: rtm.md, planned<br/>generated, checked by rtm_check"]
+    GAPS["Accepted gaps and baseline, planned"]
+    REL["Release"]
+
+    EP -->|groups| UC
+    UC -->|"organises, through uc-map.csv"| REQ
+    REQ --> SHAPE
+    SHAPE --> CODE
+    LINT -->|"checks the code against the rules"| CODE
+    EXC --> LINT
+    CODE -->|"proved by"| TEST
+    CODE -->|"seen on a named build"| OBS
+    TS -.->|"what counts as evidence"| TEST
+    TS -.-> OBS
+    REQ --> RTM
+    UC -.->|"uc-map.csv"| RTM
+    TEST --> RTM
+    OBS --> RTM
+    GAPS --> RTM
+    RTM -->|"no flag outside the gaps"| REL
+
+    classDef planned stroke-dasharray: 5 5
+    class RTM,GAPS planned
 ```
-**ID.** The control, worded with "must" or "must not".
-Details, where needed.
-*Why:* the reason, or the incident behind it.[^source]
-*Owner:* the role · *Stage:* where it first applies · *Compliance:* how it is checked
+
+### The stage gates
+
+Each change passes seven stages. A stage's file holds every control that first applies there; this shows only the controls on the trace chain above, so it is a map, not the list.
+
+```mermaid
+flowchart TD
+    D["1 Decide<br/>approvals before building: the information model (Solution Architect),<br/>the design system (Design Lead), norms and fault edges (Coaching Lead), scope (Product Owner)"]
+    P["2 Plan<br/>BT-38: the requirements served and the evidence for each<br/>AD-51: the object's lifecycle first"]
+    B["3 Build<br/>AD-52: no rule in QML"]
+    T["4 Test<br/>BT-39: a test names what it proves<br/>BT-40: a test that cannot fail is strengthened or retired"]
+    R["5 Review<br/>BT-41: the evidence is checked, and was seen to fail"]
+    C["6 Commit<br/>GIT-6: tests and docs in the same commit<br/>GIT-14: a fix carries its evidence"]
+    L["7 Release<br/>BT-17: every test passes<br/>BT-42: the matrix, the smoke checklist and the observations"]
+    D --> P --> B --> T --> R --> C --> L
 ```
 
-Ids are unique across the folder and never reused; the prefixes are `GIT`, `BT`, `CODE`, `AD`, `DC`, `UI`, `AG`, `POL` (policies) and `L` (lessons), and the Product Owner's three rules keep `G1`, `G2` and `G3`[^po-g]; the file names and this scheme are ruled[^d11]. Where a requirement is already stated in an artefact (the information model, the design system, `roles.md`), the control points to it and does not restate it[^trace]. An owner marked "(proposed)" is a role assigned in drafting, for that role to confirm.
+## 1. Product: what we build and why
 
-## The exceptions register
+| Document | Owner | The question it answers | What checks it |
+|---|---|---|---|
+| [`requirements.md`](artefacts/requirements.md) | Product Owner | What must the app do for golfers and coaches, and why? | The owner's approval of each change (its "How a requirement changes"); a plan names the requirements it serves ([BT-38](controls/plan.md), a review of the plan); `rtm_check` (planned) |
+| [`use_cases.md`](artefacts/use_cases.md) and [`uc-map.csv`](artefacts/uc-map.csv) | Product Owner | What is a golfer, a coach or a studio owner trying to do, and which requirements serve it? | The owner's approval, as for the requirements (its "How it changes"); the matrix's generator reads `uc-map.csv` (planned) |
+| [`normative_reference.md`](artefacts/normative_reference.md) | Coaching Lead | What do the diagnostics grade a swing against? | The Coaching Lead's recorded approval for a norm becoming proven or a fault edge ([DC-1](controls/decide.md), [DC-2](controls/decide.md)); no automated check |
+| [`controls/product/`](controls/product/): [`analysis-and-data.md`](controls/product/analysis-and-data.md), [`diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md), [`ui-behaviour.md`](controls/product/ui-behaviour.md), [`capture-and-session.md`](controls/product/capture-and-session.md) | each control's owner | What must the product do with its data, its faults, its screens and a session? | Each control's own compliance; the build and review stages point to them |
+
+## 2. Architecture and platform: how it is shaped
+
+| Artefact | Owner | The question it answers | What checks it |
+|---|---|---|---|
+| [`information_model.md`](artefacts/information_model.md) | Solution Architect | What are the domain's objects, who owns each, and where does it live? | The Solution Architect's approval before building (§1.2); `architecture_lint_test` A1–A8 (§1.4), its exceptions in the register below |
+| [`lifecycle_model.md`](artefacts/lifecycle_model.md) | Solution Architect | What states can an object be in, and what does each guarantee? | [AD-51](controls/plan.md) (a review of the plan); an information-model change of kind C1 or C3 names its section (`information_model.md` §1.2) |
+| [`sign_conventions.md`](artefacts/sign_conventions.md) | Solution Architect | Which way is positive, for every angle and direction? | The owner's approval; no automated check |
+| [`imu_frame_contract.md`](artefacts/imu_frame_contract.md) | Solution Architect | Which frames does a motion sensor deliver into? | The owner's approval; no automated check |
+| [`design_system/`](artefacts/design_system/README.md) | Design Lead | What does a screen look like, and what is it built from? | The Design Lead's approval before building, or the lighter route ([UI-20](controls/decide.md)); `design_system_lint_test` D1–D5, its exceptions in the register below; `design_system_tokens_check`; review sheets ([UI-17](controls/review.md)) |
+
+## 3. Assurance: how we know it works
+
+| Artefact | Owner | The question it answers | What checks it |
+|---|---|---|---|
+| [`test_strategy.md`](artefacts/test_strategy.md) | Solution Architect | What counts as evidence that a requirement is met? | The owner's approval; it is applied by [POL-9](policies.md) and [BT-38](controls/plan.md) to [BT-42](controls/release.md) |
+| [`rtm_observations.csv`](artefacts/rtm_observations.csv) | Solution Architect | Which runs, probes and visits, on which build, bear on which requirement? | The reviewer reads the recorded observation ([BT-41](controls/review.md)); the release check ([BT-42](controls/release.md)); `rtm_check` (planned) |
+| `artefacts/rtm.md`, the traceability matrix (planned: generated, not built yet) | not ruled | Which requirements have the evidence they need, and which do not? | `rtm_check` (planned), against its accepted gaps and its baseline, `artefacts/rtm_baseline.txt` (planned); the release check ([BT-42](controls/release.md)). Its design is `test_strategy.md` §8 |
+| `artefacts/rtm_accepted_gaps.txt` and `artefacts/rtm_baseline.txt` (planned) | the accepted gaps: as the register below; the baseline: not ruled | Which gaps are accepted, and which are today's, to shrink? | `rtm_check` (planned) |
+
+The tests that check the rules, and what each checks, are listed in [`controls/test.md`](controls/test.md), "The checks".
+
+### The exceptions register
 
 The lint allowlists are the register of approved exceptions. They stay where the tests read them:
 
@@ -68,6 +150,31 @@ The lint allowlists are the register of approved exceptions. They stay where the
 | `governance/artefacts/rtm_accepted_gaps.txt` (once it lands) | `rtm_check` (once built) | Product Owner (the Solution Architect for a gap in a test's or a control's labelling)[^rtm-gaps] |
 
 Each line names the exception and its reason. A line is never added to make a test pass: the code is fixed, or the owning role approves the exception[^allow].
+
+## 4. Method and tools: how we work
+
+| Document | Owner | The question it answers | What checks it |
+|---|---|---|---|
+| [`policies.md`](policies.md) | each policy's role, in its footnote | What principles does all work follow? | The controls each policy names |
+| [`controls/`](controls/), by stage, in order: [`decide.md`](controls/decide.md), [`plan.md`](controls/plan.md), [`build.md`](controls/build.md), [`test.md`](controls/test.md), [`review.md`](controls/review.md), [`commit.md`](controls/commit.md), [`release.md`](controls/release.md); then [`kinds-of-work.md`](controls/kinds-of-work.md), the extras for a feature, a bug fix, a refactor, and data and analysis work | each control's owner | What must a change meet, at each stage? | Each control's own compliance: a named test or lint, a review, a recorded approval, a statement, or "none yet" |
+| [`procedures/`](procedures/README.md): the step-by-step procedures, including the release procedures and the capture and corpus collection protocols | not ruled | What are the steps? | The controls each step carries out; a procedure adds no rule of its own |
+| [`guidance/`](guidance/): [`advice.md`](guidance/advice.md) and [`lessons.md`](guidance/lessons.md) | not ruled | What has been learned, and what is good practice? | Nothing: guidance is not checked |
+| [`roles.md`](roles.md): the four roles that approve changes, the documents each owns, and the agent roles | not ruled (approved 22 Nov 2026) | Who decides what? | None named |
+| [`AGENTS.md`](AGENTS.md): what applies only to agents. The repository's root `AGENTS.md` and `CONTRIBUTING.md` point here | not ruled | What binds an agent beyond the rest? | The controls it points to |
+| The tools: the lints and checks ([`controls/test.md`](controls/test.md), "The checks") and the method's tools ([`tools/method/`](../tools/method/README.md)) | a lint's rules and exceptions: their owner in the register above | What checks the rules, and what helps work follow them? | ctest runs the lints, and the method tools' self-tests |
+
+Each control is written once, in the first stage where it applies; later stages list it by id with a few plain words and a link, never a copy. Every control id appears in at least one stage or kind of work[^structure].
+
+### A control's format
+
+```
+**ID.** The control, worded with "must" or "must not".
+Details, where needed.
+*Why:* the reason, or the incident behind it.[^source]
+*Owner:* the role · *Stage:* where it first applies · *Compliance:* how it is checked
+```
+
+Ids are unique across the folder and never reused; the prefixes are `GIT`, `BT`, `CODE`, `AD`, `DC`, `UI`, `AG`, `POL` (policies) and `L` (lessons), and the Product Owner's three rules keep `G1`, `G2` and `G3`[^po-g]; the file names and this scheme are ruled[^d11]. Where a requirement is already stated in an artefact (the information model, the design system, `roles.md`), the control points to it and does not restate it[^trace]. An owner marked "(proposed)" is a role assigned in drafting, for that role to confirm.
 
 ## Adding or changing a policy or control
 
@@ -105,3 +212,4 @@ Guidance that becomes mandatory moves to the stage where it first applies, as a 
 [^nn]: Product Owner, 26 Nov 2026: the list is approved, chosen for the misses that have actually happened, not for completeness; line 1's evidence rule was ruled with the test strategy's controls (Product Owner and Solution Architect, 26 Nov 2026).
 [^sa-w12]: Product Owner and Solution Architect, 26 Nov 2026: the QML-rule check lands with a shrink-only exception list, each line pointing to an issue, and its owner is the Solution Architect.
 [^rtm-gaps]: Product Owner and Solution Architect, 26 Nov 2026, with [BT-42](controls/release.md) and the test strategy.
+[^groups]: Product Owner, 26 Nov 2026: "the governance README needs to be updated to show Product and Requirements Management, Architecture and Platform, Methods and Tools sections, or perhaps something better, to show the relationships between all the artefacts and how they govern the project; a diagram might be useful." The four groups, their names and their questions: approved by the Product Owner, 26 Nov 2026 ("yes, that makes sense. go"); the matrix's home and design are ruled (Product Owner, 25 Nov 2026, in `requirements.md`; `test_strategy.md` §8), and it is not built yet.
