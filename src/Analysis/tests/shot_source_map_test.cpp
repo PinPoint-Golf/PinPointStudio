@@ -162,12 +162,46 @@ static void testModalityMembership()
           fromArbSource(ArbSource::Ball)     != ShotController::Source::Manual);
 }
 
+// ---------------------------------------------------------------------------
+// T — the shot processor's timings (lifted here from shot_processor.cpp, #394 step 81)
+// ---------------------------------------------------------------------------
+
+static void testTimings()
+{
+    std::printf("\nT — the post-roll per source and the two deadlines\n");
+    using S = ShotController::Source;
+    check("T1 Manual's post-roll is 500 ms: the press comes after the swing", postRollMsFor(S::Manual) == 500);
+    check("T2 Imu's is 1250 ms",      postRollMsFor(S::Imu) == 1250);
+    check("T3 Pose's is 1250 ms",     postRollMsFor(S::Pose) == 1250);
+    check("T4 Ball's is 1250 ms",     postRollMsFor(S::Ball) == 1250);
+    check("T5 Acoustic's is 1250 ms", postRollMsFor(S::Acoustic) == 1250);
+    check("T6 Ppcp takes Manual's value, on purpose: its t0 is back-dated on arrival",
+          postRollMsFor(S::Ppcp) == postRollMsFor(S::Manual));
+    check("T7 the library gives up 7 s past impact", kHistoryDeadlineUs == 7'000'000);
+    check("T8 the gather gives up 6 s past the pause", kGatherDeadlineMs == 6'000);
+
+    // ⚠ THE ORDER. The pause comes a post-roll after the trigger, and a detector's impact is never after its trigger,
+    // so the gather's deadline lies at least postRoll + 6 s past impact. For it to sit outside the library's (7 s past
+    // impact), the post-roll must pass 1 s: true of every detector. Manual and Ppcp (500 ms) are ordered only by their
+    // back-dating, which this table cannot see: their instant must lie more than 0.5 s before the trigger.
+    for (S s : { S::Imu, S::Pose, S::Ball, S::Acoustic }) {
+        char label[160];
+        std::snprintf(label, sizeof label,
+                      "T9 %s: the library's deadline sits inside ours (post-roll %d ms + %d ms > %lld ms)",
+                      srcName(s), postRollMsFor(s), kGatherDeadlineMs, (long long)(kHistoryDeadlineUs / 1000));
+        check(label, qint64(postRollMsFor(s)) + kGatherDeadlineMs > kHistoryDeadlineUs / 1000);
+    }
+    static_assert(postRollMsFor(S::Imu) + kGatherDeadlineMs > kHistoryDeadlineUs / 1000,
+                  "the deadlines are ordered for a detector source at compile time too");
+}
+
 int main()
 {
     std::printf("shot_source_map_test — shot provenance across the arbiter\n");
     testWireFormat();
     testRoundTrip();
     testModalityMembership();
+    testTimings();
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

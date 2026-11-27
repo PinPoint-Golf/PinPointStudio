@@ -25,6 +25,7 @@
 #include <QStringList>
 #include <QThread>
 #include <QVariantList>
+#include <QVector>
 
 #include "app_settings.h"
 #include "device_enumerator.h"
@@ -34,6 +35,8 @@
 #include "../../IMU/imu_role_map.h"
 #include "../../Vocabulary/Rig/rig_state.h"   // the Rig's two parts, handed in as a value
 #include "types.h"
+
+namespace pinpoint { class DeferredSource; }   // ../shot/deferred_source.h (the shot processor's gather)
 
 namespace pinpoint { class EventBuffer; }
 
@@ -149,6 +152,9 @@ public:
     QVariantList imuList()            const;
     QVariantList imuDeviceList()      const;
     QVariantList instances()          const;
+    // The selected sensors whose best data arrives after the swing (a HackMotion), for the shot processor's gather
+    // (ShotProcessor::setDeferredSources; #394 step 81). In the order instances() lists them.
+    QVector<pinpoint::DeferredSource *> deferredSources() const;
     bool         anySelected()        const;
     int          imuEnumeratedCount() const;
     bool         imuConnected()       const;

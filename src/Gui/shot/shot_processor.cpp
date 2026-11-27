@@ -34,6 +34,7 @@
 #include "imu_manager.h"
 #include "shot_list_model.h"
 #include "shot_outcome.h"
+#include "shot_source_map.h"   // the post-roll per source and the two deadlines (#394, step 81)
 #include "../Club/club_length_fusion.h"
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
@@ -69,18 +70,8 @@ namespace rec = pinpoint::recording;   // the one perspective type (perspective.
 
 namespace {
 
-// Post-trigger capture continuation, per source — the buffer keeps capturing
-// for this long after the trigger so the follow-through lands in the ring
-// before it freezes. Auto detectors use 1250 ms (segmentation v3: the finish
-// is follow-through ~0.67 s + decay-to-still, physically truncated at 500 ms
-// — design A.6; impact then sits ~2.75 s into the 4 s ring, leaving ample
-// pre-impact room). Manual stays 500 ms: the user presses after the swing and
-// impact is back-dated, so the finish is already in the ring.
-constexpr int kPostRollManualMs   = 500;
-constexpr int kPostRollImuMs      = 1250;
-constexpr int kPostRollPoseMs     = 1250;
-constexpr int kPostRollBallMs     = 1250;
-constexpr int kPostRollAcousticMs = 1250;
+// The post-roll per source (postRollMsFor) and the two deadlines (kHistoryDeadlineUs, kGatherDeadlineMs) are in
+// shot_source_map.h, where shot_source_map_test pins them (#394, step 81).
 
 // ── The impact camera's keep band (impact_camera_design.md §10.2) ───────────
 //
@@ -104,20 +95,7 @@ constexpr int64_t kImpactKeepFallbackUs = 500'000;
 // stays lossless (min).
 constexpr int     kImpactClipCrf        = 12;
 
-// ── Deferred gather (deferred_sources_design.md §4.1, brief Phase E) ────────
-//
-// A pull takes about as long as its window spans and the library serialises
-// them, so a 3 s pre / 1.5 s post request costs ~4.5 s — and it cannot start
-// until the window's last sample exists, at impact + 1.5 s. Reserving at
-// DETECTION hides most of that inside the post-roll we were taking anyway.
-//
-// ⚠ THE TWO DEADLINES ARE ORDERED ON PURPOSE. The library's deadline sits just
-// INSIDE ours, so a slow pull materialises its own block — carrying whatever
-// arrived plus its coverage — rather than being cancelled by our timeout. A
-// cancelled request still produces a block, but one that says CANCELLED where
-// the honest answer was TIMED_OUT with 60 % coverage.
-constexpr qint64 kHistoryDeadlineUs = 7'000'000;   // past impact: library gives up here
-constexpr int    kGatherDeadlineMs  = 6'000;       // past pause:  we give up here
+// The deferred gather's poll (the two deadlines it polls against are in shot_source_map.h).
 constexpr int    kGatherPollMs      = 50;
 
 // The subset of a snapshot belonging to one source, ascending — the live half
@@ -129,28 +107,6 @@ std::vector<pinpoint::IndexEntry> entriesForIn(
     for (const pinpoint::IndexEntry &e : all)
         if (e.source_id == id) out.push_back(e);
     return out;
-}
-
-int postRollMsFor(ShotController::Source s)
-{
-    switch (s) {
-    case ShotController::Source::Manual:   return kPostRollManualMs;
-    case ShotController::Source::Imu:      return kPostRollImuMs;
-    case ShotController::Source::Pose:     return kPostRollPoseMs;
-    case ShotController::Source::Ball:     return kPostRollBallMs;
-    case ShotController::Source::Acoustic: return kPostRollAcousticMs;
-    // ⚠ MANUAL'S VALUE, AND ON PURPOSE.  The post-roll exists to let a
-    // back-dated estimate settle before the ring is frozen; a PPCP `t0` has
-    // already waited out the arbiter's whole `issue_hold_ns` on the wire, plus
-    // link latency and up to one pump tick, before it ever reaches this
-    // process.  Adding the acoustic detector's 1250 ms on top of that would
-    // push impact further from the window's trailing edge and eat the
-    // pre-impact reach the analyzer needs, for no settling that has not already
-    // happened.  Manual is the short value for exactly the same reason: it is
-    // the one other Source whose instant is fully back-dated on arrival.
-    case ShotController::Source::Ppcp:     return kPostRollManualMs;
-    }
-    return kPostRollManualMs;
 }
 
 // The entire trailing ring — every source's window_duration. Trimmed 5 s → 4 s
@@ -309,12 +265,12 @@ void ShotProcessor::onShotDetected(ShotController::Source source,
     // instead of being added after it. Reserving does not block and issues no
     // radio traffic. A refusal is recorded by the source and changes nothing
     // here: a shot with no deferred data is the ordinary path, not an error.
-    for (HmInstance *hm : deferredSources())
-        hm->reserveHistory(timestampUs, timestampUs + kHistoryDeadlineUs);
+    for (pinpoint::DeferredSource *hm : deferredSources())
+        hm->reserveHistory(timestampUs, timestampUs + pinpoint::kHistoryDeadlineUs);
 
     setAnalysisProgress(0.0);   // the ANALYSING bar starts empty for each shot
     setState(State::PostRoll);
-    m_postRollTimer.start(postRollMsFor(source));
+    m_postRollTimer.start(pinpoint::postRollMsFor(source));
 }
 
 void ShotProcessor::onPostRollExpired()
@@ -328,14 +284,9 @@ void ShotProcessor::onPostRollExpired()
 // Window capture → concurrent analysis + export
 // ---------------------------------------------------------------------------
 
-QVector<HmInstance *> ShotProcessor::deferredSources() const
+QVector<pinpoint::DeferredSource *> ShotProcessor::deferredSources() const
 {
-    QVector<HmInstance *> out;
-    if (!m_imuManager) return out;
-    for (const QVariant &v : m_imuManager->instances())
-        if (auto *hm = qobject_cast<HmInstance *>(v.value<QObject *>()))
-            out.push_back(hm);
-    return out;
+    return m_deferredSources ? m_deferredSources() : QVector<pinpoint::DeferredSource *>{};
 }
 
 void ShotProcessor::beginGather()
@@ -380,7 +331,7 @@ void ShotProcessor::beginGather()
     m_ringSource = m_buffer->makeRingPayloadSource();
 
     int pending = 0;
-    for (HmInstance *hm : deferredSources())
+    for (pinpoint::DeferredSource *hm : deferredSources())
         if (hm->historyPending()) ++pending;
 
     if (pending == 0) {
@@ -394,7 +345,7 @@ void ShotProcessor::beginGather()
 
     ppInfo() << "[ShotProcessor] gathering —" << pending << "deferred source(s)";
     setState(State::Gathering);
-    m_gatherDeadlineMs = QDateTime::currentMSecsSinceEpoch() + kGatherDeadlineMs;
+    m_gatherDeadlineMs = QDateTime::currentMSecsSinceEpoch() + pinpoint::kGatherDeadlineMs;
     m_gatherTimer.start(kGatherPollMs);
 }
 
@@ -404,7 +355,7 @@ void ShotProcessor::onGatherPoll()
         return;   // finishNowBlocking() raced the timer
 
     int stillPending = 0;
-    for (HmInstance *hm : deferredSources())
+    for (pinpoint::DeferredSource *hm : deferredSources())
         if (hm->historyPending()) ++stillPending;
 
     const bool timedOut = QDateTime::currentMSecsSinceEpoch() >= m_gatherDeadlineMs;
@@ -436,17 +387,15 @@ void ShotProcessor::finishGatherAndLaunch()
     auto ram       = std::make_unique<pinpoint::RamPayloadSource>();
     std::vector<pinpoint::SourceId> deferredIds;
 
-    for (HmInstance *hm : deferredSources()) {
+    for (pinpoint::DeferredSource *hm : deferredSources()) {
         HmInstance::HistoryResult hist = hm->takeHistoryResult();
         if (!hist.valid)
             continue;      // no block, or nothing usable in it — live lane stands
 
-        HmUnit *const units[2] = { hm->unitLowerArm(), hm->unitPalm() };
-        for (int u = 0; u < 2; ++u) {
-            HmUnit *unit = units[u];
-            if (!unit || unit->sourceId() == pinpoint::kInvalidSourceId)
+        for (int u = 0; u < 2; ++u) {   // lane 0 the lower arm, 1 the palm
+            const pinpoint::SourceId sid = hm->deferredLane(u);
+            if (sid == pinpoint::kInvalidSourceId)
                 continue;
-            const pinpoint::SourceId sid = unit->sourceId();
 
             pinpoint::DeferredStitchInput in;
             in.liveEntries     = entriesForIn(entries, sid);

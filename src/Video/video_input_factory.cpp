@@ -17,6 +17,16 @@
  */
 
 #include "video_input_factory.h"
+// The stand-in camera exists only in the capture test rig's build: its generated header says so, and nothing else has it.
+#if __has_include("pp_capture_rig.h")
+#  include "pp_capture_rig.h"
+#endif
+#ifndef PP_STANDIN_CAMERA
+#  define PP_STANDIN_CAMERA 0
+#endif
+#if PP_STANDIN_CAMERA
+#  include "video_input_standin.h"
+#endif
 #include "video_input.h"
 #include "camera_capabilities.h"
 #include "genicam_pixel_format.h"
@@ -513,6 +523,10 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
             ppWarn() << "[VideoInputFactory] Spinnaker backend requested but SDK not found; falling back to Qt Multimedia.";
             return new VideoInput(parent);
 #endif
+#if PP_STANDIN_CAMERA
+        case Backend::StandIn:
+            return new VideoInputStandIn(parent);
+#endif
 #ifdef HAVE_PPCP
         // ⚠ NO FALLBACK HERE, DELIBERATELY. Every other backend falls back to
         // Qt Multimedia when its SDK is missing, because they are all ways of
@@ -531,6 +545,9 @@ VideoInputBase* VideoInputFactory::create(Backend backend, QObject *parent)
 VideoInputFactory::Backend VideoInputFactory::backendType(VideoInputBase *input)
 {
     if (!input) return Backend::QtMultimedia;
+#if PP_STANDIN_CAMERA
+    if (dynamic_cast<VideoInputStandIn*>(input)) return Backend::StandIn;
+#endif
 #ifdef HAVE_PPCP
     if (dynamic_cast<VideoInputPpcp*>(input)) return Backend::Ppcp;
 #endif

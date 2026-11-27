@@ -66,4 +66,60 @@ inline ShotController::Source fromArbSource(ArbSource a)
     return ShotController::Source::Manual;
 }
 
+// ── The shot processor's timings, per source ────────────────────────────────
+//
+// ⚠ LIFTED WORD FOR WORD out of shot_processor.cpp's anonymous namespace (#394, step 81), where no test could reach
+// them, as the join's decisions were lifted into shot_outcome.h. The values and their comments are unchanged; the
+// processor reads them from here. Tested by shot_source_map_test.
+
+// Post-trigger capture continuation, per source — the buffer keeps capturing
+// for this long after the trigger so the follow-through lands in the ring
+// before it freezes. Auto detectors use 1250 ms (segmentation v3: the finish
+// is follow-through ~0.67 s + decay-to-still, physically truncated at 500 ms
+// — design A.6; impact then sits ~2.75 s into the 4 s ring, leaving ample
+// pre-impact room). Manual stays 500 ms: the user presses after the swing and
+// impact is back-dated, so the finish is already in the ring.
+inline constexpr int kPostRollManualMs   = 500;
+inline constexpr int kPostRollImuMs      = 1250;
+inline constexpr int kPostRollPoseMs     = 1250;
+inline constexpr int kPostRollBallMs     = 1250;
+inline constexpr int kPostRollAcousticMs = 1250;
+
+// ── Deferred gather (deferred_sources_design.md §4.1, brief Phase E) ────────
+//
+// A pull takes about as long as its window spans and the library serialises
+// them, so a 3 s pre / 1.5 s post request costs ~4.5 s — and it cannot start
+// until the window's last sample exists, at impact + 1.5 s. Reserving at
+// DETECTION hides most of that inside the post-roll we were taking anyway.
+//
+// ⚠ THE TWO DEADLINES ARE ORDERED ON PURPOSE. The library's deadline sits just
+// INSIDE ours, so a slow pull materialises its own block — carrying whatever
+// arrived plus its coverage — rather than being cancelled by our timeout. A
+// cancelled request still produces a block, but one that says CANCELLED where
+// the honest answer was TIMED_OUT with 60 % coverage.
+inline constexpr qint64 kHistoryDeadlineUs = 7'000'000;   // past impact: library gives up here
+inline constexpr int    kGatherDeadlineMs  = 6'000;       // past pause:  we give up here
+
+inline constexpr int postRollMsFor(ShotController::Source s)
+{
+    switch (s) {
+    case ShotController::Source::Manual:   return kPostRollManualMs;
+    case ShotController::Source::Imu:      return kPostRollImuMs;
+    case ShotController::Source::Pose:     return kPostRollPoseMs;
+    case ShotController::Source::Ball:     return kPostRollBallMs;
+    case ShotController::Source::Acoustic: return kPostRollAcousticMs;
+    // ⚠ MANUAL'S VALUE, AND ON PURPOSE.  The post-roll exists to let a
+    // back-dated estimate settle before the ring is frozen; a PPCP `t0` has
+    // already waited out the arbiter's whole `issue_hold_ns` on the wire, plus
+    // link latency and up to one pump tick, before it ever reaches this
+    // process.  Adding the acoustic detector's 1250 ms on top of that would
+    // push impact further from the window's trailing edge and eat the
+    // pre-impact reach the analyzer needs, for no settling that has not already
+    // happened.  Manual is the short value for exactly the same reason: it is
+    // the one other Source whose instant is fully back-dated on arrival.
+    case ShotController::Source::Ppcp:     return kPostRollManualMs;
+    }
+    return kPostRollManualMs;
+}
+
 } // namespace pinpoint

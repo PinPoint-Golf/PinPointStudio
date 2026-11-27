@@ -39,6 +39,7 @@
 
 #include "device_enumerator.h"
 #include "imu_device.h"
+#include "../shot/deferred_source.h"   // pinpoint::DeferredSource: what the shot processor asks of it (#394 step 81)
 #include "types.h"
 
 class HmSessionWorker;
@@ -280,7 +281,7 @@ private:
 //
 // What is still absent is an anatomical frame (Phase D) and the deferred
 // history pull (Phase E).
-class HmInstance : public ImuDeviceBase
+class HmInstance : public ImuDeviceBase, public pinpoint::DeferredSource
 {
     Q_OBJECT
 
@@ -459,13 +460,15 @@ public:
     // window's last sample exists, so its ~4.5 s cost hides inside the post-roll
     // the pipeline was taking anyway. One reservation per PERIPHERAL: one stream
     // feeds both units. A refusal is logged and leaves nothing pending.
-    void reserveHistory(qint64 impactUs, qint64 deadlineUs);
+    void reserveHistory(qint64 impactUs, qint64 deadlineUs) override;
 
     // True while a reservation is outstanding. The gather polls this.
-    bool historyPending() const;
+    bool historyPending() const override;
 
     // The collected result, moved out — a second call returns an empty one.
-    HistoryResult takeHistoryResult();
+    HistoryResult takeHistoryResult() override;
+    // The two units' buffer sources, lane 0 the lower arm and lane 1 the palm (DeferredSource).
+    pinpoint::SourceId deferredLane(int lane) const override;
 
     // ioThread is ImuManager's shared IMU I/O thread. Everything that touches
     // the wr_session lives there — see src/IMU/hm_session_worker.h and the

@@ -3,7 +3,7 @@
 Taken at `47431e47`. One list for the post-roll, the gather, the freeze, the export, the bookkeeping, the analysis
 start and the live replay of `src/Gui/shot/shot_processor.{h,cpp}`. Each row is a ⚠ note or a side effect, and the
 pin that holds it, or "not pinned" with the reason. The pins are built in #394's steps 80 (the rig), 81 (the seam),
-83 (timing) and 84 (writes). Rig cases are in `capture_rig_test` (app tree); the lifted constants are in
+83 (timing) and 84 (writes). Rig cases are in `capture_rig_test` (the Debug app tree, `PP_CAPTURE_RIG`); a camera-less swing writes no document (its analysis has nothing to read), so the saved swing is the stand-in camera's; the lifted constants are in
 `shot_source_map_test` (test tree). **XF** marks a case that is expected to fail on today's code, with its issue.
 
 What the rig cannot reach, and so leaves to the visit or to reading: a real camera back-end (the stand-in camera stands
@@ -20,7 +20,7 @@ the x264 encode of a real clip, and QML.
 | 4 | ⚠ Reserve at detection, collect at the gather (`:305`, `:439`) | rig T3 (reserve called at the trigger with impact and impact + 7 s; collect after the pause) |
 | 5 | A trigger while busy, or with the buffer not capturing, is ignored with a log line (`:290`, `:295`) | rig W4 (back-to-back: the second is ignored today) |
 | 6 | The post-roll timer racing a teardown is a no-op (`:322`) | not pinned: a teardown pin is SD-8t's (#396) |
-| 7 | The pause: `pauseBuffer`, abort to idle if the buffer is not paused (`:349`) | rig R1 (the buffer is paused at the freeze); the abort: not pinned, needs a buffer torn down mid-post-roll (SD-8t) |
+| 7 | The pause: `pauseBuffer`, abort to idle if the buffer is not paused (`:349`) | rig R1 (the buffer is paused while the window is processed); the abort: not pinned, needs a buffer torn down mid-post-roll (SD-8t) |
 | 8 | ⚠ The window's bounds are frozen at the pause, not after the gather (`:358`, `.h:408`) | rig T2 (with a deferred source holding the gather open, the window still ends at the pause) |
 | 9 | The wall-clock anchor read with the window end, in the same breath (`:371`) | rig T2 (`clock.wallclock` within a few ms of the pause, not of the save) |
 | 10 | ⚠ The resume guard goes up at the pause and is held until the window dies (`:374`, `.h:389`) | rig T2 (a resume asked for during the gather is refused) |
@@ -37,7 +37,7 @@ the x264 encode of a real clip, and QML.
 
 | # | Duty (where) | Pin |
 |---|---|---|
-| 19 | Skip-analysis corpus capture: export only, and join itself if nothing else will (`:603-624`, ⚠ `:612`) | rig W2b (raw-only capture with no camera still joins and goes idle) |
+| 19 | Skip-analysis corpus capture: export only, and join itself if nothing else will (`:603-624`, ⚠ `:612`) | rig R5 (a skip-analysis capture with the stand-in camera: exported, written, processed); with no camera: not pinned |
 | 20 | ⚠ The pre-stage does not trim the export (`:633`) | not pinned: true by construction (`SwingExportJob` has no span) |
 | 21 | The one job builder on the Recording, origin "live", monotonic progress (`:639-663`, `:271`) | rig R1 (progress ends at 1.0) |
 | 22 | The pre-stage runs on a worker and gates the analysis (`:664-698`) | rig R1 (implicitly: the analysis runs) |
@@ -52,11 +52,11 @@ the x264 encode of a real clip, and QML.
 | 31 | The allocation: `Session::addShot` at the export, not at the trigger (`:1230-1249`) | rig W5 (#188, XF: a shot triggered in a session lands in it even when the session ends while it is analysed) |
 | 32 | The session lifecycle: begin, extend, end, on demand, ⚠ the folder fixed in a session, ⚠ D7's library change, ⚠ the start's outcome (`:1252-1576`) | rig W1 (the swing lands in the session begun); W5 (End); D7 and extend: not pinned here (`session_test` and the athlete tests hold the Session's side) |
 | 33 | The device-only shot through the same allocator (`:1401-1412`) | not pinned: the launch monitor's own path (SD-10a) |
-| 34 | The join waits for both workers; the document is written off the GUI thread; nothing is announced before it lands (`:1650-1735`) | rig W1 (one `swing.json`, written once, and `shotProcessed` after it) |
-| 35 | EVT-01 once per shot, through the shot's Session (`:1781-1794`) | rig W1 (`shotDocumentAnnounced` once) |
+| 34 | The join waits for both workers; the document is written off the GUI thread; nothing is announced before it lands (`:1650-1735`) | rig R3 (the degraded path: one document, the media's, announced as failed) and R5 (one document, announced as processed after it) |
+| 35 | EVT-01 once per shot, through the shot's Session (`:1781-1794`) | rig R3, R5 (`shotDocumentAnnounced` once) |
 | 36 | The card always lands, with or without a document (`:1812-1849`) | rig W3 (a card with no document, #235 (1)) |
 | 37 | ⚠ One terminal statement per shot; faulted, not "did not succeed" (`:1868-1891`) | rig W1 and W3 (`shotOutcome` once, with the right two flags) |
-| 38 | The replay: span clamped to the analysed finish, the view-boundary offset, ¼ speed, ESC (`:1931-2085`, ⚠ `.h:98`) | not pinned: needs a camera track and a successful swing segmentation; the stand-in camera's frames carry no swing |
+| 38 | The replay: span clamped to the analysed finish, the view-boundary offset, ¼ speed, ESC (`:1931-2085`, ⚠ `.h:98`) | rig R3 (a shot not reviewable on disk gets the in-window replay, and it ends); the clamp to the analysed finish: not pinned, needs a successful analysis, and the stand-in's frames hold no golfer |
 | 39 | ⚠ The replay detail is a `QJSValue`, converted once (`.h:110`) | not pinned: a QML cost, measured by the `[ShotProcessor] join tail` log line |
 | 40 | Finish: the window destroyed, then the capture intent applied, then idle (`:2091-2103`) | rig R1 (the buffer capturing again after the shot) |
 | 41 | ⚠ Abort releases the resume guard (`:2109`) | not pinned: SD-8t's (#396) |

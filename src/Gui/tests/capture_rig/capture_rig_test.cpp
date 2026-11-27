@@ -28,7 +28,14 @@
 // The cases are named in docs/implementation/platform_refactor/duties/DUTIES-shot_processor.md:
 //   R1  one camera-less synthetic swing: the trigger, the post-roll, the freeze, the analysis (which has nothing to
 //       read), the allocation, the join, the carousel card and the return to capturing;
-//   R2  two runs of the same swing come to the same thing, in words that name no time and no absolute path.
+//   R2  two runs of the same swing come to the same thing, in words that name no time and no absolute path;
+//   R3  one synthetic swing saved, with the stand-in camera: exported, its document written and read back (the
+//       degraded path: the frames hold no golfer, so the analysis fails and the shot is announced as failed);
+//   R4  two saved runs record the same things;
+//   R5  a processed shot: a skip-analysis capture, exported and written, announced as processed;
+//   D1  a stand-in deferred source is reserved, polled and collected (the gather is reachable).
+// The stand-ins (step 81): the camera, VideoInputStandIn, registered with the device enumerator and created only in
+// this build; the deferred source, StandInDeferredSource below, handed to the processor beside the sensor manager's.
 //
 // Run it: cmake -DPP_CAPTURE_RIG=ON <Debug app tree>; cmake --build <tree> --target capture_rig_test;
 //         ctest --test-dir <tree> -R capture_rig -V   (PINPOINT_LOG_STDERR=1 adds the app's log)
@@ -37,6 +44,7 @@
 
 #include "app_settings.h"
 #include "athlete_controller.h"
+#include "camera_instance.h"
 #include "camera_manager.h"
 #include "event_buffer.h"
 #include "imu_manager.h"
@@ -46,6 +54,10 @@
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "shot_processor.h"
+#include "deferred_source.h"
+#include "device_enumerator.h"
+#include "video_input_standin.h"
+#include "../../../Stores/swing_doc.h"
 #include "../../../App/app.h"                      // AthleteCallables
 #include "../../../DomainModel/athlete.h"
 #include "../../../DomainModel/rig.h"
@@ -152,6 +164,47 @@ private:
     std::thread            m_thread;
 };
 
+// A STAND-IN DEFERRED SOURCE (DeferredSource; the HackMotion's part in a shot): it records when it is reserved, polled
+// and collected, and stays pending for `holdMs` after its reservation (forever when negative), so a test can hold the
+// gather open. It returns no block, so nothing is stitched: the window is the ring's, as with a refused pull.
+class StandInDeferredSource : public pinpoint::DeferredSource
+{
+public:
+    explicit StandInDeferredSource(int holdMs) : m_holdMs(holdMs) {}
+
+    QString deviceId() const override { return QStringLiteral("standin-deferred-0"); }
+    void reserveHistory(qint64 impactUs, qint64 deadlineUs) override
+    {
+        ++reserves;
+        reservedImpactUs   = impactUs;
+        reservedDeadlineUs = deadlineUs;
+        reservedAtUs       = pinpoint::EventBuffer::nowMicros();
+        m_pending          = true;
+    }
+    bool historyPending() const override
+    {
+        ++polls;
+        if (!m_pending) return false;
+        return m_holdMs < 0 || pinpoint::EventBuffer::nowMicros() - reservedAtUs < qint64(m_holdMs) * 1000;
+    }
+    pinpoint::hm::HistoryResult takeHistoryResult() override
+    {
+        ++takes;
+        takenAtUs = pinpoint::EventBuffer::nowMicros();
+        m_pending = false;
+        return {};
+    }
+    pinpoint::SourceId deferredLane(int) const override { return pinpoint::kInvalidSourceId; }
+
+    int            reserves = 0, takes = 0;
+    mutable int    polls = 0;
+    qint64         reservedImpactUs = -1, reservedDeadlineUs = -1, reservedAtUs = -1, takenAtUs = -1;
+
+private:
+    int  m_holdMs;
+    bool m_pending = false;
+};
+
 // main.cpp's composition, cut to the shot's path. Members are declared in main.cpp's order, so they are destroyed in
 // its reverse: the processor first (it joins its workers), the buffer last.
 struct Rig {
@@ -204,6 +257,12 @@ struct Rig {
         processor->setRecordingRepository(&recordingRepository);
         processor->attachRig(&rig, &rig.parts());
         processor->setUnassignedAthlete(callables.unassigned);
+        // As main.cpp hands the sensor manager's, with the test's stand-ins after them.
+        processor->setDeferredSources([this] {
+            QVector<pinpoint::DeferredSource *> v = imuManager->deferredSources();
+            for (StandInDeferredSource *d : standInSources) v.push_back(d);
+            return v;
+        });
         cameraManager->setShotProcessor(processor.get());
         imuManager->setShotProcessor(processor.get());
 
@@ -239,6 +298,26 @@ struct Rig {
         cameraManager->startCapture();
     }
 
+    // The stand-in camera, connected and recording, as a golfer's Connect and the session's start make it (the
+    // camera manager's setSelected and startAll). main() registered it with the device enumerator, so the manager
+    // listed it; it is the only camera listed. Waits until its frames reach the buffer.
+    bool connectStandInCamera(int warmUpMs = 1500)
+    {
+        cameraManager->setSelected(0, true);
+        cameraManager->startAll();
+        const std::vector<CameraInstance *> live = cameraManager->liveCameraInstances();
+        if (live.size() != 1) return false;
+        CameraInstance *cam = live.front();
+        const bool flowing = waitFor([&] {
+            return cam->sourceId() != pinpoint::kInvalidSourceId && eventBuffer.isCapturing()
+                   && !eventBuffer.snapshot(pinpoint::EventBuffer::nowMicros() - 500'000,
+                                            pinpoint::EventBuffer::nowMicros()).empty();
+        }, 10000);
+        if (!flowing) return false;
+        waitFor([] { return false; }, warmUpMs);   // a pre-roll of frames before the swing
+        return true;
+    }
+
     // A swing NOW, by the given source: its impact `backMs` before the trigger (a manual press is made after the
     // swing). Waits until the processor is idle again. True when it was.
     bool swing(ShotController::Source source = ShotController::Source::Manual, int backMs = 300, int timeoutMs = 60000)
@@ -266,6 +345,7 @@ struct Rig {
     std::unique_ptr<SyntheticImuLane>        lane;
     ShotListModel                            shotModel;
     std::unique_ptr<ShotProcessor>           processor;
+    QVector<StandInDeferredSource *>         standInSources;   // the test's, handed to the processor (not owned)
 
     int     processed = 0, failed = 0, outcomes = 0, announced = 0;
     int     lastShotId = -1;
@@ -289,7 +369,7 @@ QStringList swingDocuments(const QString &root)
 struct SwingRun {
     bool        idleAgain = false, capturingAgain = false;
     int         processed = 0, failed = 0, outcomes = 0, announced = 0, cards = 0;
-    bool        exportOk = false, analysisOk = false;
+    bool        exportOk = false, analysisOk = false;   // shotOutcome's flags: the stage did NOT fault
     QString     error;
     QString     sessionDir;   // the session begun at Start, relative to the library
     QString     swingDir;     // the allocation, relative to the library
@@ -297,6 +377,9 @@ struct SwingRun {
     QStringList documents;    // relative to the library
     QStringList states, bufferAtState;   // the processor's states, and the buffer's as each was entered
     double      progress = 0.0;          // the analysis progress at the end
+    // The saved swing, as the swing door reads it back: what it records, less its time and paths.
+    bool        docOk = false, docHasVideo = false;
+    QStringList docDevices, swingFiles;  // the devices it names; the swing folder's file names
 
     bool operator==(const SwingRun &o) const
     {
@@ -304,7 +387,8 @@ struct SwingRun {
                && failed == o.failed && outcomes == o.outcomes && announced == o.announced && cards == o.cards
                && exportOk == o.exportOk && analysisOk == o.analysisOk && error == o.error && sessionDir == o.sessionDir && swingDir == o.swingDir
                && swingDirMade == o.swingDirMade && documents == o.documents && states == o.states
-               && bufferAtState == o.bufferAtState && progress == o.progress;
+               && bufferAtState == o.bufferAtState && progress == o.progress && docOk == o.docOk
+               && docHasVideo == o.docHasVideo && docDevices == o.docDevices && swingFiles == o.swingFiles;
     }
     QString describe() const
     {
@@ -312,15 +396,32 @@ struct SwingRun {
                               "cards %8, allocated \"%9\" (made %10), documents [%11], states [%12], buffer [%13], progress %14")
             .arg(processed).arg(failed).arg(error).arg(outcomes).arg(exportOk).arg(analysisOk).arg(announced)
             .arg(cards).arg(swingDir).arg(swingDirMade).arg(documents.join(QStringLiteral(", ")))
-            .arg(states.join(QLatin1Char(' '))).arg(bufferAtState.join(QLatin1Char(' '))).arg(progress);
+            .arg(states.join(QLatin1Char(' '))).arg(bufferAtState.join(QLatin1Char(' '))).arg(progress)
+            + QStringLiteral(", document read back %1 (video %2, devices [%3]), files [%4]")
+                  .arg(docOk).arg(docHasVideo).arg(docDevices.join(QStringLiteral(", ")))
+                  .arg(swingFiles.join(QStringLiteral(", ")));
     }
 };
 
+// How a run is set up: the stand-in camera connected or not; the in-window replay after a shot not reviewable on disk
+// (the View menu's auto-replay; off saves a case the quarter-speed replay); a corpus capture's skip-analysis export.
+struct SwingOptions {
+    bool withCamera   = false;
+    bool autoReplay   = true;
+    bool skipAnalysis = false;
+};
+
 // One Start, one manual swing, one End, in a fresh rig on its own folders.
-SwingRun oneCameralessSwing(const pinpoint::test::IsolatedStores &iso, const QString &runName)
+SwingRun oneSwing(const pinpoint::test::IsolatedStores &iso, const QString &runName, SwingOptions opt = {})
 {
+    const bool withCamera = opt.withCamera;
     Rig r(iso, runName);
+    r.appSettings.setAutoReplayAfterCapture(opt.autoReplay);
+    r.appSettings.setSaveRawFrames(opt.skipAnalysis);
+    r.appSettings.setSkipAnalysisForRawCapture(opt.skipAnalysis);
     r.start();
+    if (withCamera)
+        check(r.connectStandInCamera(), runName + ": the stand-in camera is connected and its frames reach the buffer");
     check(r.eventBuffer.state() == pinpoint::BufferState::Capturing, runName + ": the buffer captures after the Start");
     check(r.processor->sessionFolderReady() && iso.contains(r.processor->activeSessionDir()),
           runName + ": the session's folder is made at Start, in the scratch library");
@@ -339,6 +440,13 @@ SwingRun oneCameralessSwing(const pinpoint::test::IsolatedStores &iso, const QSt
     out.states        = r.states;
     out.bufferAtState = r.bufferAtState;
     out.progress      = r.processor->analysisProgress();
+    if (out.swingDirMade) {
+        const pinpoint::PersistedShot shot = pinpoint::SwingDocReader::readSwingJson(dir);
+        out.docOk       = shot.ok;
+        out.docHasVideo = shot.hasVideo;
+        out.docDevices  = shot.devices;
+        out.swingFiles  = QDir(dir).entryList(QDir::Files, QDir::Name);
+    }
     r.processor->endSessionFolder();
     return out;
 }
@@ -349,7 +457,7 @@ SwingRun oneCameralessSwing(const pinpoint::test::IsolatedStores &iso, const QSt
 void caseOneSwing(const pinpoint::test::IsolatedStores &iso)
 {
     std::printf("R1 one camera-less synthetic swing\n");
-    const SwingRun run = oneCameralessSwing(iso, QStringLiteral("r1"));
+    const SwingRun run = oneSwing(iso, QStringLiteral("r1"));
     std::printf("    %s\n", qPrintable(run.describe()));
     check(run.idleAgain, "the shot runs to its end: the processor is idle again");
     check(run.capturingAgain, "the buffer captures again after the shot");
@@ -361,7 +469,7 @@ void caseOneSwing(const pinpoint::test::IsolatedStores &iso)
     check(run.processed == 0 && run.failed == 1, "it is announced as failed, never as processed");
     check(run.error == QStringLiteral("no IMU and no pose data in window"),
           "the analysis fails for having nothing to read: \"" + run.error + "\"");
-    check(!run.analysisOk && run.exportOk, "the outcome: analysis faulted, the export not (skipped: no camera)");
+    check(!run.analysisOk && run.exportOk, "the outcome (shotOutcome's not-faulted flags): the analysis faulted, the export not (skipped: no camera)");
     check(run.swingDir == run.sessionDir + QStringLiteral("/swing_0001"),
           "the swing is allocated in the session begun, as its first: " + run.swingDir);
     check(run.documents.isEmpty() && run.announced == 0, "no document is written, and no EVT-01 announced");
@@ -372,9 +480,74 @@ void caseOneSwing(const pinpoint::test::IsolatedStores &iso)
 void caseTwoRunsEqual(const pinpoint::test::IsolatedStores &iso)
 {
     std::printf("R2 two runs equal\n");
-    const SwingRun a = oneCameralessSwing(iso, QStringLiteral("r2a"));
-    const SwingRun b = oneCameralessSwing(iso, QStringLiteral("r2b"));
+    const SwingRun a = oneSwing(iso, QStringLiteral("r2a"));
+    const SwingRun b = oneSwing(iso, QStringLiteral("r2b"));
     check(a == b, "the two runs come to the same: " + a.describe() + (a == b ? QString() : " | " + b.describe()));
+}
+
+// R3 (step 81): the saved swing, with the stand-in camera. Its window holds the camera's frames, the export encodes
+// them, and the join writes the document through the swing door, which reads it back. ⚠ THE DEGRADED PATH: the stand-in's
+// frames hold no golfer, so the analysis still has nothing to read and fails; the document is the media's, with no
+// analysis, and the shot is announced as failed. Not being reviewable on disk, it gets the in-window replay.
+void caseSavedSwing(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("R3 one synthetic swing saved, with the stand-in camera\n");
+    const SwingRun run = oneSwing(iso, QStringLiteral("r3"), { .withCamera = true });
+    std::printf("    %s\n", qPrintable(run.describe()));
+    check(run.idleAgain && run.capturingAgain, "the shot runs to its end, and the buffer captures again");
+    check(run.outcomes == 1, "one terminal statement for the shot");
+    check(run.processed == 0 && run.failed == 1 && run.error == QStringLiteral("no IMU and no pose data in window"),
+          "the analysis fails (no golfer in the frames), so the shot is announced as failed: \"" + run.error + "\"");
+    check(run.states == QStringList({ "postroll", "processing", "replaying", "idle" }),
+          "not reviewable on disk, it gets the in-window replay: " + run.states.join(QLatin1Char(' ')));
+    check(run.exportOk, "the camera's frames are exported");
+    check(run.documents.size() == 1 && run.documents.value(0).startsWith(run.swingDir + QLatin1Char('/')),
+          "one document is written, in the swing's folder: " + run.documents.join(QStringLiteral(", ")));
+    check(run.docOk && run.docHasVideo, "the swing door reads it back, with its video");
+    check(run.announced == 1, "its first document is announced once (EVT-01)");
+    check(run.cards == 1, "one card");
+}
+
+// R4 (step 81): two saved swings, in two runs, record the same things (their time, paths and frames aside).
+void caseTwoSavedRunsEqual(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("R4 two saved runs equal\n");
+    const SwingRun a = oneSwing(iso, QStringLiteral("r4a"), { .withCamera = true, .autoReplay = false });
+    const SwingRun b = oneSwing(iso, QStringLiteral("r4b"), { .withCamera = true, .autoReplay = false });
+    check(a.docOk && a == b, "the two saved runs come to the same: " + a.describe() + (a == b ? QString() : " | " + b.describe()));
+}
+
+// R5 (step 81): a processed shot. A corpus capture that skips the analysis (saveRawFrames and skipAnalysisForRawCapture)
+// exports the stand-in camera's frames, raw too, and writes the document: no stage faulted and something was kept, so
+// the shot is announced as processed, after its write (DUTIES rows 19, 34).
+void caseProcessedSwing(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("R5 a processed shot: a skip-analysis capture with the stand-in camera\n");
+    const SwingRun run = oneSwing(iso, QStringLiteral("r5"), { .withCamera = true, .autoReplay = false, .skipAnalysis = true });
+    std::printf("    %s\n", qPrintable(run.describe()));
+    check(run.idleAgain && run.capturingAgain, "the shot runs to its end, and the buffer captures again");
+    check(run.processed == 1 && run.failed == 0 && run.outcomes == 1, "announced once, as processed");
+    check(run.exportOk && run.analysisOk, "neither stage is called faulted: the analysis was skipped on request (shotOutcome)");
+    check(run.states == QStringList({ "postroll", "processing", "idle" }), "no replay: " + run.states.join(QLatin1Char(' ')));
+    check(run.documents.size() == 1 && run.docOk && run.docHasVideo && run.announced == 1,
+          "one document, read back with its video, announced once");
+}
+
+// D1 (step 81): a deferred source is reachable. A stand-in that holds the gather open for 1.5 s is reserved at the
+// trigger and collected after the pause; the processor passes through its gather.
+void caseDeferredReachable(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("D1 a stand-in deferred source is reserved, polled and collected\n");
+    Rig r(iso, QStringLiteral("d1"));
+    StandInDeferredSource late(1500);
+    r.standInSources << &late;
+    r.start();
+    const bool idle = r.swing();
+    check(idle, "the shot runs to its end");
+    check(r.states.contains(QStringLiteral("gathering")), "the processor gathers: " + r.states.join(QLatin1Char(' ')));
+    check(late.reserves == 1 && late.takes == 1 && late.polls >= 2, QStringLiteral("reserved once, polled %1 times, collected once")
+                                                                      .arg(late.polls));
+    r.processor->endSessionFolder();
 }
 
 } // namespace
@@ -395,6 +568,14 @@ int main(int argc, char **argv)
 
     caseOneSwing(iso);
     caseTwoRunsEqual(iso);
+    // The stand-in camera, listed from here on (a rig that does not connect it is camera-less, as above).
+    DeviceEnumerator::instance()->registerDevice(DeviceType::VideoInput, VideoInputFactory::Backend::StandIn,
+                                                 QStringLiteral("standin-camera-0"), QStringLiteral("Stand-in camera"),
+                                                 VideoInputStandIn::capabilities());
+    caseSavedSwing(iso);
+    caseTwoSavedRunsEqual(iso);
+    caseProcessedSwing(iso);
+    caseDeferredReachable(iso);
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;

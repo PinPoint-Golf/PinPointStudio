@@ -54,6 +54,7 @@
 #include "../imu/hm_instance.h"
 #include "../imu/imu_instance.h"
 #include "../imu/imu_rig_link.h"
+#include "event_buffer.h"
 #include "../../DomainModel/rig.h"
 #include "../../IMU/ble_imu_transport.h"
 #include "../../IMU/hm_frame.h"
@@ -509,6 +510,28 @@ int main(int argc, char **argv)
         delete imu;
         settle();
         check(!sensorOf(rig, key), "R1d the teardown clears it, and the entry, now empty, goes");
+    }
+
+    // L1 (#394 step 81): the HackMotion as the shot processor's deferred source. The gather stitches the block's lower
+    // arm into lane 0 and its palm into lane 1 (shot_processor.cpp, finishGatherAndLaunch): the lanes must be the two
+    // units' buffer sources in that order, or palm data would be stitched into the lower arm's lane with no error.
+    std::printf("\nL1 a HackMotion's deferred lanes: lane 0 the lower arm's source, lane 1 the palm's\n");
+    {
+        pinpoint::EventBuffer buffer;   // not started: Idle, where registerSource is allowed
+        auto *hm = new HmInstance(hackMotion(QStringLiteral("{0d7a1c2e-0000-4000-8000-0000000000b1}")), &buffer, nullptr,
+                                  nullptr);
+        pinpoint::DeferredSource *source = hm;
+        const pinpoint::SourceId lower = hm->unitLowerArm()->sourceId(), palm = hm->unitPalm()->sourceId();
+        check(lower != pinpoint::kInvalidSourceId && palm != pinpoint::kInvalidSourceId && lower != palm,
+              "L1a both units are registered with the buffer, as two sources");
+        check(source->deferredLane(0) == lower && source->deferredLane(1) == palm,
+              "L1b lane 0 is the lower arm's source and lane 1 the palm's");
+        check(source->deferredLane(2) == pinpoint::kInvalidSourceId && source->deferredLane(-1) == pinpoint::kInvalidSourceId,
+              "L1c no other lane");
+        check(source->deviceId() == hm->deviceId() && !source->historyPending(),
+              "L1d its provenance key is the device id, and nothing is pending before a reservation");
+        delete hm;
+        settle();
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

@@ -270,6 +270,7 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Gui/shot/shot_arbiter"), Rules },
         { QStringLiteral("Gui/shot/shot_outcome"), Rules },               // pure: a shot's composed outcome
         { QStringLiteral("Gui/shot/shot_source_map"), Application },      // the shot trigger's source table
+        { QStringLiteral("Gui/shot/deferred_source"), Application },      // what the gather asks of a late sensor (T2)
         // Pose: the hardware probe behind the "Motion capture quality" setting.
         { QStringLiteral("Pose/motion_capture_probe"), Adapters },
     };

@@ -39,6 +39,7 @@
 #include "swing_window.h"
 #include "shot_controller.h"
 #include "hm_instance.h"
+#include "deferred_source.h"   // pinpoint::DeferredSource: what the gather asks of a late sensor (#394 step 81)
 #include "../Club/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
 #include "../Analysis/analysis_service.h"   // the one run + the Recording's integrity verdicts (step 1.5)
@@ -178,6 +179,12 @@ public:
     // result)` hands it over (the composition root's callable over the athlete repository; `create` writes its record
     // at the first need: J-67). Without it, and with no golfer, no session starts and no swing is saved. Also follows
     // the library setting (D7).
+    // THE DEFERRED SOURCES (deferred_sources_design.md §4.1; #394 step 81, T2): the sensors whose best data for a swing
+    // arrives after it, asked for afresh at each step of a shot (the trigger's reserve, the gather's polls, the
+    // window's collect), since a sensor may come or go between shots. The composition root hands the sensor manager's
+    // (ImuManager::deferredSources); the capture test rig hands a stand-in. Without one, no shot has a deferred source.
+    using DeferredSources = std::function<QVector<pinpoint::DeferredSource *>()>;
+    void setDeferredSources(DeferredSources sources) { m_deferredSources = std::move(sources); }
     using UnassignedAthlete = std::function<pinpoint::Athlete *(bool create, pinpoint::WriteResult *result)>;
     void setUnassignedAthlete(UnassignedAthlete unassigned);
     // A DEVICE-ONLY SHOT in the session a swing captured NOW is written into (the launch monitor's
@@ -352,7 +359,7 @@ private:
     // The two halves of what captureWindowAndLaunch() used to do in one breath.
     // Every deferred source bound to this capture. One wG3 is ONE peripheral
     // with one reservation, even though it feeds two lanes.
-    QVector<HmInstance *> deferredSources() const;
+    QVector<pinpoint::DeferredSource *> deferredSources() const;
     void beginGather();             // pause the rings, raise the guard, start the wait
     void onGatherPoll();            // deferred sources reported, or the deadline passed
     void finishGatherAndLaunch();   // compose the backing, construct the window, take the Recording, launch
@@ -392,6 +399,7 @@ private:
     // between would CLEAR THE RINGS THIS SHOT IS ABOUT TO SNAPSHOT (§3.5). Any
     // path that abandons a gather must reset it, or the buffer can never resume.
     std::unique_ptr<const pinpoint::SwingPayloadSource> m_ringSource;
+    DeferredSources m_deferredSources;   // setDeferredSources
     QTimer  m_gatherTimer;          // polls the deferred sources during Gathering
 
     // ⏱ THE UI-THREAD STALL WATCHDOG (2026-09-16). A repeating timer on the GUI thread: if a tick

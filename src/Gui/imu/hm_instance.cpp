@@ -989,6 +989,12 @@ HmInstance::HistoryResult HmInstance::takeHistoryResult()
     return m_worker->takeHistoryResult();
 }
 
+pinpoint::SourceId HmInstance::deferredLane(int lane) const
+{
+    const HmUnit *unit = lane == 0 ? m_lowerArm : lane == 1 ? m_palm : nullptr;
+    return unit ? unit->sourceId() : pinpoint::kInvalidSourceId;
+}
+
 std::shared_ptr<pinpoint::ImuSampleTap> HmInstance::ceremonyTap(int unit) const
 {
     return m_worker ? m_worker->ceremonyTap(unit) : nullptr;

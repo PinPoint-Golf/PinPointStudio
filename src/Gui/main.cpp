@@ -1054,6 +1054,9 @@ int main(int argc, char *argv[])
     // The learned club-length prior (SET-05, C-7): a live shot asks the Rig to learn it after its analysis, and each
     // freeze reads it from the Rig's parts as they stand (no event: the parts are the Rig's own, never a copy).
     shotProcessor.attachRig(&rig, &rig.parts());
+    // The sensors whose best data arrives after the swing (a HackMotion): the gather reserves, polls and collects them
+    // through the sensor manager's list, asked afresh at each step of a shot (#394 step 81).
+    shotProcessor.setDeferredSources([&imuManager] { return imuManager.deferredSources(); });
     // With no golfer chosen (or a library re-pointed to one that does not list the golfer: D7, J-67), capture's session
     // is the library's Unassigned owner's, a full Session (§5.11; DEC-198); its record is written at the first Start.
     shotProcessor.setUnassignedAthlete(athleteCallables.unassigned);

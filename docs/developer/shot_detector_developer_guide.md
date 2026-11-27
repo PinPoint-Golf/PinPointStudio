@@ -588,7 +588,7 @@ QObject::connect(&fooManager, &FooManager::somethingDetected, &shotController,
 // 4. Teach the plumbing about it:
 //      - an ArbSource enum entry — ENUM ORDER IS AUTHORITY ORDER (shot_arbiter.h)
 //      - a Source enum entry + toArbSource/fromArbSource cases (shot_controller.cpp)
-//      - a postRollMsFor case (shot_processor.cpp)
+//      - a postRollMsFor case (shot_source_map.h, pinned by shot_source_map_test)
 //      - arbiter_test cases pinning its authority position
 
 // 5. Add truth-table tests for the detector math (see §13) and field-verify
@@ -842,7 +842,8 @@ src/Gui/shot/
 ├── shot_controller.h           ShotController — armed gate, triggerShot,
 ├── shot_controller.cpp           reportCandidate, commitShot, shot marker
 └── shot_processor.{h,cpp}      Post-roll → freeze → analyse ∥ export → replay;
-                                  postRollMsFor, owns the SwingWindow
+                                  owns the SwingWindow (its timings, postRollMsFor
+                                  and the two deadlines: shot_source_map.h)
 
 src/Gui/imu/
 ├── imu_instance.{h,cpp}        IMU live hook + impactDetected + kImuBleLatencyUs

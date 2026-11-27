@@ -37,7 +37,10 @@ public:
         // A camera Source on the far side of a PPCP link (work package H4).
         // Never chosen by Auto: a peer's camera is not a fallback for a local
         // one, it appears only when a capture peer connects and declares.
-        Ppcp
+        Ppcp,
+        // The stand-in camera (video_input_standin.h): created only in the capture test rig's build, for a device
+        // the rig registers; never chosen by Auto, never enumerated. Last, so no other value moves.
+        StandIn
     };
     Q_ENUM(Backend)
 

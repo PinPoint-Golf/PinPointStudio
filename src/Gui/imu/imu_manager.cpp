@@ -410,6 +410,16 @@ QVariantList ImuManager::instances() const
     return list;
 }
 
+QVector<pinpoint::DeferredSource *> ImuManager::deferredSources() const
+{
+    QVector<pinpoint::DeferredSource *> out;
+    for (const auto &entry : m_selected)
+        if (entry.selected && entry.instance)
+            if (auto *hm = qobject_cast<HmInstance *>(entry.instance))
+                out.push_back(hm);
+    return out;
+}
+
 bool ImuManager::anySelected() const
 {
     for (const auto &entry : m_selected)
