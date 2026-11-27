@@ -24,6 +24,7 @@
 #include "hm_instance.h"
 #include "imu_instance.h"
 #include "imu_labels.h"
+#include "imu_rig_link.h"
 #include "paced_connect_queue.h"
 #include "pp_debug.h"
 #include "headless_probe.h"   // PINPOINT_HEADLESS_PROBE (refactor 4-c)
@@ -75,48 +76,9 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
     connect(m_pacedConnect, &PacedConnectQueue::activeChanged,
             this, &ImuManager::pacedConnectActiveChanged);
 
-    // Seed the per-session exclusion list from the persisted global enablement
-    // (mirrors CameraManager). Track the global list so mid-session Settings
-    // changes can be diffed into the session list below.
-    {
-        AppSettings  fallback;
-        AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-        m_sessionExcluded     = s->imuExcluded();
-        m_lastGlobalExcluded  = m_sessionExcluded;
-    }
-    if (m_appSettings) {
-        // Keep the session list consistent with global changes made mid-session
-        // in Settings → Motion Sensors: globally disabling a device disables it for this
-        // session too (and disconnects it), and vice versa. Deliberate session
-        // overrides of UNCHANGED devices are preserved (diff-based).
-        //
-        // ⚠ QUEUED, NOT DIRECT. The signal is emitted from inside the QML write
-        // `appSettings.imuExcluded = list` (the Enable pill's handler), and a
-        // direct connection runs the whole disconnect → instance teardown →
-        // imuDeviceListChanged → Repeater row-rebuild cascade NESTED inside that
-        // write. Tearing down the very row whose handler is mid-statement makes
-        // the engine report a spurious "ReferenceError: appSettings is not
-        // defined" against the write line on every first exclusion change — the
-        // write itself lands, so the noise reads as a broken toggle when nothing
-        // is broken. One tick later, the handler has returned and the same
-        // cascade is ordinary. The diff below reads current state at run time,
-        // so queued coalescing of rapid changes is safe: a no-op diff does
-        // nothing.
-        connect(m_appSettings, &AppSettings::imuExcludedChanged, this, [this]() {
-            const QStringList now  = m_appSettings->imuExcluded();
-            const QStringList prev = m_lastGlobalExcluded;
-            for (const QString &id : now)
-                if (!prev.contains(id)) setSessionImuEnabled(id, false);
-            for (const QString &id : prev)
-                if (!now.contains(id)) setSessionImuEnabled(id, true);
-            m_lastGlobalExcluded = now;
-        }, Qt::QueuedConnection);
-
-        // rolesInSession depends on the roles, the session exclusion list and the
-        // enumerator; each change re-derives it and only a real change notifies.
-        connect(m_appSettings, &AppSettings::imuRolesChanged,
-                this, &ImuManager::refreshRolesInSession);
-    }
+    // The session's exclusion list is seeded from the Rig's enabled flags, and the role views from its roles, when the
+    // composition root hands the Rig over (attachRig). rolesInSession depends on the roles (rigStateChanged), the
+    // session exclusion list and the enumerator; each change re-derives it and only a real change notifies.
     connect(this, &ImuManager::sessionImuExcludedChanged,
             this, &ImuManager::refreshRolesInSession);
 
@@ -139,16 +101,6 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
             emit imuScanActiveChanged();
         }
     });
-
-    // Normalise any HackMotion placement persisted by Phase A's interim
-    // bare-device-id pin BEFORE the first consumer can read it. DeviceEnumerator
-    // is a singleton that never forgets a registered device, so a wG3 may already
-    // be in its list here (an earlier scan in this process); those devices never
-    // emit deviceAdded again and would be missed by the hook below on its own.
-    for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
-        migrateHackMotionPlacement(dev);
-    // Recorded, not emitted — QML has not loaded yet (same as m_imuScanActive below).
-    m_rolesInSession = pinpoint::imu_roles::rolesInSession(currentRoles(), factsFn());
 
     // Start the async BLE scan.  Results arrive via deviceAdded and are
     // automatically reflected by imuList() / imuDeviceList() reading directly
@@ -174,16 +126,10 @@ ImuManager::ImuManager(pinpoint::EventBuffer *buffer, AppSettings *appSettings, 
             this, [this](const Device &dev) {
         if (dev.type != DeviceType::Imu) return;
         setImuScanError(QString());   // a device appeared — discovery is healthy
-        // Seed alias for newly-seen device so it always has a value.
-        const pinpoint::rig::DeviceKey sensor = pinpoint::rig::DeviceKey::sensor(dev.description, dev.id);
-        const QString imuKey = sensor.persistedWithDescription();
-        AppSettings  fallback;
-        AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-        QVariantMap aliasMap = s->imuAlias();
-        if (!aliasMap.contains(imuKey)) {
-            aliasMap[imuKey] = pinpoint::imu_roles::seededAlias(sensor);
-            s->setImuAlias(aliasMap);
-        }
+        // Seed alias for newly-seen device so it always has a value: one setAlias on the Rig when it holds none
+        // (imu_rig_link.h, requestAliasSeed; the Rig's label event then rebuilds the two lists).
+        if (m_rigLabels)
+            pp_imurig::requestAliasSeed(*m_rigLabels, m_parts, pinpoint::rig::DeviceKey::sensor(dev.description, dev.id));
         // ⚠ THE MIGRATION HOOK, and this is the right one. A wG3 must be
         // unit-keyed the moment it becomes KNOWN, not the moment it connects: the
         // start wizard's requirement rows and ArmVizView both resolve slots from
@@ -249,6 +195,81 @@ ImuManager::~ImuManager()
 }
 
 // ---------------------------------------------------------------------------
+// The Rig (C-6b.1; imu_rig_link.h)
+// ---------------------------------------------------------------------------
+
+void ImuManager::attachRig(pinpoint::RigSensorCommands *roles, pinpoint::RigCameraCommands *labels,
+                           const pinpoint::rig::RigParts &parts)
+{
+    m_rigRoles  = roles;
+    m_rigLabels = labels;
+    m_parts     = parts;
+    m_roles     = pinpoint::imu_roles::rolesMapOf(m_parts.state);
+    // Seed the per-session exclusion list from the machine-wide enablement (mirrors CameraManager). Track the machine-
+    // wide list so mid-session Settings changes can be diffed into the session list (rigLabelChanged).
+    m_sessionExcluded    = pp_imurig::disabledOf(m_parts);
+    m_lastGlobalExcluded = m_sessionExcluded;
+    // Normalise any HackMotion placement persisted by Phase A's interim
+    // bare-device-id pin BEFORE the first consumer can read it. DeviceEnumerator
+    // is a singleton that never forgets a registered device, so a wG3 may already
+    // be in its list here (an earlier scan in this process); those devices never
+    // emit deviceAdded again and would be missed by the deviceAdded hook on its own.
+    for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
+        migrateHackMotionPlacement(dev);
+    // Recorded, not emitted — QML has not loaded yet (same as m_imuScanActive in the constructor).
+    m_rolesInSession = pinpoint::imu_roles::rolesInSession(currentRoles(), factsFn());
+}
+
+void ImuManager::rigStateChanged(const pinpoint::rig::RigParts &parts)
+{
+    m_parts = parts;
+    m_roles = pinpoint::imu_roles::rolesMapOf(m_parts.state);
+    refreshRolesInSession();
+}
+
+void ImuManager::rigLabelChanged(const pinpoint::rig::RigParts &parts, const pinpoint::rig::DeviceKey &device,
+                                 pinpoint::RigDeviceLabel which)
+{
+    m_parts = parts;
+    if (!device.isSensor()) return;
+    if (which == pinpoint::RigDeviceLabel::Alias) {
+        emit imuListChanged();
+        emit imuDeviceListChanged();
+        return;
+    }
+    // Keep the session list consistent with global changes made mid-session
+    // in Settings → Motion Sensors: globally disabling a device disables it for this
+    // session too (and disconnects it), and vice versa. Deliberate session
+    // overrides of UNCHANGED devices are preserved (diff-based).
+    //
+    // ⚠ ONE TURN LATER, NOT DIRECT. The Rig raises the event from inside the Enable
+    // switch's own handler (app.rig.setSensorEnabledOnThisMachine), and running the
+    // whole disconnect → instance teardown → imuDeviceListChanged → Repeater row-rebuild
+    // cascade NESTED inside that handler tears down the very row whose handler is
+    // mid-statement; the engine then reports a spurious ReferenceError against the
+    // handler's line on every first exclusion change (as it did when the settings
+    // signal carried this, and the handler was queued for the same reason). One tick
+    // later, the handler has returned and the same cascade is ordinary. The diff
+    // reads the parts at run time, so coalescing rapid changes is safe: a no-op diff
+    // does nothing.
+    QMetaObject::invokeMethod(this, [this] { applyEnabledFlags(); }, Qt::QueuedConnection);
+}
+
+void ImuManager::applyEnabledFlags()
+{
+    const QStringList now = pp_imurig::disabledOf(m_parts);
+    const pp_imurig::EnabledDiff d = pp_imurig::enabledDiff(m_lastGlobalExcluded, now);
+    for (const QString &id : d.switchOff) setSessionImuEnabled(id, false);
+    for (const QString &id : d.switchOn) setSessionImuEnabled(id, true);
+    m_lastGlobalExcluded = now;
+}
+
+QString ImuManager::aliasOf(const QString &description, const QString &deviceId) const
+{
+    return pp_imurig::aliasOf(m_parts, pinpoint::imu_roles::aliasKey(description, deviceId));
+}
+
+// ---------------------------------------------------------------------------
 // Properties — both list accessors read from DeviceEnumerator directly
 // ---------------------------------------------------------------------------
 
@@ -265,9 +286,6 @@ bool ImuManager::isImuPresent(const Device &dev) const
 QVariantList ImuManager::imuList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    const QVariantMap aliasMap = s->imuAlias();
     QVariantList list;
     for (int i = 0; i < devs.size(); ++i) {
         const Device &dev = devs[i];
@@ -279,7 +297,7 @@ QVariantList ImuManager::imuList() const
         m[QStringLiteral("index")]       = i;
         m[QStringLiteral("id")]          = dev.id;
         m[QStringLiteral("description")] = dev.description;
-        m[QStringLiteral("alias")]       = aliasMap.value(imuKey).toString();
+        m[QStringLiteral("alias")]       = pp_imurig::aliasOf(m_parts, imuKey);
         m[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
                                                ? QStringLiteral("BLE")
                                                : QStringLiteral("Serial");
@@ -295,9 +313,6 @@ QVariantList ImuManager::imuList() const
 QVariantList ImuManager::imuDeviceList() const
 {
     const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    const QVariantMap aliasMap = s->imuAlias();
     QVariantList list;
     for (int i = 0; i < devs.size(); ++i) {
         const Device &dev = devs[i];
@@ -308,7 +323,7 @@ QVariantList ImuManager::imuDeviceList() const
         entry[QStringLiteral("id")]          = dev.id;
         entry[QStringLiteral("imuKey")]      = imuKey;
         entry[QStringLiteral("description")] = dev.description;
-        entry[QStringLiteral("alias")]       = aliasMap.value(imuKey).toString();
+        entry[QStringLiteral("alias")]       = pp_imurig::aliasOf(m_parts, imuKey);
         entry[QStringLiteral("transport")]   = (dev.imuTransport == ImuBase::Transport::Ble)
                                                    ? QStringLiteral("BLE")
                                                    : QStringLiteral("Serial");
@@ -591,9 +606,10 @@ QObject *ImuManager::instanceFor(const QString &deviceId) const
 // ---------------------------------------------------------------------------
 //
 // The ladder, the one-claim-per-role rule and both migrations are pure functions in
-// imu_role_map.cpp, tested by imu_role_map_test without a BLE stack. What lives here is
-// only what needs the live process: the device facts (enumerator + session exclusion),
-// the live instances, the once-only warnings, and the write.
+// imu_role_map.cpp, tested by imu_role_map_test without a BLE stack; the requests to the
+// Rig are imu_rig_link.cpp's, tested by imu_rig_link_test. What lives here is only what
+// needs the live process: the device facts (enumerator + session exclusion), the live
+// instances, the once-only warnings, and the hand-over to the Rig.
 
 namespace {
 
@@ -626,29 +642,26 @@ pinpoint::imu_roles::DeviceFactsFn ImuManager::factsFn() const
     return [this](const QString &id) { return deviceFacts(id); };
 }
 
-QVariantMap ImuManager::currentRoles() const
+pinpoint::rig::SensorFactsTable ImuManager::factsTable() const
 {
-    // ⚠ THE FALLBACK IS CONSTRUCTED ONLY WHEN IT IS ACTUALLY NEEDED, unlike the
-    // `AppSettings fallback; ... ? : &fallback` idiom used elsewhere in this file.
-    // This is the hottest placement accessor in the tree — every
-    // instanceForRole() funnels through it, and LiveWristAngles resolves three roles at
-    // 30 Hz — while the AppSettings constructor reads several hundred QSettings values.
-    // Constructing one unconditionally would pay a full settings load ninety times a
-    // second for a branch that is never taken outside tests (main.cpp always passes one).
-    return m_appSettings ? m_appSettings->imuRoles() : AppSettings().imuRoles();
+    // The same facts deviceFacts answers, for every listed sensor; an id the enumerator does not list reads as not
+    // present (SensorFactsTable::unknownDevice), as deviceFacts answers it.
+    QList<pp_imurig::ListedSensor> listed;
+    for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
+        listed.append({ dev.id, !m_sessionExcluded.contains(dev.id), dev.imuVendor == ImuVendor::HackMotion });
+    return pp_imurig::factsTable(listed);
 }
 
-void ImuManager::writeRoles(const QVariantMap &roles)
+bool ImuManager::writeHackMotionMap(const QString &deviceId, const QVariantMap &wanted)
 {
-    // ONE write, after the whole map is built. AppSettings::setImuRoles guards on
-    // equality, so an unchanged map emits nothing; writing key-by-key would let a QML
-    // consumer observe a wG3 half-assigned — forearm held and hand not yet — which is the
-    // exact state unit-keyed placement exists to stop showing.
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    s->setImuRoles(roles);
-    // Without m_appSettings there is no imuRolesChanged connection to do this.
-    if (!m_appSettings) refreshRolesInSession();
+    // ONE claim, after the whole map is decided: the Rig makes one new state for it, so no
+    // QML consumer observes a wG3 half-assigned — forearm held and hand not yet — which is
+    // the exact state unit-keyed placement exists to stop showing.
+    if (!m_rigRoles) {
+        ppWarn() << "[ImuManager] no Rig: the role change for" << deviceId << "is not made";
+        return false;
+    }
+    return pp_imurig::requestHackMotionMap(*m_rigRoles, currentRoles(), deviceId, wanted, factsTable());
 }
 
 QString ImuManager::placementKeyForRole(const QString &role) const
@@ -763,12 +776,38 @@ QString ImuManager::roleHolder(const QString &role) const
     return pinpoint::imu_roles::roleHolder(currentRoles(), role, factsFn());
 }
 
+QString ImuManager::mountHolder(const QString &role, const QString &exceptDeviceId) const
+{
+    if (role.isEmpty()) return {};
+    // The facts the pickers have always read from the device list: a listed sensor is present when the last scan saw it
+    // or it is selected (isImuPresent), and enabled unless this session switched it off. A sensor not listed holds
+    // nothing here.
+    const QList<Device> devs = DeviceEnumerator::instance()->devices(DeviceType::Imu);
+    const pinpoint::imu_roles::DeviceFactsFn shown = [this, &devs](const QString &id) {
+        pinpoint::imu_roles::DeviceFacts f;
+        for (const Device &dev : devs) {
+            if (dev.id != id) continue;
+            f.present        = isImuPresent(dev);
+            f.sessionEnabled = !m_sessionExcluded.contains(id);
+            f.hackMotion     = dev.imuVendor == ImuVendor::HackMotion;
+            break;
+        }
+        return f;
+    };
+    return pinpoint::imu_roles::refusingHolder(currentRoles(), role, exceptDeviceId, shown);
+}
+
 bool ImuManager::setRoleForDevice(const QString &deviceId, const QString &role)
 {
     if (deviceId.isEmpty()) return false;
+    if (!m_rigRoles) {
+        ppWarn() << "[ImuManager] no Rig: role" << role << "for" << deviceId << "is not set";
+        return false;
+    }
 
-    const pinpoint::imu_roles::ClaimResult c =
-        pinpoint::imu_roles::claimRole(currentRoles(), deviceId, role, factsFn());
+    // One Rig command: claimRole decides by today's rule (one claim per role) over the Rig's roles, with this
+    // manager's hardware facts; a release for "". The Rig's RigChanged brings the new roles back (rigStateChanged).
+    const pinpoint::rig::RoleClaim c = pp_imurig::requestRole(*m_rigRoles, deviceId, role, factsTable());
 
     if (!c.error.isEmpty()) {
         // A CALLER error — an unknown role name, or a wG3 asked for a role its cable does
@@ -778,18 +817,21 @@ bool ImuManager::setRoleForDevice(const QString &deviceId, const QString &role)
         return false;
     }
     if (!c.ok) {
-        ppWarn() << "[ImuManager] refusing role" << c.refusedRole << "for" << deviceId
-                 << "— it is held by" << c.holderId << ", which is present and enabled this"
+        const QString refusedRole = pinpoint::analysis::placementRoleName(c.refusedRole);
+        const QString holderId    = c.holder.persistedId();
+        ppWarn() << "[ImuManager] refusing role" << refusedRole << "for" << deviceId
+                 << "— it is held by" << holderId << ", which is present and enabled this"
                     " session. One claim per role: disable or unassign that sensor first."
                     " Placement unchanged.";
-        emit roleRefused(deviceId, c.refusedRole, c.holderId);
+        emit roleRefused(deviceId, refusedRole, holderId);
         return false;
     }
-    if (!c.displaced.isEmpty())
+    if (!c.displaced.isEmpty()) {
+        QStringList keys;
+        for (const pinpoint::rig::PlacementKey &k : c.displaced) keys << k.persisted();
         ppWarn() << "[ImuManager] assigning" << deviceId << "to" << role
-                 << "displaced claim(s) from absent device(s):"
-                 << c.displaced.join(QStringLiteral(", "));
-    writeRoles(c.roles);
+                 << "displaced claim(s) from absent device(s):" << keys.join(QStringLiteral(", "));
+    }
     return true;
 }
 
@@ -950,9 +992,7 @@ QString ImuManager::displayNameForDevice(const QString &deviceId) const
     QString description;
     for (const Device &dev : DeviceEnumerator::instance()->devices(DeviceType::Imu))
         if (dev.id == deviceId) { description = dev.description; break; }
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    return pinpoint::imu_roles::sensorDisplayName(deviceId, description, s->imuAlias(), currentRoles());
+    return pinpoint::imu_roles::sensorDisplayName(deviceId, description, pp_imurig::aliasMapOf(m_parts), currentRoles());
 }
 
 void ImuManager::migrateHackMotionPlacement(const Device &device)
@@ -960,10 +1000,12 @@ void ImuManager::migrateHackMotionPlacement(const Device &device)
     if (device.type != DeviceType::Imu || device.imuVendor != ImuVendor::HackMotion)
         return;
 
-    // Now over imu/roles. The imu/placement → imu/roles migration (AppSettings) carries a
-    // Phase A bare-id pin across verbatim as "<id>" → "leadForearm", because only the
-    // enumerator — here — knows that id is a wG3. This splits it into the two unit keys.
-    // Rules and their reasons: imu_roles::migrateBareHackMotion. Idempotent.
+    // Over the Rig's roles. The imu/placement → imu/roles migration (the Rig's copy of the
+    // sensor keys, through imu_roles::loadRoles) carries a Phase A bare-id pin across verbatim
+    // as "<id>" → "leadForearm", because only the enumerator — here — knows that id is a wG3.
+    // This splits it into the two unit keys. Rules and their reasons:
+    // imu_roles::migrateBareHackMotion; the write is one claimRole that gives exactly the
+    // map the rule decided (writeHackMotionMap). Idempotent.
     using pinpoint::imu_roles::HmMigration;
     const HmMigration m =
         pinpoint::imu_roles::migrateBareHackMotion(currentRoles(), device.id, factsFn());
@@ -972,7 +1014,12 @@ void ImuManager::migrateHackMotionPlacement(const Device &device)
     case HmMigration::NoChange:
         return;
     case HmMigration::DroppedBare:
-        writeRoles(m.roles);
+        // The bare key goes. A claim replaces all the device's keys by the pair, so it drops the bare key alone only
+        // when the lanes ARE the pair; a half pair, or a lane holding another role (a hand edit), is left as it is.
+        if (!writeHackMotionMap(device.id, m.roles))
+            ppWarn() << "[ImuManager]" << device.id << "— a HackMotion bare-id role entry sits beside lane entries that"
+                        " are not its lower-arm/palm pair; no role change can drop it alone, so it is left as it is."
+                        " Reassign the wG3 in session setup.";
         return;
     case HmMigration::Unmappable:
         ppWarn() << "[ImuManager]" << device.id << "— persisted HackMotion role" << m.bareRole
@@ -988,7 +1035,10 @@ void ImuManager::migrateHackMotionPlacement(const Device &device)
                     " that sensor in Settings → Motion Sensors, then reassign the wG3.";
         return;
     case HmMigration::Migrated:
-        writeRoles(m.roles);
+        if (!writeHackMotionMap(device.id, m.roles)) {
+            ppWarn() << "[ImuManager]" << device.id << "— cannot migrate HackMotion placement: the Rig refused it";
+            return;
+        }
         ppInfo() << "[ImuManager]" << device.id
                  << "— migrated HackMotion placement to unit keys: lower arm → leadForearm,"
                     " palm → leadHand";
@@ -1010,7 +1060,10 @@ void ImuManager::claimArmForHackMotion(const QString &deviceId)
                  << "; it sits out. Assign it in Settings → Motion Sensors to use it instead.";
         return;
     case HmArmClaim::Claimed:
-        writeRoles(c.roles);
+        if (!writeHackMotionMap(deviceId, c.roles)) {
+            ppWarn() << "[ImuManager]" << deviceId << "— HackMotion could not take the lead arm: the Rig refused it";
+            return;
+        }
         ppInfo() << "[ImuManager]" << deviceId
                  << "— HackMotion had no mount and nothing live held the lead arm: lower arm →"
                     " leadForearm, palm → leadHand";
@@ -1029,20 +1082,11 @@ float ImuManager::impactScaleFor(const QString &sensitivity)
 
 void ImuManager::setImuAlias(const QString &key, const QString &alias)
 {
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = s->imuAlias();
-    const QString trimmed = alias.trimmed();
-    const QString current = map.value(key).toString();
-
-    const bool changed = trimmed.isEmpty() ? map.contains(key) : (current != trimmed);
-    if (!changed) return;
-
-    if (trimmed.isEmpty())
-        map.remove(key);
-    else
-        map[key] = trimmed;
-    s->setImuAlias(map);
-    emit imuListChanged();
-    emit imuDeviceListChanged();
+    // One Rig command (trimmed; an empty alias removes it). A change comes back as the Rig's label event, which
+    // rebuilds the two lists (rigLabelChanged); a name that changes nothing saves and emits nothing.
+    if (!m_rigLabels) {
+        ppWarn() << "[ImuManager] no Rig: the alias of" << key << "is not set";
+        return;
+    }
+    pp_imurig::requestAlias(*m_rigLabels, key, alias);
 }

@@ -28,8 +28,10 @@
 // Today: the camera commands, which the app calls since the cameras' cut-over (C-5b): CameraManager is handed
 // RigCameraCommands by the composition root (src/Gui/cameras/camera_rig_link.h), and app.rig forwards QML's. The
 // learned club-length prior's command (RigLearningCommands), which the capture service calls since C-7: ShotProcessor
-// is handed it by the composition root. The sensor commands (RigSensorCommands), since C-6a.2: built and tested, and
-// called by nothing in the app until the sensors' cut-over (C-6b.1), which hands them to ImuManager.
+// is handed it by the composition root. The sensor commands (RigSensorCommands), since C-6a.2, which the app calls since
+// the sensors' cut-over (C-6b.1): ImuManager is handed them, and RigCameraCommands for a sensor's alias and enabled
+// flag (setAlias and setEnabledOnThisMachine take any device's key), by the composition root
+// (src/Gui/imu/imu_rig_link.h); app.rig forwards the Enable switch.
 //
 // WHAT EACH COMMAND DOES (rig_design.md §4.1, §4.2):
 //   - The versioned ones (the perspective, mirrored, fixed in place, the hitting-area box) make a new rig state, save

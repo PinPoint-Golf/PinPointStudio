@@ -87,10 +87,9 @@ void ResourceMonitorController::refresh()
     m_snapshot = m_buffer->diagnostics();
     const bool capturing = (m_snapshot.state == pinpoint::BufferState::Capturing);
 
-    // Alias maps — read once per refresh so devices and sources share the same snapshot. A camera's alias and role are
-    // the Rig's (C-5b), read through the camera manager, which holds its state.
+    // A camera's alias and role are the Rig's (C-5b), read through the camera manager, which holds its state; a
+    // sensor's alias is the Rig's too (C-6b.1), read through the sensor manager.
     AppSettings appSettings;
-    const QVariantMap imuAliasMap = appSettings.imuAlias();
 
     // sourceId → alias, populated while building the devices section below.
     QMap<pinpoint::SourceId, QString> sourceAliases;
@@ -341,13 +340,12 @@ void ResourceMonitorController::refresh()
             const QString imuId = imuDev.imuCapabilities.serialNumber.isEmpty()
                 ? imuDev.id
                 : imuDev.imuCapabilities.serialNumber;
-            // imu/alias is keyed by the description AND the device id (never by DeviceKey
+            // The alias is found by the description AND the device id (never by DeviceKey
             // equality, REVIEW-C-1a C1), and by the device id, not the serial-or-id above.
-            const QString imuKey   = pinpoint::rig::DeviceKey::sensor(imuDev.description, imuDev.id)
-                                         .persistedWithDescription();
-            const QString imuAlias = imuAliasMap.value(imuKey,
-                imuId.isEmpty() ? imuDev.description
-                                : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")")).toString();
+            const QString savedAlias = m_imu ? m_imu->aliasOf(imuDev.description, imuDev.id) : QString();
+            const QString imuAlias = !savedAlias.isEmpty() ? savedAlias
+                : imuId.isEmpty() ? imuDev.description
+                                  : imuDev.description + QStringLiteral(" (") + imuId + QStringLiteral(")");
 
             // ⚠ PLURAL, AND THAT IS THE POINT (see ImuDeviceBase::sourceIds()).
             // A HackMotion carries two sources (lower arm, palm, from Phase B

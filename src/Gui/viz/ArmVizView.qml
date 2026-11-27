@@ -42,7 +42,7 @@ import "VizMath.js" as VizMath
 //   elbowNode.rotation   = imuUpperArm.inv * imuForearm
 //   wristNode.rotation   = imuForearm.inv  * imuHand
 //
-// IMU mounts (placement roles, AppSettings::imuRoles — design §4.13):
+// IMU mounts (placement roles, the Rig's through app.rig since C-6b.1 — design §4.13):
 //   leadForearm  → forearm near the wrist — the calibrated IMU
 //   leadHand     → back of the hand
 //   leadUpperArm → upper arm (optional)
@@ -119,7 +119,7 @@ Item {
     // expression. ⚠ A bare `imuManager.instances` statement, or an unused local, is not a
     // read: the QML compiler drops it and the dependency with it, and the binding then
     // resolves once and never again (memory note qml-dead-statement-bindings).
-    readonly property var _roleDeps: [appSettings.imuRoles, imuManager.instances,
+    readonly property var _roleDeps: [app.rig.sensorRoles, imuManager.instances,
                                       imuManager.imuDeviceList, imuManager.sessionImuExcluded]
 
     readonly property QtObject imuLeadForearm: root._roleDeps ? imuManager.instanceForRole("leadForearm")  : null   // calibrated

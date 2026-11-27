@@ -19,6 +19,7 @@
 #include "imu_role_map.h"
 
 #include "hm_unit_id.h"
+#include "../Vocabulary/Rig/rig_state.h"
 
 #include <QPair>
 
@@ -32,6 +33,18 @@ QString lowerArmKey(const QString &deviceId) { return hu::unitIdFor(deviceId, hu
 QString palmKey(const QString &deviceId)     { return hu::unitIdFor(deviceId, hu::kPalm); }
 
 }   // namespace
+
+QVariantMap rolesMapOf(const rig::RigState &state)
+{
+    QVariantMap roles;
+    for (const rig::SensorSetup &x : state.sensors) {
+        const QString name = analysis::placementRoleName(x.role);
+        if (!x.key.isNull() && !name.isEmpty()) roles.insert(x.key.persisted(), name);
+    }
+    return roles;
+}
+
+QVariantMap placementViewOf(const rig::RigState &state) { return placementFromRoles(rolesMapOf(state)); }
 
 bool parseUnitKey(const QString &key, QString *deviceId, int *unit)
 {
@@ -89,6 +102,19 @@ QStringList rolesInSession(const QVariantMap &roles, const DeviceFactsFn &facts)
     for (const QString &role : placementRoleOrder())
         if (!roleHolder(roles, role, facts).isEmpty()) out.append(role);
     return out;
+}
+
+QString refusingHolder(const QVariantMap &roles, const QString &role, const QString &claimantId,
+                       const DeviceFactsFn &facts)
+{
+    for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
+        if (it.value().toString() != role) continue;
+        const QString owner = ownerOfKey(it.key());
+        if (owner == claimantId) continue;
+        const DeviceFacts f = facts ? facts(owner) : DeviceFacts{};
+        if (f.present && f.sessionEnabled) return owner;
+    }
+    return {};
 }
 
 QString roleForDevice(const QVariantMap &roles, const QString &deviceId)
@@ -162,16 +188,11 @@ ClaimResult claimRole(const QVariantMap &roles, const QString &deviceId, const Q
     // from both, and vice versa. Roles are disjoint across the trunk and the arm, so a wG3
     // and trunk Witmotions never meet here (trunk_imu_sequence_grf_design.md §8.7).
     for (const auto &t : targets) {
-        for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
-            if (it.value().toString() != t.second) continue;
-            const QString owner = ownerOfKey(it.key());
-            if (owner == deviceId) continue;
-            const DeviceFacts f = facts ? facts(owner) : DeviceFacts{};
-            if (f.present && f.sessionEnabled) {
-                r.refusedRole = t.second;
-                r.holderId    = owner;
-                return r;
-            }
+        const QString holder = refusingHolder(roles, t.second, deviceId, facts);
+        if (!holder.isEmpty()) {
+            r.refusedRole = t.second;
+            r.holderId    = holder;
+            return r;
         }
     }
 

@@ -93,7 +93,7 @@ Item {
         // swing the moment its screen becomes visible (one parse, lazily).
         swingDir: root._screenActive ? root.swingDir : ""
         sessionType: root.sessionType
-        imuPlacementPairs: { var m = appSettings.imuPlacement; return Object.keys(m).reduce(function(a, k) { a.push(k, String(m[k])); return a }, []) }   // settings fallback when device.role absent: serial, slot pairs
+        imuPlacementPairs: app.rig.placementPairs   // the Rig's derived placement view, when device.role is absent: serial, slot pairs (C-6b.1)
         // the shot is the Session's (refactor 5.8a): read from its owners and followed on its events, never the file
         session: app.session
         // Persisted explicit choice for this session type, else the content-aware

@@ -153,7 +153,8 @@ Two rules about the job that are easy to get wrong:
 `{SourceId, SegmentRole, alignA, mountM}`. The anatomical calibration
 quaternions A and M live on the `ImuInstance` (session-lifetime, GUI thread),
 so they are *copied into the job* at build time. `SegmentRole` comes from the
-user's placement slots (`AppSettings::imuPlacement`): for Wrist sessions,
+user's placement slots (the derived placement view, `app.rig.placementPairs` since the
+sensors' cut-over; `AppSettings::imuPlacement` before it): for Wrist sessions,
 slot A = LeadForearm, B = LeadHand, C = LeadUpperArm
 (`segmentRoleForSlot`, shot_processor.cpp). Unknown roles are skipped by the
 fuser but their A/M still travel with the job.

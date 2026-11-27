@@ -51,9 +51,9 @@ Item {
     // ── Per-session IMU enablement ─────────────────────────────────────────────
     // Manager-owned (imuManager.sessionImuExcluded / setSessionImuEnabled) so the
     // start wizard and every toolbar panel instance share ONE list — same pattern
-    // as cameras. Seeded from appSettings.imuExcluded at startup and re-seeded by
-    // the wizard on open; never written back to settings (global enablement is
-    // owned by the Settings screen). The per-device state is read from the
+    // as cameras. Seeded from the Rig's enabled flags (app.rig.sensorsDisabled) at
+    // startup and re-seeded by the wizard on open; never written back (global
+    // enablement is the Rig's, set from the Settings screen). The per-device state is read from the
     // sessionEnabled field on imuDeviceList entries.
 
     // True when at least one IMU is session-enabled and every enabled one is
@@ -175,9 +175,9 @@ Item {
                     // The device's mount BY NAME (ImuMounts), from the role it was
                     // assigned — a wG3 answers "leadForearm" for its pair and reads
                     // "Lead forearm + hand". roleForDevice() is a Q_INVOKABLE and not
-                    // reactive on its own, so the roles map is READ here, in the
-                    // expression (an unused read is dropped by the compiler).
-                    var roles = appSettings.imuRoles
+                    // reactive on its own, so the Rig's roles (app.rig) are READ here, in
+                    // the expression (an unused read is dropped by the compiler).
+                    var roles = app.rig.sensorRoles
                     return roles ? ImuMounts.deviceMountLabel(modelData.vendor === "hackmotion",
                                                               imuManager.roleForDevice(modelData.id))
                                  : ""
@@ -347,7 +347,7 @@ Item {
                     }
                     // The mount by name (`placement`, from the roles map), an
                     // untinted chip with no handler: stated, not judged.
-                    // TODO: per-session IMU location override (defaults to appSettings.imuRoles)
+                    // TODO: per-session IMU location override (defaults to the Rig's roles, app.rig)
                     PpChip {
                         id: placementChip
                         text: placement

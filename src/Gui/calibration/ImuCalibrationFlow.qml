@@ -202,7 +202,7 @@ Item {
     // re-evaluate when an instance is created by Connect or a role is edited.
     // ⚠ A bare `imuManager.instances` statement is DROPPED by the QML compiler and takes
     // the dependency with it — every binding below ASSIGNS `_roleDeps`.
-    readonly property var _roleDeps: [imuManager.instances, appSettings.imuRoles, imuManager.imuDeviceList]
+    readonly property var _roleDeps: [imuManager.instances, app.rig.sensorRoles, imuManager.imuDeviceList]
 
     function _vendorOf(id) {
         if (id === "") return ""

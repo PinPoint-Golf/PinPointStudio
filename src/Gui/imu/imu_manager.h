@@ -29,7 +29,9 @@
 #include "app_settings.h"
 #include "device_enumerator.h"
 #include "imu_device.h"
+#include "../../DomainModel/rig_commands.h"   // the Rig's commands, as a contract (never rig.h: lint A10)
 #include "../../IMU/imu_role_map.h"
+#include "../../Vocabulary/Rig/rig_state.h"   // the Rig's two parts, handed in as a value
 #include "types.h"
 
 namespace pinpoint { class EventBuffer; }
@@ -45,6 +47,15 @@ class ShotProcessor;
 // imuDeviceList() always read from it so they stay current even before
 // deviceAdded signals fire. m_selected is a map of device-id → ImuEntry
 // tracking only selection state and live instances.
+//
+// THE SENSORS' SET-UP IS THE RIG'S (platform refactor C-6b.1; information_model.md SET-09, OBJ-RIG; rig_design.md §4.1;
+// rig_design_addendum.md decisions 1 and 8). Each sensor's role, alias and enabled-on-this-machine flag were the
+// settings keys imu/roles, imu/alias and imu/excluded, read and written here through AppSettings; the Rig is now their
+// one writer. The composition root hands this manager the Rig's commands (attachRig: RigSensorCommands for a role, and
+// the interface that declares setAlias and setEnabledOnThisMachine) and its two parts as a value, and tells it of every
+// change (rigStateChanged, rigLabelChanged). It reads the roles, aliases and the disabled list from the parts it holds,
+// asks the Rig for every change, and applies to its live sensors only what changed. Its rules live in imu_rig_link.h,
+// tested without a sensor. It never includes rig.h (lint A10).
 class ImuManager : public QObject
 {
     Q_OBJECT
@@ -74,9 +85,9 @@ class ImuManager : public QObject
     // ── Per-session IMU enablement (device ids excluded this session) ──────
     // Mirrors CameraManager::sessionCameraExcluded: manager-owned so the start
     // wizard, every toolbar IMU panel and the device rows share ONE list.
-    // Seeded from AppSettings::imuExcluded at startup (and re-seeded by the
-    // wizard on open); NEVER written back — global enablement is owned by the
-    // Settings screen.
+    // Seeded from the Rig's enabled-on-this-machine flags at attachRig (and
+    // re-seeded by the wizard on open); NEVER written back — global enablement
+    // is the Rig's, set from the Settings screen through app.rig.
     Q_PROPERTY(QStringList sessionImuExcluded READ sessionImuExcluded NOTIFY sessionImuExcludedChanged)
     // Last BLE discovery error (e.g. "Bluetooth is powered off"), or "" when
     // discovery is healthy. The IMU UI shows this when no devices are enumerated
@@ -101,6 +112,28 @@ public:
                         AppSettings *appSettings = nullptr,
                         QObject *parent = nullptr);
     ~ImuManager() override;
+
+    // ── The Rig (C-6b.1; imu_rig_link.h) ──────────────────────────────────────
+    // Once, by the composition root, right after construction and before the first event loop turn: the commands this
+    // manager may call (a role through `roles`; an alias and the enabled flag through `labels`, which declares them) and
+    // the Rig's two parts. Seeds the session's exclusion list from the disabled flags, migrates any HackMotion already
+    // listed, and records the roles in session. Both pointers must outlive the manager. Without it (a test that builds
+    // the manager alone) the roles are empty and every write is refused with a ppWarn.
+    void attachRig(pinpoint::RigSensorCommands *roles, pinpoint::RigCameraCommands *labels,
+                   const pinpoint::rig::RigParts &parts);
+    // The Rig's state changed (RigChanged): the roles are read again and the role views recomputed (decision 8's row:
+    // a sensor's role; A and M on the live sensors are not touched). Connected BEFORE app.rig's own connection, so a
+    // view that re-reads this manager on app.rig's notifier reads the new roles.
+    void rigStateChanged(const pinpoint::rig::RigParts &parts);
+    // A device's alias or enabled flag changed (RigDeviceLabelChanged). A sensor's alias: the two lists change. A
+    // sensor's enabled flag: each newly disabled sensor is switched off for the session (which disconnects it), each
+    // re-enabled one switched on, one event-loop turn later (as the settings signal's queued handler did: the event is
+    // raised inside the Enable switch's own handler). Another device's: the parts are held, nothing else.
+    void rigLabelChanged(const pinpoint::rig::RigParts &parts, const pinpoint::rig::DeviceKey &device,
+                         pinpoint::RigDeviceLabel which);
+    // A sensor's alias as the Rig holds it, by the alias map's spelling (description and device id); "" for none. The
+    // C++ readers (the swing's lane aliases, the resource monitor) read it here.
+    QString aliasOf(const QString &description, const QString &deviceId) const;
 
     // Both list accessors read from DeviceEnumerator directly (the old pattern)
     // so they are always current regardless of deviceAdded signal timing.
@@ -166,7 +199,7 @@ public:
 
     // ── Placement resolution — WHY IT LIVES HERE AND NOWHERE ELSE ────────────────
     //
-    // Unit-keyed placement. AppSettings::imuRoles maps a PLACEMENT KEY to a role name:
+    // Unit-keyed placement. The roles (imu/roles; the Rig's since C-6b.1) map a PLACEMENT KEY to a role name:
     // the bare device id for a Witmotion, HmUnit::unitId() ("<deviceId>#lowerArm" /
     // "<deviceId>#palm") for a HackMotion. Before Phase C the rule was "the key IS the
     // device id", so every consumer (ArmVizView.qml, ImuCalibrationFlow, the old setup
@@ -229,6 +262,11 @@ public:
     Q_INVOKABLE QString  roleForDevice(const QString &deviceId) const;
     // Device id of the present, session-enabled holder of `role`, else "".
     Q_INVOKABLE QString  roleHolder(const QString &role) const;
+    // The sensor OTHER than `exceptDeviceId` whose claim on `role` would make a new claim refused: the first claimant,
+    // in key order, that the device list shows present and switched on this session; "" when none. The set-up's mount
+    // pickers ask it (SetupContext.mountHolder); the rule is claimRole's own (imu_roles::refusingHolder), handed the
+    // device list's facts as the pickers showed them before (present = seen in the last scan, or selected).
+    Q_INVOKABLE QString  mountHolder(const QString &role, const QString &exceptDeviceId) const;
     // One claim per role. "" unassigns. A HackMotion accepts only "" or "leadForearm" and
     // then holds leadForearm AND leadHand. A role held by another PRESENT, session-ENABLED
     // device is REFUSED: returns false, emits roleRefused naming the holder, one ppWarn.
@@ -339,12 +377,15 @@ private:
     // Handed to every imu_roles function so the pure logic never touches the enumerator.
     pinpoint::imu_roles::DeviceFacts deviceFacts(const QString &deviceId) const;
     pinpoint::imu_roles::DeviceFactsFn factsFn() const;
-    // The current roles map (the fallback AppSettings only outside main.cpp), and the
-    // winning key for a role, with the once-only
-    // double-claim warning.
-    QVariantMap currentRoles() const;
+    // The same facts, for every listed sensor, as the table the Rig's claimRole is handed.
+    pinpoint::rig::SensorFactsTable factsTable() const;
+    // The current roles map (the Rig's state as today's imu/roles map, held since the last
+    // RigChanged), and the winning key for a role, with the once-only double-claim warning.
+    QVariantMap currentRoles() const { return m_roles; }
     QString     placementKeyForRole(const QString &role) const;
-    void        writeRoles(const QVariantMap &roles);
+    // RR8 and RR9's write: the map today's rule decided, through one claimRole (imu_rig_link.h,
+    // requestHackMotionMap). False, and nothing asked, when no claim can make exactly that map.
+    bool        writeHackMotionMap(const QString &deviceId, const QVariantMap &wanted);
     // Recomputes rolesInSession and notifies only on a real change.
     void        refreshRolesInSession();
 
@@ -372,12 +413,20 @@ private:
     // create two instances / overlap connects on the same HCI adapter.
     QSet<QString>               m_pendingDelete;
 
-    // Per-session exclusion (device ids). Seeded from AppSettings::imuExcluded;
-    // m_lastGlobalExcluded snapshots the global list so mid-session Settings
-    // changes can be diffed into the session list (CameraManager::setExcluded
-    // does the same sync for cameras).
+    // Per-session exclusion (device ids). Seeded from the Rig's disabled flags;
+    // m_lastGlobalExcluded snapshots the machine-wide list so mid-session Settings
+    // changes can be diffed into the session list (CameraManager does the same
+    // sync for cameras).
     QStringList m_sessionExcluded;
     QStringList m_lastGlobalExcluded;
+
+    // The Rig (C-6b.1): its commands, and its two parts as last handed in, with the roles map read from them.
+    pinpoint::RigSensorCommands *m_rigRoles  = nullptr;
+    pinpoint::RigCameraCommands *m_rigLabels = nullptr;
+    pinpoint::rig::RigParts      m_parts;
+    QVariantMap                  m_roles;
+    // The machine-wide disabled list changed: today's diff, applied one turn later (rigLabelChanged).
+    void applyEnabledFlags();
 
     // Placement keys already reported as "bare device id on a HackMotion" by
     // instanceForRole(). Mutable because that resolver is const and is called from

@@ -997,8 +997,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     }
 
     // IMU aliases keyed by the same identifier the sources registered with
-    // (serial when present, else device id — mirrors ImuInstance).
-    const QVariantMap imuAliases   = s->imuAlias();
+    // (serial when present, else device id — mirrors ImuInstance). A sensor's alias is the
+    // Rig's (C-6b.1), read through the sensor manager, which holds its state.
     const QVariantMap imuFusion    = s->imuFusionMode();
     const QVariantMap imuRates     = s->imuOutputRateHz();
     const QList<Device> imus = DeviceEnumerator::instance()->devices(DeviceType::Imu);
@@ -1006,8 +1006,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         const QString serial = dev.imuCapabilities.serialNumber.isEmpty()
                                    ? dev.id
                                    : dev.imuCapabilities.serialNumber;
-        const QString imuKey = pinpoint::rig::DeviceKey::sensor(dev.description, dev.id).persistedWithDescription();
-        const QString alias  = imuAliases.value(imuKey).toString().trimmed();
+        const QString alias  = m_imuManager ? m_imuManager->aliasOf(dev.description, dev.id).trimmed() : QString();
         if (!alias.isEmpty())
             job.imuAliasBySerial.insert(serial, alias);
 

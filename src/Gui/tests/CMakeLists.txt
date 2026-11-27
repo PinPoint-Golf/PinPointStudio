@@ -243,19 +243,19 @@ pp_add_test(variability_data_geometry_test
 set_tests_properties(variability_data_geometry_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 # Role-keyed IMU placement (session_wizard_refactor_design.md §4.13) — the pure half
-# ImuManager and AppSettings delegate to (imu_role_map): the imu/placement → imu/roles
-# migration and its marker, the derived legacy view, the owner ladder, one claim per role,
-# rolesInSession. ImuManager itself is not linked (BLE/device stack); its device facts are
-# a table here. The REAL AppSettings is, against a scratch QSettings path, because the
-# marker and "imu/placement is never written" are properties of what lands on disk.
+# ImuManager and the Rig delegate to (imu_role_map): the imu/placement → imu/roles move,
+# the derived legacy view (over the rig state too, C-6b.1), the owner ladder, one claim per
+# role and its refusing holder (which the set-up's mount pickers ask since C-6b.1), and
+# rolesInSession. ImuManager itself is not linked (BLE/device stack); its device facts are a
+# table here. AppSettings' half (A1–A5) went with the sensors' cut-over: imu_rig_link_test.
 pp_add_test(imu_role_map_test
     SOURCES imu_role_map_test.cpp
             ${SRC}/IMU/imu_role_map.cpp
-            ${GUI}/app/app_settings.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU
-    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+    INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/IMU
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+pp_requirement(imu_role_map_test CTL-AD-10 CTL-AD-52)   # one claim per role keeps one arm instrument (AD-10); the pickers' refusal is the C++ rule, not QML (AD-52)
 
 # The camera crop is per role (cameras/camera_roi.h, flir_camera_settings.md §2.1): the
 # impact strip's own key, the recommended-mode fallback, and AppSettings' one-time
@@ -275,8 +275,8 @@ pp_add_test(camera_roi_test
 # for byte; parse then spell is the identity; the lanes equal hm_unit_id.h's. The fixture (two cameras,
 # one with no serial, a Witmotion, a HackMotion) is written by the REAL AppSettings, with keys spelled
 # by today's code, into a scratch store (IsolatedStores), and read back through the typed keys; the six camera keys
-# the Rig took over (C-5b) and the club-length prior (C-7) are written and read raw, as the last build before each
-# cut-over wrote them.
+# the Rig took over (C-5b), the club-length prior (C-7) and the three sensor keys (C-6b.1) are written and read raw, as
+# the last build before each cut-over wrote them.
 pp_add_test(device_key_test
     SOURCES device_key_test.cpp
             ${SRC}/Vocabulary/Rig/device_key.h
@@ -307,6 +307,27 @@ pp_add_test(camera_rig_link_test
     INCLUDE ${SRC}/Video
     AUTOMOC)
 pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role and set-up held and applied as today; REQ-DEV-17 supports
+
+# The sensor manager's link to the Rig (imu/imu_rig_link.*; rig_design.md §4.1, §4.3; rig_design_addendum.md decisions 1
+# and 8) and app.rig's sensor half (RigPresenter), the rules ImuManager follows since the Rig writes the sensors' set-up
+# (platform refactor C-6b.1), without a sensor: the hardware facts as the Rig's table; an alias and the disabled list by
+# their spellings; decision 8's enabled-flag row; the writers as one Rig command each (refusal, release, a caller
+# error, and L1, the displacement of an absent holder, pinned); the two automatic role writers (a HackMotion's bare pin
+# migrated, a found HackMotion taking the arm) leaving the Rig with exactly the map today's rules decide, L2 and E3
+# pinned; app.rig's sensor members and their notifiers (imu_role_map_test's A2-A4, re-pointed); and the copy at launch
+# from a machine whose imu/placement move never ran, writing nothing to settings (A1, A5, re-pointed). Hand-rolled main.
+pp_add_test(imu_rig_link_test
+    SOURCES imu_rig_link_test.cpp
+            ${GUI}/imu/imu_rig_link.cpp ${GUI}/imu/imu_rig_link.h
+            ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/Stores/rig_store.cpp
+            ${SRC}/IMU/imu_role_map.cpp
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/Video
+    AUTOMOC)
+pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17 CTL-AD-10)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The one battery rule (src/Vocabulary/Rig/battery_band.h; IM §6.1 NOTDOM-6): every band edge (100, 50, 49, 21, 20,
 # 0), charging at each level, no reading, the spelling the screens read, and the worst of several devices. The

@@ -32,7 +32,6 @@ Item {
 
         Component { id: imuMgrComp;    FakeImuManager {} }
         Component { id: camMgrComp;    FakeCameraManager {} }
-        Component { id: rigComp;       FakeRig {} }
         Component { id: athleteComp;   FakeAthlete {} }
         Component { id: liveWristComp; FakeLiveWrist {} }
         Component { id: sessionComp;   FakeSessionController {} }
@@ -81,7 +80,7 @@ Item {
             props.app.sessionController = fx.sessionController
             props.app.navController     = fx.navController
             props.app.shotProcessor     = props.shotProcessor
-            props.app.rig               = createTemporaryObject(rigComp, tc)   // app.rig: the cameras' set-up (C-5b)
+            props.app.rig               = fx.imuManager.rig   // app.rig: the cameras' (C-5b) and the sensors' set-up (C-6b.1)
             wiz = harness.createWithContext("ScreenSessionSetup", props, host,
                                             { width: host.width, height: host.height, visible: false })
             verify(wiz !== null, "ScreenSessionSetup failed to instantiate over the fakes")
@@ -132,7 +131,7 @@ Item {
             }
             // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
             fx.app = { athleteController: fx.athleteController, sessionController: fx.sessionController,
-                       navController: fx.navController, rig: createTemporaryObject(rigComp, tc) }
+                       navController: fx.navController, rig: fx.imuManager.rig }   // the fake manager's own fresh Rig
             return fx
         }
 
@@ -179,8 +178,7 @@ Item {
             // so it can mask nothing else.
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            appSettings.imuRoles = ({})
-            fx = makeFakes()
+            fx = makeFakes()   // a fresh Rig: no role (the fake sensor manager's own FakeRig)
         }
 
         function cleanup() {

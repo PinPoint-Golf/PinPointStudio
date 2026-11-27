@@ -4,9 +4,9 @@
 // context, inventoried from the files:
 //   ArmVizView — athleteController.currentHandedness; imuManager.instanceForRole,
 //                deviceForRole, deviceIdForRole, isHackMotionDevice and, as its one gathered
-//                dependency, appSettings.imuRoles + imuManager.instances / imuDeviceList /
-//                sessionImuExcluded
-//   PpImuPanel — imuManager (list, instances, roleForDevice, paced connect, …), appSettings, and
+//                dependency, app.rig.sensorRoles (the Rig's roles, C-6b.1) + imuManager.instances /
+//                imuDeviceList / sessionImuExcluded
+//   PpImuPanel — imuManager (list, instances, roleForDevice, paced connect, …), app.rig, appSettings, and
 //                through its ImuCalibrationFlow the same context the wizard's flow reads (the
 //                flow is inactive in list mode and starts nothing)
 //
@@ -97,7 +97,6 @@ Item {
             testLog.reset()
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            appSettings.imuRoles = ({})
             fx = {
                 imuManager:        createTemporaryObject(imuMgrComp, tc),
                 cameraManager:     createTemporaryObject(camMgrComp, tc),
@@ -110,14 +109,13 @@ Item {
             }
             // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
             fx.app = { athleteController: fx.athleteController, sessionController: fx.sessionController,
-                       navController: fx.navController }
+                       navController: fx.navController, rig: fx.imuManager.rig }   // the Rig: the fake manager's own
             imu = fx.imuManager
         }
         function cleanup() {
             if (view) harness.destroyNow(view)
             if (panel) harness.destroyNow(panel)
             view = panel = null
-            appSettings.imuRoles = ({})
             var w = testLog.takeWarnings()
             compare(w.length, 0, "unexpected warnings (" + w.length + "):\n" + w.join("\n"))
         }
@@ -202,7 +200,7 @@ Item {
             // A session exclusion (sessionImuExcluded only): the parked claim stays in the map,
             // and the ladder still answers with it (present but disabled beats nothing).
             imu.setSessionImuEnabled("HM-1", false)
-            compare(appSettings.imuRoles["HM-1#lowerArm"], "leadForearm")
+            compare(imu.rig.sensorRoleMap["HM-1#lowerArm"], "leadForearm")
             compare(view.imuLeadForearm, null)   // deselected on disable → no live unit
             verify(view.leadForearmIsHm)
         }

@@ -18,7 +18,6 @@
 
 #include "app_settings.h"
 
-#include "../../IMU/imu_role_map.h"
 #include "../../Vocabulary/Recording/perspective.h"   // the one perspective type: migrateImpactRoi reads Impact
 #include "pp_debug.h"
 
@@ -52,47 +51,6 @@ void AppSettings::migrateImpactRoi()
     if (changed)
         s.setValue(QStringLiteral("camera/roi"), m_cameraRoi);
     s.setValue(QStringLiteral("camera/impactRoiMigrated"), true);
-}
-
-// ---------------------------------------------------------------------------
-// Role-keyed IMU placement (session_wizard_refactor_design.md §4.13)
-// ---------------------------------------------------------------------------
-
-void AppSettings::loadImuRoles()
-{
-    // ⚠ AppSettings IS CONSTRUCTED ALL OVER THE TREE (`AppSettings fallback;`), so this
-    // runs many times per process. The marker makes every run after the first a plain read;
-    // the migration itself writes only imu/roles and the marker, never imu/placement.
-    const bool migrated = ppSettings().value(QStringLiteral("imu/rolesMigrated"), false).toBool();
-    const pinpoint::imu_roles::RolesLoad load = pinpoint::imu_roles::loadRoles(
-        migrated,
-        ppSettings().value(QStringLiteral("imu/roles"),     QVariantMap{}).toMap(),
-        migrated ? QVariantMap{}
-                 : ppSettings().value(QStringLiteral("imu/placement"), QVariantMap{}).toMap());
-    m_imuRoles = load.roles;
-    if (load.migrated) {
-        ppSettings().setValue(QStringLiteral("imu/roles"), m_imuRoles);
-        ppSettings().setValue(QStringLiteral("imu/rolesMigrated"), true);
-        for (const QString &line : load.log)
-            ppInfo() << "[AppSettings] imu/placement → imu/roles:" << line;
-    }
-    m_imuPlacement = pinpoint::imu_roles::placementFromRoles(m_imuRoles);
-}
-
-void AppSettings::setImuRoles(const QVariantMap &v)
-{
-    if (m_imuRoles == v) return;
-    m_imuRoles = v;
-    ppSettings().setValue(QStringLiteral("imu/roles"), v);
-    // A raw write before the first load (none today) must not be overwritten by a later
-    // migration, so the marker is set here as well.
-    ppSettings().setValue(QStringLiteral("imu/rolesMigrated"), true);
-    m_imuPlacement = pinpoint::imu_roles::placementFromRoles(m_imuRoles);
-    emit imuRolesChanged();
-    // ⚠ UNCONDITIONALLY, even when the derived letters did not move (a trunk role
-    // changed): the two signals are one event, so a reader of the legacy view never has to
-    // know which half of the map moved.
-    emit imuPlacementChanged();
 }
 
 StorageInfo AppSettings::queryStorageInfo() const

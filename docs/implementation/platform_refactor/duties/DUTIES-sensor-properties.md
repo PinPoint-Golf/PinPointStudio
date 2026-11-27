@@ -1,5 +1,7 @@
 **Updated 26 Nov: the Zero button is removed, so `ImuInstance::zeroOrientation` and `ImuManager::zeroAll` no longer exist. CL3 is gone: C-6b.2 has 7 clear paths, not 8, and CL1 has no third caller. The listing lines in §8 that name them describe `cc756cfa`.**
 
+**Updated 27 Nov (C-6b.1, the sensors' cut-over): every §1 row now has the home built for it; the duties list, with where each went, is in C-6b.1's notes and its commit. One hit the ledger missed, added here: DK2, `src/Gui/tests/device_key_test.cpp` (the three sensor setters and getters in C-1a's key-spelling fixture, re-pointed to raw `ppSettings()` writes and reads, as Step 8 did for the cameras' DK1).**
+
 Taken at `cc756cfa` (main, after `git pull --ff-only`). C-6i; a document, read and not run: no code, no build, no IM edit.
 
 # Duties of the six sensor properties, and of every path that sets or clears a sensor's calibration

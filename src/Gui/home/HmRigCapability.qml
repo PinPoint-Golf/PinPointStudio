@@ -54,7 +54,7 @@ Column {
         faceOn: kit.faceOn, dtl: kit.dtl, roles: kit.roles, groups: kit.groups,
         groupDefs: kit.groupDefs, launchMonitor: kit.launchMonitorConfigured,
         lmName: kit.launchMonitorName, draft: null,
-        cameraExcluded: app.rig.camerasDisabled, imuExcluded: appSettings.imuExcluded
+        cameraExcluded: app.rig.camerasDisabled, imuExcluded: app.rig.sensorsDisabled
     })
     readonly property var facts: CapFacts.facts(root._input, "home")
     readonly property var rows: {

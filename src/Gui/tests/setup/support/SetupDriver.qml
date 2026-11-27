@@ -43,7 +43,8 @@ Item {
     property var session:   null
     property var nav:       null
     property var lm:        null
-    property var rig:       null   // app.rig (FakeRig): the cameras' set-up since the Rig writes it (C-5b)
+    property var rig:       null   // app.rig (FakeRig): the cameras' set-up (C-5b) and the sensors' (C-6b.1), the fake
+                                   // sensor manager's Rig too (imu.rig)
     property var appLogFake: null
     property var journal:   null
     property var ceremony:  null     // FakeTrunkCeremony, the "trunkCeremony" context property
@@ -130,17 +131,16 @@ Item {
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
     function setUp() {
-        // The REAL AppSettings (scratch QSettings) is shared by every test in the file. The cameras' set-up is the
-        // Rig's: a fresh FakeRig per test (rig, below), nothing enabled-off and nothing fixed.
-        appSettings.imuRoles           = ({})
-        appSettings.imuAlias           = ({})
-        appSettings.imuExcluded        = []
+        // The REAL AppSettings (scratch QSettings) is shared by every test in the file. The cameras' and the sensors'
+        // set-up is the Rig's: a fresh FakeRig per test (rig, below: no role, no alias, nothing enabled-off or fixed),
+        // which the fake sensor manager reads and writes too (imu.rig).
         appSettings.experimentalSpokenInstructions = false
         tts = null
         workOns = null
         imu        = imuMgrComp.createObject(drv)
         cams       = camMgrComp.createObject(drv)
         rig        = rigComp.createObject(drv)
+        imu.rig    = rig
         athlete    = athleteComp.createObject(drv)
         liveWrist  = liveWristComp.createObject(drv)
         session    = sessionComp.createObject(drv)

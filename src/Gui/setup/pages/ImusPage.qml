@@ -109,9 +109,9 @@ WizardPage {
         }
     }
     Connections {
-        target:  page.ctx.settings
+        target:  page.ctx.rig
         enabled: page.active
-        function onImuRolesChanged() { page._refusals = ({}) }
+        function onSensorRolesChanged() { page._refusals = ({}) }   // the Rig's roles (app.rig, C-6b.1)
     }
 
     Column {

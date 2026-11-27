@@ -1,10 +1,10 @@
 // END-TO-END: MOUNTS — READ-ONLY IN SETTINGS ▸ IMUs, SET IN SESSION SETUP (Stage 3; W2.2, 26 Oct).
 //
 // tst_setup_mounts.qml proves both over a fake manager; it cannot see the real ImuManager, the real
-// settings file, or what this build's first launch did to them (the one-time imu/placement →
-// imu/roles migration). This drives the real app:
+// Rig, or what this build's first launch did to them (the Rig's copy of the sensor keys from the
+// settings file, through the one-time imu/placement → imu/roles move; C-6b.1). This drives the real app:
 //
-//   wait for the IMU list → open Settings ▸ IMUs → log the stored roles, the legacy placement view
+//   wait for the IMU list → open Settings ▸ IMUs → log the Rig's roles (app.rig), the legacy placement view
 //   and the manager's rolesInSession → for every device row, log and check its read-only mount line
 //   ("Worn as: <mount> (set in session setup)" / "Not worn (set in session setup)") against the
 //   manager's roleForDevice, and that no row carries a mount picker → log the summary → then the ONE
@@ -107,8 +107,8 @@ Item {
 
     function inspect() {
         check(true, "Settings ▸ IMUs is shown")
-        log("appSettings.imuRoles      " + json(appSettings.imuRoles))
-        log("appSettings.imuPlacement  " + json(appSettings.imuPlacement) + "  (legacy view, derived)")
+        log("app.rig.sensorRoles       " + json(app.rig.sensorRoles))
+        log("app.rig.placementPairs    " + json(app.rig.placementPairs) + "  (legacy view, derived)")
         log("imuManager.rolesInSession " + json(imuManager.rolesInSession))
         log("ImuMounts.offeredRoles    " + json(ImuMounts.offeredRoles)
             + " (trunkMountsOffered " + ImuMounts.trunkMountsOffered + ")")

@@ -101,7 +101,7 @@ Item {
             // Offscreen QPA's "Sans Serif" font-alias notice — see tst_setup_smoke.qml.
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            appSettings.imuRoles = ({})
+            // No role to reset: every host makes fresh fakes, with a fresh Rig (the fake manager's own FakeRig).
             drv.holdPace = longHold          // teardown() resets it; CW1/CW2 run at scale 1, untouched
         }
         function cleanup() {

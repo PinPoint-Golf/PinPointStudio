@@ -251,17 +251,7 @@ void Rig::clearHittingArea(const rig::DeviceKey &camera)
     changeState([&](rig::RigState &s) { entryOf(s, camera).hittingArea.reset(); });
 }
 
-QVariantMap Rig::rolesMapOf(const rig::RigState &state)
-{
-    QVariantMap roles;
-    for (const rig::SensorSetup &x : state.sensors) {
-        const QString name = analysis::placementRoleName(x.role);
-        if (!x.key.isNull() && !name.isEmpty()) roles.insert(x.key.persisted(), name);
-    }
-    return roles;
-}
-
-QVariantMap Rig::placementViewOf(const rig::RigState &state) { return imu_roles::placementFromRoles(rolesMapOf(state)); }
+QVariantMap Rig::placementView() const { return imu_roles::placementViewOf(m_parts.state); }
 
 rig::RoleClaim Rig::claimRole(const rig::DeviceKey &sensor, analysis::SegmentRole role, const rig::SensorFactsTable &facts)
 {
@@ -277,7 +267,7 @@ rig::RoleClaim Rig::claim(const rig::DeviceKey &sensor, const QString &roleName,
 {
     // A key that is not a sensor's spells no bare id, which the rule answers as "no device id".
     const imu_roles::DeviceFactsFn fn = [&facts](const QString &deviceId) { return facts.factsFor(deviceId); };
-    const imu_roles::ClaimResult r = imu_roles::claimRole(rolesMapOf(m_parts.state), sensor.persistedId(), roleName, fn);
+    const imu_roles::ClaimResult r = imu_roles::claimRole(imu_roles::rolesMapOf(m_parts.state), sensor.persistedId(), roleName, fn);
     rig::RoleClaim out;
     out.ok          = r.ok;
     out.error       = r.error;

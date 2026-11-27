@@ -598,7 +598,7 @@ void applyCameraGroup(const CameraGroup &g, RigParts &parts)
 
 // ── The sensor group (imu/roles, imu/alias, imu/excluded; C-6a.2) ─────────────────────────────────────
 //
-// The roles are read as AppSettings reads them today (AppSettings::loadImuRoles): through imu_roles::loadRoles, with
+// The roles are read as AppSettings read them before the sensors' cut-over (AppSettings::loadImuRoles, gone with C-6b.1): through imu_roles::loadRoles, with
 // the imu/rolesMigrated marker, so a machine on which the earlier imu/placement → imu/roles move never ran copies the
 // roles that move gives (rig_design.md §4.4). The copy writes nothing: not the roles, not the marker. L4 (PR-53): every
 // entry of the roles is copied verbatim, those the typed keys cannot hold included: an entry is typed when its key is a
@@ -627,7 +627,7 @@ SensorGroup readSensorGroup()
 {
     const QSettings settings = ppSettings();   // read only: the copy never writes a key
     SensorGroup     g;
-    // The roles, as AppSettings::loadImuRoles reads them. A key whose whole value is not a map is kept whole.
+    // The roles, as AppSettings::loadImuRoles read them. A key whose whole value is not a map is kept whole.
     const bool migrated = sensorsMigrated(settings);
     auto mapOf = [&](const char *name) -> QVariantMap {
         const QString  key   = QLatin1String(name);

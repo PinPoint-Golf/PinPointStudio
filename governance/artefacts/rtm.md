@@ -22,7 +22,7 @@
 | every kind it needs present | 0 |
 | withdrawn ids | 8 |
 
-889 gaps: 2 accepted, 887 in the baseline, 0 new (a new gap fails the check); 72 warnings. "The flags" says what each kind of gap means; every gap is listed last.
+888 gaps: 2 accepted, 886 in the baseline, 0 new (a new gap fails the check); 72 warnings. "The flags" says what each kind of gap means; every gap is listed last.
 
 ## Requirements, area by area
 
@@ -236,7 +236,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DEV-17**: The app shall keep the calibration and set-up of each studio bay and load it, so a fixed studio calibrates once.
   - Status: planned (#74 (Camera calibration programme)); release v2; Must; use cases UC-8 ; UC-18.
   - Evidence: an automated test of the logic (E1), and an automated screen test (E4); never seen at the rig or in a corpus swing (E6).
-  - Tests: `camera_rig_link_test`, `qml_ui.tst_ppcp_pair_dialog`, `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
+  - Tests: `camera_rig_link_test`, `imu_rig_link_test`, `qml_ui.tst_ppcp_pair_dialog`, `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
   - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-18**: The app shall show when a camera's focus lock has failed, and restore the camera's focus.
   - Status: planned (#74 (Camera calibration programme)); release v2; Should; use cases UC-4.
@@ -899,7 +899,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-INST-17**: Every update shall keep the studio's settings, each bay's calibration and set-up, the paired phones and the Coaching Lead's edits to the diagnostics model.
   - Status: proposed · to confirm; release v1; Must; use cases UC-2.
   - Evidence: an automated test of the logic (E1); no run on Windows yet (E5), never seen at the rig or in a corpus swing (E6), and the installer never checked (E7).
-  - Tests: `club_length_prior_test`, `device_key_test`, `migrate_step2_test`, `rig_import_test`.
+  - Tests: `club_length_prior_test`, `device_key_test`, `imu_rig_link_test`, `migrate_step2_test`, `rig_import_test`.
   - Open issues: #351 (Check that an update or a reinstall keeps the library, the settings, the calibration, the phones and the model edits).
 
 ### Non-functional: reliability
@@ -1103,7 +1103,7 @@ Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap
 | 1. rtm.md is stale | The page differs from what the inputs make now. It clears when python3 tools/method/make_rtm.py is run and rtm.md committed. | checked by `--check` | | | |
 | 2. An id cited anywhere does not exist, or is withdrawn | A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, or was withdrawn. It clears when the citation is corrected. | 0 | 0 | 0 | 0 |
 | 3. A delivered, built or partial row without evidence of every kind it needs | A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that evidence exists: a labelled test, or a passing observation in rtm_observations.csv. | 299 | 0 | 299 | 0 |
-| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 423 | 2 | 421 | 0 |
+| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 422 | 2 | 420 | 0 |
 | 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 12 | 0 | 12 | 0 |
 | 6. An open bug naming a delivered row: the row is failing | An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is closed, or no longer names the row. | 0 | 0 | 0 | 0 |
 | 7. A planned row whose issues are all closed | A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an issue is opened for what is left. | 0 | 0 | 0 | 0 |
@@ -1197,15 +1197,15 @@ Printed by every mode; they never fail the check.
 | Control | Tests |
 |---|---|
 | CTL-AD-7 (A camera fixed to a wall (the face-on) must be taken as …) | `rig_state_test` |
-| CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …) | `rig_commands_test` |
-| CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `session_setup_lint_test` |
+| CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …) | `imu_rig_link_test`, `imu_role_map_test`, `rig_commands_test` |
+| CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `imu_role_map_test`, `session_setup_lint_test` |
 | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | `run_headless_selftest`, `synthetic_devices_off_test`, `synthetic_devices_test` |
 | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | `rtm_check`, `rtm_selftest` |
 | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | `architecture_lint_test`, `diagnostics_dir_order_check`, `quit_pins_selftest`, `quit_pins_synthetic_selftest` |
 
 ## Labelled tests
 
-444 tests are registered in the source; 21 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+445 tests are registered in the source; 23 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
@@ -1214,6 +1214,8 @@ Printed by every mode; they never fail the check.
 | `club_length_prior_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `diagnostics_dir_order_check` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `imu_rig_link_test` | an automated test of the logic (E1) | CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …); REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `imu_role_map_test` | an automated test of the logic (E1) | CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …); CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `migrate_step2_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `perspective_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `qml_ui.tst_ppcp_pair_dialog` | an automated screen test (E4) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Gui/CMakeLists.txt` |
@@ -1676,7 +1678,6 @@ None.
 - imu_io_worker_test names no requirement or control it proves <sub>`4 imu_io_worker_test` baseline</sub>
 - imu_refusion_check_test names no requirement or control it proves <sub>`4 imu_refusion_check_test` baseline</sub>
 - imu_retime_test names no requirement or control it proves <sub>`4 imu_retime_test` baseline</sub>
-- imu_role_map_test names no requirement or control it proves <sub>`4 imu_role_map_test` baseline</sub>
 - imu_sample_test names no requirement or control it proves <sub>`4 imu_sample_test` baseline</sub>
 - inference_thread_test names no requirement or control it proves <sub>`4 inference_thread_test` baseline</sub>
 - inspector_refresh_test names no requirement or control it proves <sub>`4 inspector_refresh_test` baseline</sub>

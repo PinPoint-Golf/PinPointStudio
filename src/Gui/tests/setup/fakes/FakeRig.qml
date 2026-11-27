@@ -1,9 +1,27 @@
 // Fake `app.rig` (RigPresenter, src/Gui/app/rig_presenter.h): the Rig as the set-up and settings QML read and write
-// it since the cameras' cut-over (platform refactor C-5b). The same members, by the same names; each command records
-// its call and changes the fake's own state as the Rig would, then emits camerasChanged. A QtObject, so a binding
-// re-reads a list property when it changes. Camera keys are whatever the test's fake cameras use: the real presenter
-// takes only a camera key's spelling, and camera_rig_link_test covers it.
+// it since the cameras' cut-over (platform refactor C-5b) and the sensors' (C-6b.1). The same members, by the same
+// names; each command records its call and changes the fake's own state as the Rig would, then emits camerasChanged. A
+// QtObject, so a binding re-reads a list property when it changes. Camera keys are whatever the test's fake cameras use:
+// the real presenter takes only a camera key's spelling, and camera_rig_link_test covers it.
+//
+// THE SENSORS (C-6b.1). The real members are sensorRoles, placementPairs, sensorsDisabled, sensorAliasKeys,
+// sensorAliasOf and setSensorEnabledOnThisMachine, each derived here, as there, from what the Rig holds. What it holds is
+// two TEST SEAMS that the real presenter does not have, so no production QML may read them: sensorRoleMap (placement
+// key → role, the Rig's roles as today's imu/roles map; FakeImuManager reads and writes it, as the real manager asks
+// the Rig) and sensorAliasMap ("<description>|<id>" → alias). A test stages a set-up by assigning either; each derived
+// member, and its notifier (sensorRolesChanged, sensorAliasKeysChanged), follows. imu_rig_link_test covers the real
+// presenter's sensor members.
+//
+// ⚠ AS UNREACTIVE AS THE REAL MANAGER. The real ImuManager's resolvers (roleForDevice, instanceForRole, mountHolder,
+// displayNameForDevice) are Q_INVOKABLEs: a binding that calls them re-evaluates only on the dependency it reads
+// itself (app.rig.sensorRoles, app.rig.sensorAliasKeys; F40). FakeImuManager's resolvers read the roles and aliases
+// through rolesUntracked() / aliasesUntracked(), from a script's variables (fake_rig_store.js), which register no
+// dependency, so a production binding that forgets its app.rig read goes stale here as it would in the app. Each change
+// updates that store FIRST, then assigns the members the production QML reads, so a binding re-evaluated by their
+// notifier never reads the old roles (the real composition root connects the manager before app.rig for the same
+// reason).
 import QtQuick
+import "fake_rig_store.js" as Store
 
 QtObject {
     id: rig
@@ -16,6 +34,36 @@ QtObject {
     property var hittingAreas: ({})   // key -> Qt.rect
     property var aliases: ({})        // key -> text
     signal camerasChanged()
+
+    // ── The sensors (C-6b.1) ──
+    property var sensorRoleMap: ({})        // TEST SEAM: placement key → role (see the header)
+    property var sensorAliasMap: ({})       // TEST SEAM: "<description>|<id>" → alias
+    property var sensorsDisabled: []        // the bare ids not enabled on this machine
+    property var sensorRoles: []            // assigned by _syncRoles, after the store
+    property var placementPairs: []
+    property var sensorAliasKeys: []        // assigned by _syncAliases, after the store
+    function _copy(m) { var out = {}; for (var k in m) out[k] = m[k]; return out }
+    function _syncRoles() {
+        var m = _copy(sensorRoleMap), vals = [], pairs = [], letters = { leadForearm: "A", leadHand: "B", leadUpperArm: "C" }
+        Store.setRoles(m)
+        for (var k in m) { vals.push(m[k]); if (letters[m[k]] !== undefined) pairs.push(k, letters[m[k]]) }
+        placementPairs = pairs
+        sensorRoles = vals
+    }
+    function _syncAliases() {
+        var m = _copy(sensorAliasMap)
+        Store.setAliases(m)
+        sensorAliasKeys = Object.keys(m)
+    }
+    onSensorRoleMapChanged: _syncRoles()
+    onSensorAliasMapChanged: _syncAliases()
+    Component.onCompleted: { _syncRoles(); _syncAliases() }
+    function rolesUntracked() { return Store.roles() }       // no QML dependency (see the header)
+    function aliasesUntracked() { return Store.aliases() }
+    function sensorAliasOf(key) { return Store.aliases()[key] || "" }
+    function setSensorEnabledOnThisMachine(id, on) {
+        _rec("setSensorEnabledOnThisMachine", [id, on]); sensorsDisabled = _toggle(sensorsDisabled, id, !on)
+    }
 
     property var calls: []
     function _rec(name, args) { calls.push({ name: name, args: args }) }

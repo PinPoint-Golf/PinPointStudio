@@ -20,6 +20,7 @@
 
 #include "../../Core/pp_debug.h"
 #include "../../DomainModel/rig.h"
+#include "../../IMU/imu_role_map.h"   // the rig state as today's roles map and the derived placement view
 
 namespace pinpoint {
 
@@ -70,12 +71,21 @@ RigPresenter::RigPresenter(Rig &rig, QObject *parent)
     : QObject(parent), m_rig(rig), m_cameras(new RigDeviceListModel(this)), m_sensors(new RigDeviceListModel(this))
 {
     refresh();
+    m_sensorRoles = imu_roles::rolesMapOf(m_rig.parts().state);
     connect(&m_rig, &Rig::rigChanged, this, [this] {
         refresh();
         emit camerasChanged();
+        const QVariantMap roles = imu_roles::rolesMapOf(m_rig.parts().state);
+        if (roles != m_sensorRoles) {
+            m_sensorRoles = roles;
+            emit sensorRolesChanged();
+        }
     });
-    connect(&m_rig, &Rig::rigDeviceLabelChanged, this, [this](const rig::DeviceKey &device) {
+    connect(&m_rig, &Rig::rigDeviceLabelChanged, this, [this](const rig::DeviceKey &device, RigDeviceLabel which) {
         if (device.isCamera()) emit camerasChanged();
+        if (!device.isSensor()) return;
+        if (which == RigDeviceLabel::Alias) emit sensorAliasesChanged();
+        else emit sensorsDisabledChanged();
     });
 }
 
@@ -166,6 +176,57 @@ void RigPresenter::setAlias(const QString &cameraKey, const QString &alias)
 void RigPresenter::setEnabledOnThisMachine(const QString &cameraKey, bool enabled)
 {
     if (const auto k = cameraFrom(cameraKey, "setEnabledOnThisMachine"); k.isCamera()) m_rig.setEnabledOnThisMachine(k, enabled);
+}
+
+// ── The sensors (C-6b.1) ──
+
+QStringList RigPresenter::sensorRoles() const
+{
+    QStringList out;
+    const QVariantMap roles = imu_roles::rolesMapOf(m_rig.parts().state);
+    for (auto it = roles.cbegin(); it != roles.cend(); ++it) out << it.value().toString();
+    return out;
+}
+
+QStringList RigPresenter::placementPairs() const
+{
+    QStringList out;
+    const QVariantMap view = imu_roles::placementViewOf(m_rig.parts().state);
+    for (auto it = view.cbegin(); it != view.cend(); ++it) out << it.key() << it.value().toString();
+    return out;
+}
+
+QStringList RigPresenter::sensorsDisabled() const
+{
+    QStringList out;
+    for (const auto &e : m_rig.parts().other.enabledOnThisMachine)
+        if (e.first.isSensor() && !e.second && !out.contains(e.first.persistedId())) out << e.first.persistedId();
+    return out;
+}
+
+QStringList RigPresenter::sensorAliasKeys() const
+{
+    QStringList out;
+    for (const auto &a : m_rig.parts().other.aliases)
+        if (a.first.isSensor()) out << a.first.persistedWithDescription();
+    return out;
+}
+
+QString RigPresenter::sensorAliasOf(const QString &aliasKey) const
+{
+    for (const auto &a : m_rig.parts().other.aliases)
+        if (a.first.isSensor() && a.first.persistedWithDescription() == aliasKey) return a.second;
+    return {};
+}
+
+void RigPresenter::setSensorEnabledOnThisMachine(const QString &deviceId, bool enabled)
+{
+    const rig::DeviceKey k = rig::DeviceKey::fromPersistedId(deviceId);
+    if (k.isNull()) {
+        ppWarn() << "[app.rig] setSensorEnabledOnThisMachine: no sensor id, nothing changed";
+        return;
+    }
+    m_rig.setEnabledOnThisMachine(k, enabled);
 }
 
 } // namespace pinpoint

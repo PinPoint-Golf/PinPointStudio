@@ -96,7 +96,7 @@ Item {
             testLog.reset()
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            appSettings.imuRoles = ({})
+            // No role to reset: every host makes fresh fakes, with a fresh Rig (the fake manager's own FakeRig).
         }
         function cleanup() {
             drv.teardown()
@@ -718,7 +718,7 @@ Item {
         // and run the Witmotion routine.
         function test_CH14_absentWg3StillHackMotion() {
             drv.hostToolbar("none", { scale: scaled })
-            appSettings.imuRoles = ({ "HM-1#lowerArm": "leadForearm", "HM-1#palm": "leadHand" })
+            drv.fx.imuManager.rig.sensorRoleMap = ({ "HM-1#lowerArm": "leadForearm", "HM-1#palm": "leadHand" })   // the Rig's roles
             drv.openToolbar()
             drv.panel.mode = "calibrate"
             verify(drv.flow.active, "the panel flow is not active in calibrate mode")

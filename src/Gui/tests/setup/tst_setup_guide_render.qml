@@ -72,7 +72,7 @@ Item {
             testLog.reset()
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            appSettings.imuRoles = ({})
+            // No role to reset: every host makes fresh fakes, with a fresh Rig (the fake manager's own FakeRig).
         }
         function cleanup() {
             drv.teardown()

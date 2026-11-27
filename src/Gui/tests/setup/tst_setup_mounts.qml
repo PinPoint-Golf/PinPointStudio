@@ -6,13 +6,14 @@
 // and in tst_setup_sensors.qml (MQ1 offered mounts, MQ2 one write, MQ3 greyed holder, MQ4 refusal,
 // MQ5 the wG3's pair, MQ7 change, AN5 a holder never named by its id).
 //
-// Settings hosts the REAL ImusPanel over the SetupDriver's FakeImuManager and the real AppSettings
-// over a scratch QSettings; the picker is the real shell (support/SetupDriver.qml). No sensor is
-// connected on the Settings side, so the panel's ImuVizView never loads.
+// Settings hosts the REAL ImusPanel over the SetupDriver's FakeImuManager and its FakeRig as app.rig (the
+// sensors' roles are the Rig's since C-6b.1); the picker is the real shell (support/SetupDriver.qml). No
+// sensor is connected on the Settings side, so the panel's ImuVizView never loads.
 //
 //   S1 Settings: every row shows "Worn as: <mount> (set in session setup)" or "Not worn (set in
 //      session setup)" — a Witmotion, a wG3's pair, a trunk mount — and no row offers a picker
-//   S2 the line follows the roles map live (a mount set or taken away in setup reads at once)
+//   S2 the line follows the Rig's roles live (a mount set or taken away in setup reads at once, through
+//      app.rig.sensorRolesChanged: the panel's one dependency on the roles)
 //   S3 the summary lists the worn and the unworn mounts by name, the trunk's included
 //   S4 no slot letter anywhere in the panel
 //   P1 the picker offers every offered mount — the arm's and the trunk's, by their §4.1 names — and a
@@ -92,7 +93,7 @@ Item {
             return null
         }
         function makePanel() {
-            panel = harness.createWithContext("ImusPanel", { imuManager: d.imu }, panelHost,
+            panel = harness.createWithContext("ImusPanel", { imuManager: d.imu, app: { rig: d.rig } }, panelHost,
                                               { width: panelHost.width, height: panelHost.height })
             verify(panel !== null, "ImusPanel failed to instantiate over the fake")
             return panel
@@ -111,7 +112,6 @@ Item {
             panel = null
             d.tearDown()
             ImuMounts.trunkMountsOffered = true
-            appSettings.imuRoles = ({})
             var w = testLog.takeWarnings()
             compare(w.length, 0, "unexpected warnings (" + w.length + "):\n" + w.join("\n"))
         }
@@ -167,8 +167,8 @@ Item {
             verify(d.imu.setRoleForDevice("WT-1", "thorax"))
             compare(textStartingWith("Assigned: "), "Assigned: " + hipShort + " · " + chestShort)
             compare(textStartingWith("Not worn: "), "Not worn: Lead forearm · Lead hand · Lead upper arm")
-            appSettings.imuRoles = ({ "WT-1": "leadForearm", "WT-2": "leadHand", "X": "leadUpperArm",
-                                      "Y": "pelvis", "Z": "thorax" })
+            d.rig.sensorRoleMap = ({ "WT-1": "leadForearm", "WT-2": "leadHand", "X": "leadUpperArm",
+                                     "Y": "pelvis", "Z": "thorax" })
             compare(textStartingWith("Not worn: "), null)
         }
 
@@ -243,7 +243,7 @@ Item {
             var n0 = setRoleCalls().length
             d.chooseMount("WT-A", "")
             compare(setRoleCalls().slice(n0).map(function(c) { return c.args }), [["WT-A", ""]])
-            compare(appSettings.imuRoles["WT-A"], undefined)
+            compare(d.rig.sensorRoleMap["WT-A"], undefined)
             compare(d.imuRows()[1].sub, "NO MOUNT — IT SITS OUT THIS SESSION")
             verify(!d.plan().some(function(k) { return k === "calibrateArm" }), "arm steps with no arm mount")
             // …and Settings reads it.
@@ -255,7 +255,7 @@ Item {
         function test_P4_heldMountNotOfferedIsStillShown() {
             ImuMounts.trunkMountsOffered = false
             d.imu.addWitmotion("WT-1", "Belt sensor")
-            appSettings.imuRoles = ({ "WT-1": "pelvis" })   // as a hand-edited settings file would
+            d.rig.sensorRoleMap = ({ "WT-1": "pelvis" })   // as a hand-edited settings file copied into the Rig would
             verify(!ImuMounts.isOffered("pelvis"))
             makePanel()
             compare(mountLineShown("WT-1"), "Worn as: " + hipLabel + " (set in session setup)")

@@ -25,9 +25,9 @@
 // tuningKey as they were before C-1b; imu_roles::aliasKey and capture_context.cpp's prior key as they
 // were before C-1c, which spell through the types now), and hm_unit_id::unitIdFor. It is
 // written through the REAL AppSettings into a scratch store, read back by a second AppSettings, and only
-// then looked up with the typed keys; the six camera keys the Rig took over (platform refactor C-5b) and the
-// club-length prior (C-7), which AppSettings no longer holds, are written and read raw, whole maps, as the last
-// build before it wrote them.
+// then looked up with the typed keys; the six camera keys the Rig took over (platform refactor C-5b), the
+// club-length prior (C-7) and the three sensor keys (C-6b.1), which AppSettings no longer holds, are written and
+// read raw, whole maps, as the last build before each cut-over wrote them.
 // A test that built the fixture with the types would prove nothing.
 //
 // Devices: two cameras (one with a serial, one without, whose device id is a Windows path full of '#'),
@@ -354,6 +354,15 @@ static void testSettingsFixture()
             // SET-05, which the Rig took over in C-7, as the last build before it wrote it: one whole map.
             raw.setValue(QStringLiteral("analysis/clubLenPrior"),
                          QVariantMap{ { prior, QVariantMap{ { "lenM", 0.94 }, { "frameW", 1280 }, { "frameH", 1024 } } } });
+            // The three sensor keys the Rig took over (C-6b.1), as the last build before it wrote them: whole maps
+            // and the list, one setValue each, with the marker its role writer set beside imu/roles.
+            raw.setValue(QStringLiteral("imu/alias"),
+                         QVariantMap{ { witAlias, QStringLiteral("Pelvis sensor") }, { hmAlias, QStringLiteral("Lead wrist") } });
+            raw.setValue(QStringLiteral("imu/excluded"), QStringList{ kWit.id });
+            raw.setValue(QStringLiteral("imu/roles"), QVariantMap{ { kWit.id, pinpoint::imu_roles::pelvis() },
+                                                                   { hmLower, pinpoint::imu_roles::leadForearm() },
+                                                                   { hmPalm, pinpoint::imu_roles::leadHand() } });
+            raw.setValue(QStringLiteral("imu/rolesMigrated"), true);
         }
         AppSettings s;   // today's writer of the rest
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.0, 1.0, 1.0) },
@@ -364,16 +373,12 @@ static void testSettingsFixture()
                                 { todaysTuningKey(camB, 2), 8000 } });
         s.setCameraTuning({ { todaysTuningKey(camA, kImpact), QVariantMap{ { "gain", 12.0 } } },
                             { todaysTuningKey(camB, 2), QVariantMap{ { "gain", 3.0 } } } });
-        s.setImuAlias({ { witAlias, QStringLiteral("Pelvis sensor") }, { hmAlias, QStringLiteral("Lead wrist") } });
-        s.setImuExcluded({ kWit.id });
-        s.setImuRoles({ { kWit.id, pinpoint::imu_roles::pelvis() },
-                        { hmLower, pinpoint::imu_roles::leadForearm() },
-                        { hmPalm, pinpoint::imu_roles::leadHand() } });
     }
 
     AppSettings r;   // today's reader, a fresh load from the scratch store
-    const QSettings raw = ppSettings();   // the Rig's six camera keys, read as the copy reads them
+    const QSettings raw = ppSettings();   // the Rig's six camera keys and three sensor keys, read as the copy reads them
     const auto rawMap = [&raw](const char *k) { return raw.value(QLatin1String(k)).toMap(); };
+    const QStringList imuExcluded = raw.value(QStringLiteral("imu/excluded")).toStringList();
     const DeviceKey a = camKey(kCamA), b = camKey(kCamB), w = imuKey(kWit), h = imuKey(kHm);
 
     // Each map holds exactly the keys the types spell: the same strings, not merely the same lookups.
@@ -394,9 +399,9 @@ static void testSettingsFixture()
               b.persistedTuningKey(TuningEntry::OtherRoles) });
     keysAre("camera/tuning", r.cameraTuning().keys(),
             { a.persistedTuningKey(TuningEntry::ImpactRole), b.persistedTuningKey(TuningEntry::OtherRoles) });
-    keysAre("imu/alias", r.imuAlias().keys(), { w.persistedWithDescription(), h.persistedWithDescription() });
-    keysAre("imu/excluded", r.imuExcluded(), { w.persistedId() });
-    keysAre("imu/roles", r.imuRoles().keys(), { PlacementKey(w).persisted(), PlacementKey(h, Lane::LowerArm).persisted(),
+    keysAre("imu/alias", rawMap("imu/alias").keys(), { w.persistedWithDescription(), h.persistedWithDescription() });
+    keysAre("imu/excluded", imuExcluded, { w.persistedId() });
+    keysAre("imu/roles", rawMap("imu/roles").keys(), { PlacementKey(w).persisted(), PlacementKey(h, Lane::LowerArm).persisted(),
                                                 PlacementKey(h, Lane::Palm).persisted() });
     const QString typedPrior = ClubLengthPriorKey(AthleteId::fromString(kAthlete), kClub, a).persisted();
     keysAre("analysis/clubLenPrior", rawMap("analysis/clubLenPrior").keys(), { typedPrior });
@@ -420,12 +425,12 @@ static void testSettingsFixture()
     check("exposure B other", r.cameraExposureUs().value(b.persistedTuningKey(TuningEntry::OtherRoles)).toInt() == 8000);
     check("gain A impact", r.cameraTuning().value(a.persistedTuningKey(TuningEntry::ImpactRole)).toMap().value("gain").toDouble() == 12.0);
     check("gain B other", r.cameraTuning().value(b.persistedTuningKey(TuningEntry::OtherRoles)).toMap().value("gain").toDouble() == 3.0);
-    check("imu alias Witmotion", r.imuAlias().value(w.persistedWithDescription()).toString() == QStringLiteral("Pelvis sensor"));
-    check("imu alias wG3", r.imuAlias().value(h.persistedWithDescription()).toString() == QStringLiteral("Lead wrist"));
-    check("imu excluded", r.imuExcluded().contains(w.persistedId()) && !r.imuExcluded().contains(h.persistedId()));
-    check("role Witmotion", r.imuRoles().value(PlacementKey(w).persisted()).toString() == pinpoint::imu_roles::pelvis());
-    check("role lowerArm", r.imuRoles().value(PlacementKey(h, Lane::LowerArm).persisted()).toString() == pinpoint::imu_roles::leadForearm());
-    check("role palm", r.imuRoles().value(PlacementKey(h, Lane::Palm).persisted()).toString() == pinpoint::imu_roles::leadHand());
+    check("imu alias Witmotion", rawMap("imu/alias").value(w.persistedWithDescription()).toString() == QStringLiteral("Pelvis sensor"));
+    check("imu alias wG3", rawMap("imu/alias").value(h.persistedWithDescription()).toString() == QStringLiteral("Lead wrist"));
+    check("imu excluded", imuExcluded.contains(w.persistedId()) && !imuExcluded.contains(h.persistedId()));
+    check("role Witmotion", rawMap("imu/roles").value(PlacementKey(w).persisted()).toString() == pinpoint::imu_roles::pelvis());
+    check("role lowerArm", rawMap("imu/roles").value(PlacementKey(h, Lane::LowerArm).persisted()).toString() == pinpoint::imu_roles::leadForearm());
+    check("role palm", rawMap("imu/roles").value(PlacementKey(h, Lane::Palm).persisted()).toString() == pinpoint::imu_roles::leadHand());
     check("prior", rawMap("analysis/clubLenPrior").value(typedPrior).toMap().value("lenM").toDouble() == 0.94);
 
     // Read back the other way: every stored key parses, and spells itself again.
@@ -439,16 +444,16 @@ static void testSettingsFixture()
         TuningEntry e = TuningEntry::ImpactRole;
         same("stored tuning key parses", DeviceKey::fromPersistedTuningKey(k, &e).persistedTuningKey(e), k);
     }
-    for (const QString &k : r.imuAlias().keys())
+    for (const QString &k : rawMap("imu/alias").keys())
         same("stored alias key parses", DeviceKey::fromPersistedWithDescription(k).persistedWithDescription(), k);
-    for (const QString &k : r.imuExcluded())
+    for (const QString &k : imuExcluded)
         same("stored excluded id parses", DeviceKey::fromPersistedId(k).persistedId(), k);
-    for (const QString &k : r.imuRoles().keys())
+    for (const QString &k : rawMap("imu/roles").keys())
         same("stored role key parses", PlacementKey::fromPersisted(k).persisted(), k);
 
     // The role map read back as typed keys names each sensor the enumerator names.
     QSet<DeviceKey> roleDevices;
-    for (const QString &k : r.imuRoles().keys()) roleDevices.insert(PlacementKey::fromPersisted(k).device());
+    for (const QString &k : rawMap("imu/roles").keys()) roleDevices.insert(PlacementKey::fromPersisted(k).device());
     check("roles name the two sensors", roleDevices == QSet<DeviceKey>({ w, h }));
 }
 

@@ -57,7 +57,7 @@ SettingsPanelBase {
         readonly property string batteryBand: isConnected && !!inst && inst.batteryBand ? inst.batteryBand : ""
         readonly property string batteryTone: ({ ok: "good", low: "attention", veryLow: "error" })[batteryBand] || ""
         readonly property string batteryWord: ({ low: qsTr("low"), veryLow: qsTr("very low") })[batteryBand] || ""
-        readonly property bool isExcluded:  appSettings.imuExcluded.indexOf(imuData.id) >= 0
+        readonly property bool isExcluded:  app.rig.sensorsDisabled.indexOf(imuData.id) >= 0   // the Rig's flag (C-6b.1)
         readonly property bool testOpen:    root.openTestId === imuData.id
 
         // A HackMotion wG3 is a different device KIND, not a Witmotion variant:
@@ -67,10 +67,10 @@ SettingsPanelBase {
         readonly property bool isHackMotion: imuData.vendor === "hackmotion"
 
         // The mount this device holds, by name ("" when it has none) — shown truthfully whatever
-        // the pickers offer. roleForDevice() is Q_INVOKABLE and not reactive: the roles map is
+        // the pickers offer. roleForDevice() is Q_INVOKABLE and not reactive: the Rig's roles (app.rig) are
         // READ AS A VALUE first (a bare statement would be dropped with its dependency).
         readonly property string mountLabel: {
-            var roles = appSettings.imuRoles
+            var roles = app.rig.sensorRoles
             return roles ? ImuMounts.deviceMountLabel(isHackMotion, imuManager.roleForDevice(imuData.id)) : ""
         }
         // The row's read-only mount line. Mounts are set in session setup only (Mark, 26 Oct).
@@ -155,11 +155,9 @@ SettingsPanelBase {
                 PpSwitch {
                     checked: !imuRow.isExcluded
                     onToggled: (v) => {
-                        var list = appSettings.imuExcluded
-                        var idx  = list.indexOf(imuData.id)
-                        if (!v && idx < 0)  list.push(imuData.id)
-                        if ( v && idx >= 0) list.splice(idx, 1)
-                        appSettings.imuExcluded = list
+                        // The machine-wide flag is the Rig's (C-6b.1): one command. The sensor manager switches the
+                        // sensor off for this session (and disconnects it) one turn later, when it hears the change.
+                        app.rig.setSensorEnabledOnThisMachine(imuData.id, v)
                         if (!v && imuRow.testOpen) root.openTestId = ""
                     }
                 }
@@ -983,19 +981,19 @@ SettingsPanelBase {
 
         readonly property int enabledCount: {
             var list = imuManager.imuDeviceList
-            var ex   = appSettings.imuExcluded
+            var ex   = app.rig.sensorsDisabled
             return list.filter(function(d) { return ex.indexOf(d.id) < 0 }).length
         }
         readonly property int connectedCount: imuManager.imuCount
 
-        // Mounts BY NAME, in picker order. Reads only the roles map's VALUES,
-        // never its keys, so a wG3's two unit keys count as the two mounts they
-        // fill. "Assigned" is every role claimed, offered or not; "Not worn" is the
+        // Mounts BY NAME, in picker order. Reads only the roles' VALUES (app.rig.sensorRoles:
+        // the role each placement holds), never their keys, so a wG3's two unit keys count as
+        // the two mounts they fill. "Assigned" is every role claimed, offered or not; "Not worn" is the
         // OFFERED mounts nobody claims (ImuMounts.offeredRoles). Not a warning: no
         // mount is required (session_wizard_refactor_design.md §4.12), and since the
         // trunk mounts are offered (W2.2) a wrist-only setup leaves two of them unworn.
         readonly property var assignedRoles: {
-            var held = Object.values(appSettings.imuRoles)
+            var held = app.rig.sensorRoles
             return ImuMounts.allRoles.filter(function(r) { return held.indexOf(r) >= 0 })
         }
         // The SHORT names (ImuMounts.shortLabel): a one-line summary has no room for the

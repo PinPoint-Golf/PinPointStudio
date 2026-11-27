@@ -17,8 +17,13 @@
  */
 
 // Role-keyed IMU placement (session_wizard_refactor_design.md §4.13) — the pure logic
-// ImuManager and AppSettings delegate to (imu_role_map.{h,cpp}), and AppSettings' own
-// half of it against a scratch settings file.
+// ImuManager and the Rig delegate to (imu_role_map.{h,cpp}). AppSettings' half of it (the
+// marker, the stored keys, the derived view, the signals: A1–A5) went with the sensors'
+// cut-over (platform refactor C-6b.1), which made the Rig their one writer; those cases are
+// re-pointed at the Rig, its copy at launch and app.rig in imu_rig_link_test (I6, I7). Since
+// the cut-over this file also pins the rig state as today's map (rolesMapOf, placementViewOf:
+// V3) and the one refusal rule the set-up's mount pickers share with claimRole (refusingHolder:
+// R1–R7, the cases the set-up suite's pickers exercise).
 //
 // ⚠ THE ORACLES ARE THE CONTRACT, NOT THE CODE. The design says: the Wrist map migrates
 // A/B/C to leadForearm/leadHand/leadUpperArm and drops D; the migration runs once, so a
@@ -31,14 +36,11 @@
 // ImuManager itself is not linked (it needs the BLE and device stack). What it adds on
 // top of these functions is the device-facts callback, the live instances and logging.
 
-#include "app/app_settings.h"
 #include "../imu/imu_labels.h"
+#include "../../IMU/imu_role_map.h"
+#include "../../Vocabulary/Rig/rig_state.h"
 
 #include <QCoreApplication>
-#include <QMetaProperty>
-#include <QSettings>
-#include <QSignalSpy>
-#include <QTemporaryDir>
 
 #include <cstdio>
 #include "../../Core/tests/isolated_stores.h"   // pinpoint::test::IsolatedStores (#187)
@@ -295,6 +297,25 @@ static void testDerivedView()
         checkMap(QStringLiteral("V1 derived imuPlacement = the legacy map (arm-only)"),
                  placementFromRoles(loadRoles(false, {}, legacy).roles), legacy);
     }
+    // V3 (C-6b.1): the Rig holds the roles as typed placements; the map read back from its state, and the derived
+    // view over it, are the map and the letters today's code gave.
+    for (const QVariantMap &legacy : {
+             QVariantMap{ { "W1", "A" }, { "W2", "B" }, { "W3", "C" } },
+             QVariantMap{ { kHmL, "A" }, { kHmP, "B" }, { "W3", "C" } } }) {
+        const QVariantMap roles = loadRoles(false, {}, legacy).roles;
+        pinpoint::rig::RigState state;
+        for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
+            pinpoint::rig::SensorSetup x;
+            x.key  = pinpoint::rig::PlacementKey::fromPersisted(it.key());
+            x.role = pinpoint::analysis::segmentRoleForPlacementRole(it.value().toString());
+            state.sensors.append(x);
+        }
+        pinpoint::rig::SensorSetup bare;   // a placement holding no role (only a record, later): not in the map
+        bare.key = pinpoint::rig::PlacementKey::fromPersisted(QStringLiteral("W9"));
+        state.sensors.append(bare);
+        checkMap(QStringLiteral("V3 the rig state read back as today's roles map"), rolesMapOf(state), roles);
+        checkMap(QStringLiteral("V3 the rig state's derived placement view = the legacy map"), placementViewOf(state), legacy);
+    }
     checkMap(QStringLiteral("V2 trunk roles produce no letter"),
              placementFromRoles({ { "W1", "pelvis" }, { "W2", "thorax" }, { "W3", "leadUpperArm" } }),
              { { "W3", "C" } });
@@ -474,6 +495,45 @@ static void testClaims()
     }
 }
 
+// ── 5b. The refusing holder: one rule for claimRole and the set-up's mount pickers (C-6b.1) ──────
+//
+// SetupContext.mountHolder restated claimRole's refusal in QML (AD-52); since C-6b.1 it asks
+// ImuManager::mountHolder, which is this function over the device list's facts. Each case is one the
+// set-up suite's pickers exercise (tst_setup_sensors MQ3–MQ5, AN5; tst_setup_mounts P1–P4), answered
+// as the QML answered it.
+
+static void testRefusingHolder()
+{
+    const QVariantMap roles{ { "WT-A", "leadForearm" }, { "WT-B", "leadHand" }, { "WT-C", "pelvis" } };
+    checkStr(QStringLiteral("R1 a present, enabled sensor holding the mount refuses another (MQ3)"),
+             refusingHolder(roles, "leadForearm", "WT-N", Table().witmotion("WT-A").witmotion("WT-N").fn()), "WT-A");
+    checkStr(QStringLiteral("R2 a sensor never refuses itself (its own mount is offered back, P3)"),
+             refusingHolder(roles, "leadForearm", "WT-A", Table().witmotion("WT-A").fn()), "");
+    checkStr(QStringLiteral("R3 a holder switched off this session does not refuse (MQ6)"),
+             refusingHolder(roles, "leadForearm", "WT-N", Table().witmotion("WT-A", false).witmotion("WT-N").fn()), "");
+    checkStr(QStringLiteral("R4 a holder the scan cannot see does not refuse (MQ8)"),
+             refusingHolder(roles, "leadForearm", "WT-N", Table().witmotion("WT-N").fn()), "");
+    checkStr(QStringLiteral("R5 a wG3's unit key names the wG3 (MQ5: either half of the pair)"),
+             refusingHolder({ { kHmL, "leadForearm" }, { kHmP, "leadHand" } }, "leadHand", "WT-N",
+                            Table().hackmotion(kHm).witmotion("WT-N").fn()), kHm);
+    checkStr(QStringLiteral("R6 the first present, enabled claimant in key order"),
+             refusingHolder({ { "WT-B", "pelvis" }, { "WT-A", "pelvis" } }, "pelvis", "WT-N",
+                            Table().witmotion("WT-A").witmotion("WT-B").fn()), "WT-A");
+    // R7: claimRole refuses exactly when, and by exactly whom, refusingHolder says so for the role it writes.
+    for (const QString &who : { QStringLiteral("WT-N"), QStringLiteral("WT-A"), kHm }) {
+        for (const QString &role : placementRoleOrder()) {
+            const DeviceFactsFn f = Table().witmotion("WT-A").witmotion("WT-B", false).witmotion("WT-N").hackmotion(kHm).fn();
+            const ClaimResult c = claimRole(roles, who, role, f);
+            if (!c.error.isEmpty()) continue;
+            const QString holder = refusingHolder(roles, role, who, f);
+            const bool hmHand = who == kHm && holder.isEmpty();   // a wG3 also writes the hand
+            const QString hand = hmHand ? refusingHolder(roles, leadHand(), who, f) : QString();
+            check(QStringLiteral("R7 claimRole(%1, %2) refused by the refusing holder").arg(who, role),
+                  c.ok == (holder.isEmpty() && hand.isEmpty()) && c.holderId == (holder.isEmpty() ? hand : holder));
+        }
+    }
+}
+
 // ── 6. rolesInSession ────────────────────────────────────────────────────────────
 
 static void testRolesInSession()
@@ -491,59 +551,6 @@ static void testRolesInSession()
     checkList(QStringLiteral("S3 nothing assigned → empty"), rolesInSession({}, Table().fn()), {});
 }
 
-// ── 7. AppSettings: the marker, the stored keys, the derived view, the signals ─────
-
-static void testAppSettings()
-{
-    QTemporaryDir scratch;
-    // ⚠ BEFORE the first AppSettings: its constructor reads (and the migration writes) the
-    // settings file, and the default path is the user's real one.
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch.path());
-
-    const QVariantMap legacy{ { "W1", "A" }, { "W2", "B" }, { "W4", "D" } };
-    ppSettings().setValue(QStringLiteral("imu/placement"), legacy);
-
-    {
-        AppSettings s;
-        checkMap(QStringLiteral("A1 first load migrates imu/placement"), s.imuRoles(),
-                 { { "W1", "leadForearm" }, { "W2", "leadHand" } });
-        checkMap(QStringLiteral("A1 derived imuPlacement"), s.imuPlacement(),
-                 { { "W1", "A" }, { "W2", "B" } });
-        check(QStringLiteral("A1 the marker is written"),
-              ppSettings().value(QStringLiteral("imu/rolesMigrated")).toBool());
-        checkMap(QStringLiteral("A1 imu/placement on disk is untouched"),
-                 ppSettings().value(QStringLiteral("imu/placement")).toMap(), legacy);
-
-        QSignalSpy roles(&s, &AppSettings::imuRolesChanged);
-        QSignalSpy placement(&s, &AppSettings::imuPlacementChanged);
-        s.setImuRoles({ { "W1", "leadForearm" }, { "W2", "leadHand" }, { "P", "pelvis" } });
-        check(QStringLiteral("A2 a trunk-only change still notifies imuPlacement"),
-              roles.count() == 1 && placement.count() == 1);
-        s.setImuRoles(s.imuRoles());
-        check(QStringLiteral("A3 an unchanged write notifies nothing"),
-              roles.count() == 1 && placement.count() == 1);
-
-        // A4: imuPlacement is READ-ONLY (Stage 5c): its property has no WRITE, and a roles
-        // write moves the derived view without touching imu/placement on disk.
-        const int pi = s.metaObject()->indexOfProperty("imuPlacement");
-        check(QStringLiteral("A4 imuPlacement is a read-only property"),
-              pi >= 0 && !s.metaObject()->property(pi).isWritable());
-        s.setImuRoles({ { "P", "pelvis" }, { "W2", "leadForearm" } });
-        checkMap(QStringLiteral("A4 the derived view follows the roles"), s.imuPlacement(),
-                 { { "W2", "A" } });
-        checkMap(QStringLiteral("A4 imu/placement on disk is still untouched"),
-                 ppSettings().value(QStringLiteral("imu/placement")).toMap(), legacy);
-
-        s.setImuRoles({});   // the coach unassigns everything
-    }
-    {
-        AppSettings again;
-        checkMap(QStringLiteral("A5 empty-after-unassign survives a restart (no re-migration)"),
-                 again.imuRoles(), {});
-        checkMap(QStringLiteral("A5 and the derived view is empty"), again.imuPlacement(), {});
-    }
-}
-
 int main(int argc, char **argv)
 {
     pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
@@ -556,8 +563,8 @@ int main(int argc, char **argv)
     testDisplayNames();
     testLadder();
     testClaims();
+    testRefusingHolder();
     testRolesInSession();
-    testAppSettings();
     std::printf("%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

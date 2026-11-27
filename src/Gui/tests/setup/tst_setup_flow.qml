@@ -54,13 +54,13 @@ Item {
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            // The REAL AppSettings (scratch QSettings) is shared by every case in this file. The cameras' set-up is
-            // the Rig's: a fresh FakeRig per case (app.rig), nothing enabled-off, fixed or boxed.
-            appSettings.imuRoles           = ({})
-            appSettings.imuExcluded        = []
+            // The REAL AppSettings (scratch QSettings) is shared by every case in this file. The cameras' and the
+            // sensors' set-up is the Rig's: a fresh FakeRig per case (app.rig), no role, nothing enabled-off, fixed or
+            // boxed; the fake sensor manager reads and writes the same one (imu.rig).
             imu     = imuComp.createObject(tc)
             cams    = camComp.createObject(tc)
             rig     = rigComp.createObject(tc)
+            imu.rig = rig
             athlete = athleteComp.createObject(tc)
             lm      = lmComp.createObject(tc)
             log     = logComp.createObject(tc)

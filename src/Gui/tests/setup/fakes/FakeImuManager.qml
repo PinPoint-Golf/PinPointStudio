@@ -1,13 +1,27 @@
 // Fake ImuManager (src/Gui/imu/imu_manager.h) — design §7.2.
 //
-// Placement is held where the real one holds it — appSettings.imuRoles (the REAL
-// AppSettings over a scratch QSettings), keyed by placement key → role name:
+// Placement is held where the real one holds it — in the Rig (C-6b.1): `rig`, the FakeRig the host also
+// hands the production QML as app.rig, in its test seam sensorRoles map (rig.sensorRoleMap), keyed by
+// placement key → role name:
 //   Witmotion  "<devId>"          → "leadForearm" | "leadHand" | "leadUpperArm" | …
 //   HackMotion "<devId>#lowerArm" → "leadForearm", "<devId>#palm" → "leadHand"
+// Aliases likewise (rig.sensorAliasMap). A host that makes its own FakeRig for app.rig sets this one's
+// `rig` to it; left alone, the fake keeps a FakeRig of its own (and production QML reading another app.rig
+// would see no mount: a host wired wrong fails loudly).
 // The tests place devices with assign(id, letter) below — a test shorthand (A leadForearm,
-// B leadHand, C leadUpperArm, P pelvis, T thorax) written straight onto appSettings.imuRoles; the real class's
-// derived imuPlacement view is read-only (Stage 5c), and the real ImuManager has no …ForSlot
+// B leadHand, C leadUpperArm, P pelvis, T thorax) written straight onto the Rig's roles; the real
+// derived placement view is read-only (app.rig.placementPairs), and the real ImuManager has no …ForSlot
 // methods or setPlacementForDevice any more — neither does this.
+//
+// ⚠ ITS RESOLVERS ARE NOT REACTIVE, as the real Q_INVOKABLEs are not: they read the Rig through
+// rig.rolesUntracked() / rig.aliasesUntracked() (FakeRig.qml), so a production binding re-evaluates only
+// on the app.rig dependency it reads itself (F40). rolesInSession, a notifying property in the real
+// class, stays reactive.
+//
+// ⚠ IT RESTATES THE ROLE RULE (claimRole's refusal and displacement, the ladder, mountHolder's refusing
+// holder, sensorDisplayName) rule for rule, as it did before the Rig. The QML suites link none of the C++
+// rule, and exposing it to them would be a new QML type in the app's module that the design does not name;
+// so the fake keeps its copy, and imu_rig_link_test and imu_role_map_test pin the real rule on the same cases.
 // The resolvers follow the real ladder (imu_manager.cpp): an enumerated (present) and
 // session-enabled claimant first, then a present-but-disabled one, then any.
 //
@@ -17,6 +31,10 @@ import QtQuick
 
 QtObject {
     id: mgr
+
+    // The Rig this fake reads and writes the sensors' roles and aliases in (see the header).
+    property FakeRig _ownRig: FakeRig {}
+    property var rig: _ownRig
 
     // ── Properties the production QML reads ──────────────────────────────
     property var  _devices: []          // internal records, see addWitmotion/addHackMotion
@@ -110,7 +128,7 @@ QtObject {
 
     function placementKeyForRole(role) {
         if (!role) return ""
-        var roles = appSettings.imuRoles
+        var roles = rig.rolesUntracked()
         var firstKey = "", presentKey = "", enabledKey = ""
         for (var key in roles) {
             if (roles[key] !== role) continue
@@ -153,7 +171,7 @@ QtObject {
     }
     // imu_role_map.cpp roleForDevice: the lower-arm key, then the bare key, then the palm key.
     function roleForDevice(deviceId) {
-        var roles = appSettings.imuRoles
+        var roles = rig.rolesUntracked()
         if (!deviceId) return ""
         if (roles[deviceId + "#lowerArm"] !== undefined) return roles[deviceId + "#lowerArm"]
         if (roles[deviceId] !== undefined) return roles[deviceId]
@@ -166,6 +184,21 @@ QtObject {
         var d = _find(_ownerOf(key))
         return (d && d.present && sessionImuExcluded.indexOf(d.id) < 0) ? d.id : ""
     }
+    // imu_roles::refusingHolder over the device list's facts (ImuManager::mountHolder): the first claimant of
+    // `role`, other than `exceptDeviceId`, that the list shows present and switched on this session.
+    function mountHolder(role, exceptDeviceId) {
+        if (!role) return ""
+        var roles = rig.rolesUntracked(), list = imuDeviceList
+        for (var key in roles) {
+            if (roles[key] !== role) continue
+            var owner = _ownerOf(key)
+            if (owner === exceptDeviceId) continue
+            for (var i = 0; i < list.length; ++i)
+                if (list[i].id === owner && list[i].present === true && list[i].sessionEnabled !== false)
+                    return owner
+        }
+        return ""
+    }
     // imu_role_map.cpp claimRole + ImuManager::setRoleForDevice, rule for rule:
     //   "" unassigns every key the device can own; an unknown role, or a wG3 asked for anything
     //   but leadForearm, is a caller error (false, no signal); a role held by ANOTHER present,
@@ -177,12 +210,12 @@ QtObject {
     function setRoleForDevice(deviceId, role) {
         _rec("setRoleForDevice", [deviceId, role])
         if (!deviceId) return false
-        var cur = appSettings.imuRoles, roles = {}
+        var cur = rig.sensorRoleMap, roles = {}
         for (var k0 in cur) roles[k0] = cur[k0]
         var lower = deviceId + "#lowerArm", palm = deviceId + "#palm"
         if (!role) {
             delete roles[deviceId]; delete roles[lower]; delete roles[palm]
-            appSettings.imuRoles = roles
+            rig.sensorRoleMap = roles
             return true
         }
         if (placementRoles.indexOf(role) < 0) return false
@@ -215,11 +248,11 @@ QtObject {
         }
         delete roles[deviceId]; delete roles[lower]; delete roles[palm]
         for (var t3 = 0; t3 < targets.length; ++t3) roles[targets[t3][0]] = targets[t3][1]
-        appSettings.imuRoles = roles
+        rig.sensorRoleMap = roles
         return true
     }
     readonly property var rolesInSession: {
-        var roles = appSettings.imuRoles
+        var roles = rig.sensorRoleMap
         var _dep = sessionImuExcluded
         var out = []
         for (var key in roles) {
@@ -236,20 +269,20 @@ QtObject {
     }
     // imu_roles::sensorDisplayName, rule for rule (imu_role_map.h): the coach's alias (not the
     // seeded "<description> <id>"), else the description — a listed device's own, else the one
-    // remembered in its appSettings.imuAlias key ("<description>|<id>") — else "HackMotion wG3"
+    // remembered in its rig.sensorAliasMap key ("<description>|<id>") — else "HackMotion wG3"
     // for a wG3 unit key in the roles, else "sensor". UUID-shaped tokens are stripped.
     function _stripIds(s) {
         s = (s || "").replace(/\{?[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}?/g, "")
         return s.replace(/\s+/g, " ").trim()
     }
-    // The appSettings.imuAlias key, "<description>|<id>": the one place the fakes and the tests spell
+    // The rig.sensorAliasMap key, "<description>|<id>": the one place the fakes and the tests spell
     // it, as imu_roles::aliasKey (DeviceKey::persistedWithDescription()) does in C++. It only spells.
     function aliasKey(description, deviceId) {
         return description + "|" + deviceId
     }
     function displayNameForDevice(deviceId) {
         var d = _find(deviceId), desc = "", alias = ""
-        var aliases = appSettings.imuAlias || ({})
+        var aliases = rig.aliasesUntracked() || ({})
         if (d) {
             desc = d.description
             alias = d.alias || aliases[aliasKey(desc, deviceId)] || ""
@@ -265,7 +298,7 @@ QtObject {
         if (alias !== "") return alias
         desc = _stripIds(desc)
         if (desc !== "") return desc
-        var roles = appSettings.imuRoles
+        var roles = rig.rolesUntracked()
         if (roles[deviceId + "#lowerArm"] !== undefined || roles[deviceId + "#palm"] !== undefined)
             return "HackMotion wG3"
         return "sensor"
@@ -405,7 +438,7 @@ QtObject {
     // including a claim by a device that is not in the list). A letter with no role clears.
     function _place(deviceId, slot) {
         var map = {}
-        var cur = appSettings.imuRoles
+        var cur = rig.sensorRoleMap
         for (var k in cur) map[k] = cur[k]
         var d = _find(deviceId)
         var hm = d && d.vendor === "hackmotion"
@@ -417,7 +450,7 @@ QtObject {
             if (hm) { map[deviceId + "#lowerArm"] = "leadForearm"; map[deviceId + "#palm"] = "leadHand" }
             else    { map[deviceId] = role }
         }
-        appSettings.imuRoles = map
+        rig.sensorRoleMap = map
     }
     function _ensureInstance(d) {
         if (d.inst) return

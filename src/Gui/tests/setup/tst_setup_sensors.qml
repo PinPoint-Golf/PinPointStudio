@@ -6,6 +6,8 @@
 //   MQ2  choosing: setRoleForDevice once; the row names the mount; the arm steps appear
 //   MQ3  a mount another sensor holds is greyed and names its holder
 //   MQ4  a refused pick leaves the mount as it was and says who holds it, in the page
+//   MQ4b a role change made elsewhere (the Rig's roles change, not through this page) clears the refusal note:
+//        the page follows app.rig's sensorRolesChanged (C-6b.1, F40's RO15)
 //   MQ5  a wG3 is offered only "Lead forearm + hand"
 //   MQ6  disabling the sensor drops the arm steps
 //   MQ7  a remembered mount is confirmed, not asked; "change" reopens the question
@@ -19,6 +21,8 @@
 //        keys; "sensor" (Stage 5d — the real app showed "{767a6a67-…} not found")
 //   AN5  a holder whose alias is the seeded "<description> <id>" is named by its description
 //   AN6  no shown string on the Sensors page or on Ready carries a "{…}" id
+//   AN7  an absent sensor renamed while the page is up is renamed on the page: the row follows app.rig's alias
+//        notifier (C-6b.1, F40's AL9; the fake manager's names are not reactive, as the real ones are not)
 import QtQuick
 import QtTest
 import PinPointStudio
@@ -76,10 +80,10 @@ Item {
             var roles = {}
             roles[uuid + "#lowerArm"] = "leadForearm"
             roles[uuid + "#palm"] = "leadHand"
-            appSettings.imuRoles = roles
+            d.rig.sensorRoleMap = roles
             var al = {}
             if (aliasValue !== undefined) al["HackMotion wG3|" + uuid] = aliasValue
-            appSettings.imuAlias = al
+            d.rig.sensorAliasMap = al
         }
         function absentRowLabel() {
             var rows = d.imuRows().filter(function(r) { return r.absent })
@@ -127,7 +131,7 @@ Item {
             var calls = setRoleCalls().slice(n0)
             compare(calls.length, 1, JSON.stringify(calls))
             compare(calls[0].args, ["WT-N", "leadForearm"])
-            compare(appSettings.imuRoles["WT-N"], "leadForearm", "the mount is a setting: it sticks")
+            compare(d.rig.sensorRoleMap["WT-N"], "leadForearm", "the mount is a setting: it sticks")
             verify(!d.mountQuestionShown("WT-N"), "the question is still open after a pick")
             compare(d.imuRows()[0].label, "Lead forearm — WT901BLE WT-N")
             compare(d.plan(), ["intent", "cameras", "framing", "ball", "imus", "calibrateArm", "checkArm", "ready"])
@@ -176,13 +180,28 @@ Item {
             compare(setRoleCalls().length, n0 + 1)
             compare(d.mountRefusal("WT-N"), "Lead forearm is held by WT901BLE WT-A. Unassign or disable it first.")
             compare(d.imu.roleForDevice("WT-N"), "", "the refused mount was written")
-            compare(appSettings.imuRoles["WT-A"], "leadForearm", "the holder lost its mount")
+            compare(d.rig.sensorRoleMap["WT-A"], "leadForearm", "the holder lost its mount")
             verify(d.mountQuestionShown("WT-N"), "the question closed on a refusal")
             compare(d.imuRows()[1].label, "WT901BLE WT-N")
             // The next pick clears it.
             d.chooseMount("WT-N", "leadHand")
             compare(d.mountRefusal("WT-N"), "")
             compare(d.imu.roleForDevice("WT-N"), "leadHand")
+        }
+
+        // ── MQ4b ────────────────────────────────────────────────────────────
+        function test_MQ4b_aRoleChangeElsewhereClearsTheRefusal() {
+            d.addWitmotion("WT-A", "A", true)
+            d.addWitmotion("WT-N", "", true)
+            d.open()
+            d.walkTo("imus")
+            d.flow.page.chooseMount("WT-N", "leadForearm")
+            verify(d.mountRefusal("WT-N") !== "", "no refusal to clear")
+            // The holder lets go elsewhere (Settings, another screen): the Rig's roles change, not through this page.
+            var m = {}
+            for (var k in d.rig.sensorRoleMap) if (k !== "WT-A") m[k] = d.rig.sensorRoleMap[k]
+            d.rig.sensorRoleMap = m
+            compare(d.mountRefusal("WT-N"), "", "the refusal note outlived the holder letting go")
         }
 
         // ── MQ5 ─────────────────────────────────────────────────────────────
@@ -198,7 +217,7 @@ Item {
             compare(opts[0].text, "Lead forearm + hand")
             d.chooseMount("HM-1", "leadForearm")
             compare(d.imu.roleForDevice("HM-1"), "leadForearm")
-            compare(appSettings.imuRoles["HM-1#palm"], "leadHand", "the pair was not written as a pair")
+            compare(d.rig.sensorRoleMap["HM-1#palm"], "leadHand", "the pair was not written as a pair")
             compare(d.imuRows()[0].label, "Lead forearm + hand — HackMotion wG3 HM-1")
             verify(hasArmSteps())
         }
@@ -276,6 +295,16 @@ Item {
                 JSON.stringify(d.readinessIssues()))
             assertNoRawIds("AN1 Sensors")
         }
+        function test_AN7_aRenamedAbsentSensorIsRenamedOnThePage() {
+            absentWg3("Lead arm wG3")
+            d.open()
+            d.walkTo("imus")
+            compare(absentRowLabel(), "Lead forearm + hand — Lead arm wG3 (not found)")
+            var al = {}
+            al["HackMotion wG3|" + uuid] = "Renamed wG3"
+            d.rig.sensorAliasMap = al                  // the Rig's alias changes while the page is up
+            compare(absentRowLabel(), "Lead forearm + hand — Renamed wG3 (not found)")
+        }
         function test_AN2_absentSeededAliasFallsBackToTheDescription() {
             absentWg3("HackMotion wG3 " + uuid)     // what ImuManager seeds for a newly seen device
             d.open()
@@ -293,8 +322,8 @@ Item {
         function test_AN4_absentWithNothingRememberedIsASensor() {
             var roles = {}
             roles[uuid] = "leadForearm"
-            appSettings.imuRoles = roles
-            appSettings.imuAlias = ({})
+            d.rig.sensorRoleMap = roles
+            d.rig.sensorAliasMap = ({})
             d.open()
             d.walkTo("imus")
             compare(absentRowLabel(), "Lead forearm — sensor (not found)")
@@ -311,7 +340,7 @@ Item {
             d.imu.connectDevice(uuid)
             var al = {}
             al[d.imu.aliasKey(d.imu._find(uuid).description, uuid)] = d.imu._find(uuid).description + " " + uuid
-            appSettings.imuAlias = al
+            d.rig.sensorAliasMap = al
             d.addWitmotion("WT-N", "", true)
             d.open()
             d.walkTo("imus")

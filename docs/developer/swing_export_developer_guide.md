@@ -1069,7 +1069,7 @@ The exporter reuses existing keys — **do not invent parallel settings**.
 | `storage/savePoseKeypoints` | Gates serialising `kind:"pose"` streams — the exporter only *writes* pose carried on the job; no producer yet (empty today) |
 | `general/motionCaptureQuality` | Recorded into `capture` so re-analysis picks the same offline pose model |
 | `camera/alias` (`cameraAlias()` map) | MP4 filenames, keyed by `cameraKey()` |
-| `imu/alias` (`imuAlias()` map) | IMU stream aliases, matched by serial/device-id |
+| a sensor's alias (the Rig's since the sensors' cut-over, C-6b.1: `ImuManager::aliasOf`; `imu/alias` before it) | IMU stream aliases, matched by serial/device-id |
 
 All keys are read on the UI thread in `buildSwingExportJob()` via the single
 shared `AppSettings` instance (see the AppSettings rule in `CLAUDE.md`).

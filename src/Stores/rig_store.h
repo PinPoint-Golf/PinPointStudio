@@ -48,8 +48,8 @@
 // THE COPY FROM SETTINGS, one group of keys at a time (rig_design.md §4.4, "From settings to the file" and "Going back
 // to an older build"; §9 question 6; rig_design_addendum.md decisions 9 and 10). A group is copied in the item that
 // makes the Rig its writer, so the composition root names the groups the Rig writes: the camera group since C-5b, the
-// club-length prior since C-7. The sensor group is built (C-6a.2) but named by nothing in the app: the sensor keys stay
-// AppSettings' until the sensors' cut-over (C-6b.1) names it. For each group named, at load():
+// club-length prior since C-7, the sensor group since the sensors' cut-over (C-6b.1; built in C-6a.2). For each group
+// named, at load():
 //   - none of the group's keys exists in settings (the settings reset or deleted, or a later stage removing them): the
 //     Rig is left as it is, no copy and no wipe (P1, the Solution Architect, 27 Nov 2026);
 //   - rig.json missing, or the group not taken yet: the group is read from the settings store (ppSettings(), never an
@@ -73,7 +73,8 @@
 // is a map of numbers, strings and flags; any other entry is kept verbatim. Copied again, the group replaces the Rig's
 // priors whole.
 // The sensor group (C-6a.2): imu/roles (a map by placement key: the bare device id, or "<id>#lowerArm" / "<id>#palm"),
-// read as AppSettings::loadImuRoles reads it, through imu_roles::loadRoles and the imu/rolesMigrated marker, so a machine
+// read as AppSettings::loadImuRoles read it before the cut-over, through imu_roles::loadRoles and the imu/rolesMigrated
+// marker (which nothing writes since: AppSettings' load and its role writer are gone), so a machine
 // not yet moved from imu/placement copies the roles that move gives (and the copy writes neither the roles nor the
 // marker); imu/alias (a map by "<description>|<deviceId>"); imu/excluded (a list of bare device ids). Every roles entry
 // is copied verbatim (L4): one whose value is not one of the five role names (a slot letter, "other", "", a newer
@@ -107,7 +108,7 @@ public:
     enum class Group { Cameras, ClubLengthPrior, Sensors };
 
     // `groupsTheRigWrites`: the groups whose writer the Rig is, which load() copies from settings (the composition
-    // root's: the cameras, since C-5b, and the club-length prior, since C-7; the sensors from C-6b.1; a test's store may
+    // root's: the cameras, since C-5b, the club-length prior, since C-7, and the sensors, since C-6b.1; a test's store may
     // name any, or none).
     explicit RigStore(QString folder, QList<Group> groupsTheRigWrites = {});
 

@@ -52,7 +52,8 @@
 //       equal ImuInstance::kMountDeviationMaxDeg / kMountGravityErrorMaxDeg (imu/imu_instance.h)
 //       — the QML cannot read the headers, so this is the guard.
 //   W9  No QML outside tests/ uses the slot-letter API (the …ForSlot shims,
-//       setPlacementForDevice, appSettings.imuPlacement), except the site in kW9Allowed
+//       setPlacementForDevice, the derived placement view: app.rig.placementPairs since the sensors'
+//       cut-over, C-6b.1, appSettings.imuPlacement before it), except the site in kW9Allowed
 //       (PpDataViewer.qml:96, which labels old swings). Enforced (kEnforceW9); the shims were
 //       deleted from ImuManager at Stage 5c.
 //   W12 No rule is built in QML (AD-52, governance/controls/build.md; R-QML-4): a production QML or JS
@@ -150,8 +151,9 @@ constexpr bool kEnforceW1 = true;
 constexpr int kW5MinUses = 40;
 
 // W9 is ENFORCED for QML since Stage 5b. The one site allowed: the review screen's old-swing
-// labelling, which reads the derived, read-only imuPlacement view on purpose to label swings that
-// carry no role (swing_data_source.cpp) and stays. The …ForSlot shims and setPlacementForDevice
+// labelling, which reads the derived, read-only placement view on purpose to label swings that
+// carry no role (swing_data_source.cpp) and stays: app.rig.placementPairs since the sensors' cut-over
+// (C-6b.1), AppSettings' imuPlacement before it (both names are matched). The …ForSlot shims and setPlacementForDevice
 // were deleted from ImuManager at Stage 5c, so W5 also fails any QML that still calls one. A
 // whole-file entry is a path; a single site is path:line.
 constexpr bool kEnforceW9 = true;
@@ -786,7 +788,8 @@ QVector<ContextObject> contextObjects()
         { QStringLiteral("workOnsSource"), QStringLiteral("diagnostics/work_ons_controller.h"),
           QStringLiteral("WorkOnsController") },
         // The Rig (`app.rig`), held by SetupContext as `rig` since the cameras' cut-over (platform refactor C-5b):
-        // each camera's fixed flag, saved box and enabled flag.
+        // each camera's fixed flag, saved box and enabled flag; and since the sensors' (C-6b.1) each sensor's role,
+        // alias and enabled flag.
         { QStringLiteral("rig"),           QStringLiteral("app/rig_presenter.h"),      QStringLiteral("RigPresenter") },
     };
 }
@@ -1177,7 +1180,7 @@ void ruleW9()
 {
     // Code only: comments and strings are stripped, so a note explaining the old API is not a use.
     static const QRegularExpression re(QStringLiteral(
-        R"((?<![\w$])(instanceForSlot|deviceForSlot|deviceIdForSlot|unitLabelForSlot|placementKeyForSlot|setPlacementForDevice|imuPlacement)(?![\w$]))"));
+        R"((?<![\w$])(instanceForSlot|deviceForSlot|deviceIdForSlot|unitLabelForSlot|placementKeyForSlot|setPlacementForDevice|imuPlacement|placementPairs)(?![\w$]))"));
 
     const QStringList all = filesUnder(QString(), { QStringLiteral("*.qml") }, true);
     QStringList       sites, outsideAllowed;

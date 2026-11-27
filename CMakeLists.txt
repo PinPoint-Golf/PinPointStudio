@@ -786,6 +786,7 @@ qt_add_executable(PinPointStudio
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
     src/IMU/imu_role_map.h               src/IMU/imu_role_map.cpp
     src/Gui/imu/imu_labels.h
+    src/Gui/imu/imu_rig_link.h            src/Gui/imu/imu_rig_link.cpp   # the sensor manager's link to the Rig (C-6b.1)
     src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
     src/Vocabulary/Common/segment_role.h
     src/Gui/imu/imu_instance.h               src/Gui/imu/imu_instance.cpp

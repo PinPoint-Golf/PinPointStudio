@@ -44,7 +44,6 @@ Item {
     // ── Fakes ────────────────────────────────────────────────────────────────
     Component { id: imuMgrComp;    FakeImuManager {} }
     Component { id: camMgrComp;    FakeCameraManager {} }
-    Component { id: rigComp;       FakeRig {} }
     Component { id: athleteComp;   FakeAthlete {} }
     Component { id: liveWristComp; FakeLiveWrist {} }
     Component { id: sessionComp;   FakeSessionController {} }
@@ -388,7 +387,8 @@ Item {
         fx.app.sessionController = fx.sessionController
         fx.app.navController     = fx.navController
         fx.app.shotProcessor     = fx.shotProcessor
-        fx.app.rig               = rigComp.createObject(drv)   // app.rig: the cameras' set-up (C-5b)
+        fx.app.rig               = fx.imuManager.rig   // app.rig: the cameras' (C-5b) and the sensors' set-up (C-6b.1),
+                                                       // the fake sensor manager's own fresh FakeRig
     }
     // setup: "witmotion2" | "witmotion3" | "hackmotion" | "none"
     // opts.hmMode: "autoScript" (default) | "strict" | "manual"
@@ -459,8 +459,7 @@ Item {
         opts = opts || {}
         setupName = setupKind
         scale = opts.scale !== undefined ? opts.scale : 1
-        appSettings.imuRoles = ({})
-        _makeFakes()
+        _makeFakes()   // a fresh Rig: no role (the fake manager's own FakeRig)
         _addDevices(setupKind, opts)
         if (opts.prepare) opts.prepare(drv)
         setup = harness.createWithContext("ScreenSessionSetup", fx, wizHost,

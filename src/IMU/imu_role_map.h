@@ -43,16 +43,19 @@
 // the owner ladder, the one-claim-per-role rule and both migrations are tested without
 // a BLE stack, and the app runs the same code the test ran.
 //
-// TWO HALVES, ON PURPOSE. The functions in this header are INLINE because AppSettings
-// calls them, and AppSettings is compiled into four targets (the app, both QML suites and
-// the update-policy suite) that would otherwise all have to learn a new .cpp. They need
-// nothing but QtCore. The device-fact half (imu_role_map.cpp) is called by ImuManager
-// and, since C-6a.2, by the Rig (src/DomainModel/rig.cpp: claimRole, for its claimRole and
-// releaseRole commands; invariant 2, rig_design.md §4.1, the Domain model's one include of
-// src/IMU, §6 rule 4, ruled), and it alone needs the HackMotion unit-key parser. The Rig's
-// store (src/Stores/rig_store.cpp) calls loadRoles for the sensor group's copy from settings.
+// TWO HALVES. The functions in this header are INLINE and need nothing but QtCore: the Rig's store
+// (src/Stores/rig_store.cpp) calls loadRoles for the sensor group's copy from settings, and a test or a
+// tool may call any of them without linking the .cpp. (AppSettings called them until the sensors'
+// cut-over, C-6b.1, and holds no sensor key now.) The device-fact half (imu_role_map.cpp) is called by
+// ImuManager and by the Rig (src/DomainModel/rig.cpp: claimRole, for its claimRole and releaseRole
+// commands; invariant 2, rig_design.md §4.1, the Domain model's one include of src/IMU, §6 rule 4,
+// ruled), and it alone needs the HackMotion unit-key parser. Since C-6b.1 the .cpp also holds the
+// rig state as today's imu/roles map (rolesMapOf) and the derived placement view (placementViewOf),
+// which the Rig and ImuManager both read, so ImuManager reaches them without rig.h (lint A10).
 // Includes: Qt, Vocabulary/Common/segment_role.h and Vocabulary/Rig's device_key.h and
-// sensor_facts.h only.
+// sensor_facts.h only (rig_state.h in the .cpp).
+namespace pinpoint::rig { struct RigState; }
+
 namespace pinpoint::imu_roles {
 
 // ── Names ──────────────────────────────────────────────────────────────────────────
@@ -81,7 +84,7 @@ inline bool isPlacementRole(const QString &role)
 // arm. "D", "other" and "" have no role and answer "". Trunk roles have no letter.
 // ── A sensor's name, as the golfer may read it (Stage 5d) ────────────────────────────
 //
-// The alias map (AppSettings::imuAlias) is keyed "<description>|<deviceId>": the sensor key's
+// The alias map (imu/alias; the Rig's aliases since C-6b.1) is keyed "<description>|<deviceId>": the sensor key's
 // spelling with its description (DeviceKey::persistedWithDescription(), the one spelling). Key the
 // map by that spelling, never by DeviceKey equality: two descriptions of one id are two entries.
 inline QString aliasKey(const QString &description, const QString &deviceId)
@@ -179,6 +182,16 @@ inline RolesLoad loadRoles(bool alreadyMigrated, const QVariantMap &storedRoles,
 using DeviceFacts = rig::SensorFacts;
 using DeviceFactsFn = std::function<DeviceFacts(const QString &deviceId)>;
 
+// ── The rig state as today's map (C-6b.1; moved from the Rig, which calls them) ─────────
+
+// The sensors' roles as today's imu/roles map: each placement of the rig state that holds a role, under
+// PlacementKey::persisted() (a Witmotion's bare id, a HackMotion's "<id>#lowerArm" / "<id>#palm"), its value the
+// role's settings name (segment_role.h placementRoleName). A placement with no role (one that holds only an
+// alignment record) is not in it. What claimRole decides over, and what every reader of the roles reads.
+QVariantMap rolesMapOf(const rig::RigState &state);
+// The derived placement view, today's imuPlacement: placementFromRoles over rolesMapOf. Read-only, never stored.
+QVariantMap placementViewOf(const rig::RigState &state);
+
 // The device id a key belongs to: the key itself for a Witmotion (or an unmigrated bare
 // wG3 pin), the part before the unit suffix for a wG3 unit key.
 QString ownerOfKey(const QString &key);
@@ -204,6 +217,13 @@ QString roleHolder(const QVariantMap &roles, const QString &role, const DeviceFa
 
 // Roles with a present, session-enabled holder, in placementRoleOrder().
 QStringList rolesInSession(const QVariantMap &roles, const DeviceFactsFn &facts);
+
+// The device id of the first claimant of `role`, in key order, that is NOT `claimantId` and is present and
+// session-enabled, else "": the holder whose claim makes claimRole refuse `claimantId` a claim of `role`. claimRole
+// asks it for each role it would write; the set-up's mount pickers ask it, through ImuManager::mountHolder, which
+// mount a sensor would be refused. One rule, so the picker and the refusal cannot disagree.
+QString refusingHolder(const QVariantMap &roles, const QString &role, const QString &claimantId,
+                       const DeviceFactsFn &facts);
 
 // The role a DEVICE was assigned. A wG3 answers for its lower-arm unit ("leadForearm"),
 // its palm unit's role following from the cable. No ladder: this is what the device was

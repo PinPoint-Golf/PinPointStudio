@@ -870,7 +870,7 @@ int main(int argc, char **argv)
             const bool sameAsToday = got.ok == today.ok && got.error == today.error
                                      && analysis::placementRoleName(got.refusedRole) == today.refusedRole
                                      && got.holder.persistedId() == today.holderId && displaced == today.displaced
-                                     && after == today.roles && Rig::rolesMapOf(rig.parts().state) == today.roles;
+                                     && after == today.roles && imu_roles::rolesMapOf(rig.parts().state) == today.roles;
             const bool asWritten = got.ok == c.ok && after == c.after && analysis::placementRoleName(got.refusedRole) == c.refusedRole
                                    && got.holder.persistedId() == c.holder && displaced == c.displaced
                                    && got.error.isEmpty() == !c.error && (got.holder.isNull() || got.holder.isSensor());
@@ -1000,13 +1000,13 @@ int main(int argc, char **argv)
         const imu_roles::DeviceFactsFn fn = [&](const QString &id) { return table.factsFor(id); };
         const imu_roles::ClaimResult own = imu_roles::claimRole(whole, "W1", "leadHand", fn);
         const RoleClaim gotOwn = rig.claimRole(sensor("W1"), SegmentRole::LeadHand, table);
-        check(gotOwn.ok && own.ok && Rig::rolesMapOf(rig.parts().state) == QVariantMap{ { "W1", "leadHand" }, { "W2", "thorax" } }
+        check(gotOwn.ok && own.ok && imu_roles::rolesMapOf(rig.parts().state) == QVariantMap{ { "W1", "leadHand" }, { "W2", "thorax" } }
                   && own.roles.value("W1") == "leadHand" && !own.roles.values().contains(QVariant("trailForearm")),
               "K17a W1 claims the hand: the Rig holds it, as today; today's rule replaced W1's unknown role, the Rig cannot see it");
         const imu_roles::ClaimResult pel = imu_roles::claimRole(own.roles, "W3", "pelvis", fn);
         const RoleClaim gotPel = rig.claimRole(sensor("W3"), SegmentRole::Pelvis, table);
         check(gotPel.ok && pel.ok && pel.displaced == QStringList{ "" } && gotPel.displaced.isEmpty()
-                  && Rig::rolesMapOf(rig.parts().state).value("W3") == "pelvis",
+                  && imu_roles::rolesMapOf(rig.parts().state).value("W3") == "pelvis",
               "K17b W3 claims the pelvis: today's rule would displace the entry with no key; the Rig cannot see it, and the "
               "claim stands");
         RigStore again(f);
@@ -1035,7 +1035,7 @@ int main(int argc, char **argv)
         RigState s;
         s.sensors = sensorsOfRoles({ { "W1", "pelvis" }, { "W2", "thorax" }, { "W3", "leadUpperArm" }, { h1Lower, "leadForearm" },
                                      { h1Palm, "leadHand" } });
-        const QVariantMap view = Rig::placementViewOf(s);
+        const QVariantMap view = imu_roles::placementViewOf(s);
         check(view == QVariantMap{ { "W3", "C" }, { h1Lower, "A" }, { h1Palm, "B" } },
               "K19 the arm roles as A, B, C under the same keys, the trunk roles left out (derived, never stored)");
     }

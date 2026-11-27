@@ -438,7 +438,6 @@
 4 imu_io_worker_test
 4 imu_refusion_check_test
 4 imu_retime_test
-4 imu_role_map_test
 4 imu_sample_test
 4 inference_thread_test
 4 inspector_refresh_test

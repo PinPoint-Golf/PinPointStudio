@@ -234,26 +234,15 @@ class AppSettings : public QObject
     // (PpCameraTiles.qml): { x, y, w } normalised — w as a fraction of the
     // tile area's width, x/y as fractions of the free range. Empty = default.
     Q_PROPERTY(QVariantMap impactPipRect       READ impactPipRect       WRITE setImpactPipRect       NOTIFY impactPipRectChanged)
-    Q_PROPERTY(QStringList imuExcluded            READ imuExcluded            WRITE setImuExcluded            NOTIFY imuExcludedChanged)
-    Q_PROPERTY(QVariantMap imuAlias               READ imuAlias               WRITE setImuAlias               NOTIFY imuAliasChanged)
-    Q_PROPERTY(QVariantMap imuCalibration         READ imuCalibration         WRITE setImuCalibration         NOTIFY imuCalibrationChanged)
-    // Role-keyed placement (session_wizard_refactor_design.md §4.13): placement key →
-    // role name ("pelvis", "thorax", "leadUpperArm", "leadForearm", "leadHand"). Keys are
-    // a Witmotion's bare device id and a wG3's "<id>#lowerArm" / "<id>#palm" unit keys.
-    // ImuManager::setRoleForDevice is the writer that enforces one claim per role; a raw
-    // write here bypasses that rule and exists for tests and the migration.
-    Q_PROPERTY(QVariantMap imuRoles               READ imuRoles               WRITE setImuRoles               NOTIFY imuRolesChanged)
-    // ⚠ A DERIVED, READ-ONLY VIEW OF imuRoles, NOT STORAGE. The three arm roles as the old
-    // slot letters (leadForearm "A", leadHand "B", leadUpperArm "C"; trunk roles absent);
-    // imuPlacementChanged fires with every imuRolesChanged. It stays for ONE reader: the
-    // review screen (PpDataViewer.qml → SwingDataSource) labels OLD swings, which carry no
-    // role, with it (segmentRoleForSlot). The stored `imu/placement` key is never written
-    // again (reverting the build must find it as it was). Read-only since Stage 5c: the
-    // test fakes that wrote it write imuRoles.
-    Q_PROPERTY(QVariantMap imuPlacement           READ imuPlacement                                       NOTIFY imuPlacementChanged)
+    // THE SENSORS' SET-UP IS THE RIG'S since the sensors' cut-over (platform refactor C-6b.1; information_model.md
+    // SET-09): each sensor's role (imu/roles), alias (imu/alias) and enabled-on-this-machine flag (imu/excluded) are read
+    // and written through app.rig and the Rig's commands (src/Gui/app/rig_presenter.h, src/Gui/imu/imu_rig_link.h); the
+    // derived placement view (today's imu/placement letters) is app.rig's too. The Rig copies the three keys' group at
+    // launch (src/Stores/rig_store.cpp, the sensor group, through imu_roles::loadRoles and the imu/rolesMigrated marker).
+    // imu/calibration and imu/mountOrientation held no fact and are gone with their properties. Every one of these keys
+    // stays in the settings file, written by nothing, until Stage E removes them.
     Q_PROPERTY(QVariantMap imuOutputRateHz        READ imuOutputRateHz        WRITE setImuOutputRateHz        NOTIFY imuOutputRateHzChanged)
     Q_PROPERTY(QVariantMap imuFusionMode          READ imuFusionMode          WRITE setImuFusionMode          NOTIFY imuFusionModeChanged)
-    Q_PROPERTY(QVariantMap imuMountOrientation    READ imuMountOrientation    WRITE setImuMountOrientation    NOTIFY imuMountOrientationChanged)
     Q_PROPERTY(bool        imuAutoConnect         READ imuAutoConnect         WRITE setImuAutoConnect         NOTIFY imuAutoConnectChanged)
     Q_PROPERTY(bool        imuAutoReconnect       READ imuAutoReconnect       WRITE setImuAutoReconnect       NOTIFY imuAutoReconnectChanged)
     // Phases A and B (BLE transport, discovery, two live lanes) have shipped and are
@@ -511,19 +500,14 @@ public:
         m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
         migrateImpactRoi();   // the impact strip moves to its own "<key>#impact" entry, once
 
-        m_imuExcluded             = ppSettings().value(QStringLiteral("imu/excluded"),             QStringList{}).toStringList();
-        loadImuRoles();   // imu/roles, migrating imu/placement once; derives m_imuPlacement
         m_imuOutputRateHz         = ppSettings().value(QStringLiteral("imu/outputRateHz"),         QVariantMap{}).toMap();
         m_imuFusionMode           = ppSettings().value(QStringLiteral("imu/fusionMode"),           QVariantMap{}).toMap();
-        m_imuMountOrientation     = ppSettings().value(QStringLiteral("imu/mountOrientation"),     QVariantMap{}).toMap();
         m_imuAutoConnect          = ppSettings().value(QStringLiteral("imu/autoConnect"),          true).toBool();
         m_imuAutoReconnect        = ppSettings().value(QStringLiteral("imu/autoReconnect"),        true).toBool();
         m_hackmotionEnabled       = ppSettings().value(QStringLiteral("hackmotion/enabled"),        true).toBool();
         m_imuSaveCalibrationToFlash = ppSettings().value(QStringLiteral("imu/saveCalibrationToFlash"), false).toBool();
         m_imuDefaultFusionMode    = ppSettings().value(QStringLiteral("imu/defaultFusionMode"),    QStringLiteral("9axis")).toString();
         m_imuOrientationFilter    = ppSettings().value(QStringLiteral("imu/orientationFilter"),    QStringLiteral("Madgwick")).toString();
-        m_imuAlias                = ppSettings().value(QStringLiteral("imu/alias"),                QVariantMap{}).toMap();
-        m_imuCalibration          = ppSettings().value(QStringLiteral("imu/calibration"),          QVariantMap{}).toMap();
 
         // The wizard's per-type goals and the last-chosen session type were retired with the
         // session-type choice (27 Oct 2026: every session starts as SessionController::defaultType).
@@ -715,20 +699,14 @@ public:
     bool    launchMonitorStandalone()   const { return m_launchMonitorStandalone; }
     bool    launchMonitorFollowClub()   const { return m_launchMonitorFollowClub; }
 
-    QStringList imuExcluded()             const { return m_imuExcluded; }
-    QVariantMap imuPlacement()            const { return m_imuPlacement; }   // derived — see the property
-    QVariantMap imuRoles()                const { return m_imuRoles; }
     QVariantMap imuOutputRateHz()         const { return m_imuOutputRateHz; }
     QVariantMap imuFusionMode()           const { return m_imuFusionMode; }
-    QVariantMap imuMountOrientation()     const { return m_imuMountOrientation; }
     bool        imuAutoConnect()          const { return m_imuAutoConnect; }
     bool        imuAutoReconnect()        const { return m_imuAutoReconnect; }
     bool        hackmotionEnabled()       const { return m_hackmotionEnabled; }
     bool        imuSaveCalibrationToFlash() const { return m_imuSaveCalibrationToFlash; }
     QString     imuDefaultFusionMode()    const { return m_imuDefaultFusionMode; }
     QString     imuOrientationFilter()    const { return m_imuOrientationFilter; }
-    QVariantMap imuAlias()               const { return m_imuAlias; }
-    QVariantMap imuCalibration()         const { return m_imuCalibration; }
 
     void setThemeIndex(int v)
     {
@@ -1270,17 +1248,6 @@ public:
         emit cameraSyncEnabledChanged();
     }
 
-    void setImuExcluded(const QStringList &v)
-    {
-        if (m_imuExcluded == v) return;
-        m_imuExcluded = v;
-        ppSettings().setValue(QStringLiteral("imu/excluded"), v);
-        emit imuExcludedChanged();
-    }
-
-    // In app_settings.cpp. Also refreshes the derived imuPlacement view.
-    void setImuRoles(const QVariantMap &v);
-
     void setImuOutputRateHz(const QVariantMap &v)
     {
         if (m_imuOutputRateHz == v) return;
@@ -1295,14 +1262,6 @@ public:
         m_imuFusionMode = v;
         ppSettings().setValue(QStringLiteral("imu/fusionMode"), v);
         emit imuFusionModeChanged();
-    }
-
-    void setImuMountOrientation(const QVariantMap &v)
-    {
-        if (m_imuMountOrientation == v) return;
-        m_imuMountOrientation = v;
-        ppSettings().setValue(QStringLiteral("imu/mountOrientation"), v);
-        emit imuMountOrientationChanged();
     }
 
     void setImuAutoConnect(bool v)
@@ -1351,22 +1310,6 @@ public:
         m_imuOrientationFilter = v;
         ppSettings().setValue(QStringLiteral("imu/orientationFilter"), v);
         emit imuOrientationFilterChanged();
-    }
-
-    void setImuAlias(const QVariantMap &v)
-    {
-        if (m_imuAlias == v) return;
-        m_imuAlias = v;
-        ppSettings().setValue(QStringLiteral("imu/alias"), v);
-        emit imuAliasChanged();
-    }
-
-    void setImuCalibration(const QVariantMap &v)
-    {
-        if (m_imuCalibration == v) return;
-        m_imuCalibration = v;
-        ppSettings().setValue(QStringLiteral("imu/calibration"), v);
-        emit imuCalibrationChanged();
     }
 
     void setViewLayoutByMode(const QVariantMap &v)
@@ -1678,20 +1621,14 @@ signals:
     void cameraExposureUsChanged();
     void cameraTuningChanged();
     void impactPipRectChanged();
-    void imuExcludedChanged();
-    void imuPlacementChanged();
-    void imuRolesChanged();
     void imuOutputRateHzChanged();
     void imuFusionModeChanged();
-    void imuMountOrientationChanged();
     void imuAutoConnectChanged();
     void imuAutoReconnectChanged();
     void hackmotionEnabledChanged();
     void imuSaveCalibrationToFlashChanged();
     void imuDefaultFusionModeChanged();
     void imuOrientationFilterChanged();
-    void imuAliasChanged();
-    void imuCalibrationChanged();
     void viewLayoutByModeChanged();
     void dataRegionByTypeChanged();
     void sectionCollapseChanged();
@@ -1720,9 +1657,6 @@ signals:
     void gsProInterfaceChanged();
 
 private:
-    // Reads imu/roles, or — once, behind the imu/rolesMigrated marker — builds it from
-    // imu/placement through the Wrist map. Then derives m_imuPlacement. app_settings.cpp.
-    void loadImuRoles();
     // Once, behind camera/impactRoiMigrated: the camera whose role is Impact
     // had its strip in the shared camera/roi entry; it moves to "<key>#impact"
     // (camera_roi.h), and the plain entry — the strip, not a crop that camera
@@ -1800,14 +1734,8 @@ private:
     QVariantMap m_cameraTuning;
     QVariantMap m_impactPipRect;
 
-    QStringList m_imuExcluded;
-    QVariantMap m_imuRoles;
-    QVariantMap m_imuPlacement;   // derived from m_imuRoles (the read-only legacy view, for old swings)
     QVariantMap m_imuOutputRateHz;
     QVariantMap m_imuFusionMode;
-    QVariantMap m_imuMountOrientation;
-    QVariantMap m_imuAlias;
-    QVariantMap m_imuCalibration;
     bool        m_imuAutoConnect          = true;
     bool        m_imuAutoReconnect        = true;
     bool        m_hackmotionEnabled       = true;

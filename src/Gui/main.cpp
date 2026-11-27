@@ -376,7 +376,6 @@ int main(int argc, char *argv[])
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;
-    ImuManager              imuManager(&eventBuffer, &appSettings);
     TranscriptionController controller(&appSettings);
     TtsController           ttsController(&appSettings);
     LlmController           llmController(&appSettings);
@@ -385,8 +384,10 @@ int main(int argc, char *argv[])
     // or PINPOINT_RIG_DIR for a test or a probe), and loaded once: a machine with nothing stored gets an empty rig and
     // a new RigId, written once. Since the cameras' cut-over (C-5b) it is the one writer of the camera keys' facts
     // (SET-09), so their group is copied from settings at this load, before the camera manager reads them; since C-7 it
-    // keeps the learned club-length prior too (SET-05), its group copied at the same load, before any shot; the sensor
-    // keys follow (C-6b.1). Made before the camera manager, so it outlives it.
+    // keeps the learned club-length prior too (SET-05), its group copied at the same load, before any shot; since the
+    // sensors' cut-over (C-6b.1) it is the one writer of the sensor keys' facts too (imu/roles, imu/alias, imu/excluded),
+    // their group copied at the same load, before the sensor manager reads them. Made before both managers, so it
+    // outlives them.
     // THE CAMERA ROLE PROBE (PINPOINT_PROBE_CAMERA_ROLES, below) moves real cameras through every role: it runs on a
     // scratch copy of the rig folder, so the machine's rig.json is never written by it (F29).
     QString rigFolder = RigStore::defaultFolder();
@@ -396,11 +397,26 @@ int main(int argc, char *argv[])
         roleProbeOnScratchRig = !scratch.isEmpty();
         if (roleProbeOnScratchRig) rigFolder = scratch;
     }
-    RigStore               rigStore(rigFolder, { RigStore::Group::Cameras, RigStore::Group::ClubLengthPrior });
+    RigStore               rigStore(rigFolder, { RigStore::Group::Cameras, RigStore::Group::ClubLengthPrior,
+                                                 RigStore::Group::Sensors });
     pinpoint::Rig          rig(rigStore);
     rig.load();
-    // `app.rig`: the cameras' set-up, read and written. Made here, before the camera manager's connections, so a view
-    // hears a camera change before the manager rebuilds its camera list, as it heard AppSettings' change before.
+    // THE SENSOR MANAGER (C-6b.1; imu/imu_rig_link.h; rig_design_addendum.md decisions 1 and 8) is handed the Rig's
+    // sensor commands, the commands that set an alias and an enabled flag, and the two parts, and told of every change.
+    // ⚠ CONNECTED BEFORE app.rig IS MADE, so on a change the manager holds the new roles before app.rig notifies: a view
+    // re-reads the manager's role resolvers (roleForDevice, instanceForRole, ...) on app.rig's sensorRolesChanged, and
+    // would read the old roles otherwise. (The camera manager is the other way round, below: it rebuilds its own list.)
+    ImuManager              imuManager(&eventBuffer, &appSettings);
+    QObject::connect(&rig, &pinpoint::Rig::rigChanged, &imuManager,
+                     [&rig, &imuManager] { imuManager.rigStateChanged(rig.parts()); });
+    QObject::connect(&rig, &pinpoint::Rig::rigDeviceLabelChanged, &imuManager,
+                     [&rig, &imuManager](const pinpoint::rig::DeviceKey &device, pinpoint::RigDeviceLabel which) {
+                         imuManager.rigLabelChanged(rig.parts(), device, which);
+                     });
+    imuManager.attachRig(&rig, &rig, rig.parts());
+    // `app.rig`: the cameras' and the sensors' set-up, read and written. Made here, before the camera manager's
+    // connections, so a view hears a camera change before the manager rebuilds its camera list, as it heard
+    // AppSettings' change before.
     pinpoint::RigPresenter rigPresenter(rig);
     QQmlEngine::setObjectOwnership(&rigPresenter, QQmlEngine::CppOwnership);   // on main()'s stack
     CameraManager           cameraManager(&eventBuffer, &appSettings);
@@ -2094,7 +2110,7 @@ int main(int argc, char *argv[])
         m.profiler                = &profilerController;
         m.resourceMonitor         = &resourceMonitor;
         m.cudaRuntime             = &cudaRuntime;
-        m.rig                     = &rigPresenter;   // app.rig: the cameras' set-up, read and written (C-5b)
+        m.rig                     = &rigPresenter;   // app.rig: the cameras' (C-5b) and the sensors' (C-6b.1) set-up
         appObject.setMembers(m);
     }
 

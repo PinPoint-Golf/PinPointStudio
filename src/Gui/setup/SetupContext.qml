@@ -27,7 +27,8 @@
 // instanceForRole …) are Q_INVOKABLEs and not reactive on their own, so every binding that calls
 // them first ASSIGNS from the properties that change their answer: imuDeviceList (enumeration and
 // session enablement), instances (connection — the real manager re-emits instancesChanged on every
-// imuConnected change, imu_manager.cpp createInstance) and appSettings.imuRoles (placement).
+// imuConnected change, imu_manager.cpp createInstance) and the Rig's roles (placement: app.rig.sensorRoles,
+// whose notifier fires after imuManager holds the new roles, C-6b.1).
 // They are assigned to a local, never written as bare statements: a bare `a.b` line is dropped
 // by the QML compiler and the dependency silently goes with it (memory note
 // qml-dead-statement-bindings).
@@ -51,7 +52,8 @@ QtObject {
     property var cameraMgr: cameraManager
     property var imuMgr:    imuManager
     property var settings:  appSettings
-    // The Rig (`app.rig`, rig_presenter.h): each camera's fixed flag, saved box and machine-wide enabled flag.
+    // The Rig (`app.rig`, rig_presenter.h): each camera's fixed flag, saved box and machine-wide enabled flag; each
+    // sensor's role, alias and machine-wide enabled flag (C-6b.1).
     property var rig:       app.rig
     property var athlete:   app.athleteController
     property var launchMon: launchMonitor
@@ -308,7 +310,7 @@ QtObject {
     readonly property var devices: {
         var list  = imuMgr.imuDeviceList     // enumeration + session enablement
         var insts = imuMgr.instances         // connection state
-        var roles = settings.imuRoles        // roleForDevice() is Q_INVOKABLE, not reactive
+        var roles = rig.sensorRoles          // roleForDevice() is Q_INVOKABLE, not reactive
         var out = []
         for (var i = 0; i < list.length; ++i) {
             var d    = list[i]
@@ -318,7 +320,7 @@ QtObject {
             var hm   = d.vendor === "hackmotion"
             // displayNameForDevice() reads the alias and roles maps and is not reactive on its own;
             // the dependency is USED below (an unused local is dropped with its dependency).
-            var named = settings.imuAlias !== undefined && settings.imuRoles !== undefined
+            var named = rig.sensorAliasKeys !== undefined && rig.sensorRoles !== undefined
             var label = inst !== null ? inst.stateLabel : ""
             // A connect that gave up (wizard l.1577: "Error" / "Not found"; "Not ready" = its
             // settings didn't take, #105) is not still connecting: the page offers Connect again
@@ -353,7 +355,7 @@ QtObject {
         var devs  = ctx.devices
         var _list = imuMgr.imuDeviceList
         var _inst = imuMgr.instances
-        var _map  = settings.imuRoles
+        var _map  = rig.sensorRoles
         var byId = {}
         for (var i = 0; i < devs.length; ++i) byId[devs[i].id] = devs[i]
         var out = {}
@@ -459,7 +461,7 @@ QtObject {
     // sensor is not in the device list, so its description is not known.
     readonly property var absentMounts: {
         var r = ctx.roles, all = ImuMounts.allRoles, byId = {}, order = []
-        var named = settings.imuAlias !== undefined   // used below: displayNameForDevice reads it
+        var named = rig.sensorAliasKeys !== undefined   // used below: displayNameForDevice reads the aliases
         for (var i = 0; i < all.length; ++i) {
             var e = r[all[i]]
             if (!e.assigned || e.present) continue
@@ -506,21 +508,9 @@ QtObject {
     function setMount(deviceId, role) { return imuMgr.setRoleForDevice(deviceId, role) }
 
     // The present, session-enabled sensor OTHER than `exceptDeviceId` whose claim on `role` would
-    // make the manager refuse a new one (imu_role_map.cpp claimRole; ImusPanel.holderOf) — by
-    // device id, "" when none. Placement KEYS are read, so a wG3's unit keys count.
-    function mountHolder(role, exceptDeviceId) {
-        if (!role) return ""
-        var roles = settings.imuRoles, list = imuMgr.imuDeviceList
-        for (var key in roles) {
-            if (roles[key] !== role) continue
-            var owner = key.indexOf("#") >= 0 ? key.substring(0, key.indexOf("#")) : key
-            if (owner === exceptDeviceId) continue
-            for (var i = 0; i < list.length; ++i)
-                if (list[i].id === owner && list[i].present === true && list[i].sessionEnabled !== false)
-                    return owner
-        }
-        return ""
-    }
+    // make the manager refuse a new one — by device id, "" when none. The rule is C++, claimRole's
+    // own (ImuManager::mountHolder → imu_roles::refusingHolder, C-6b.1; AD-52).
+    function mountHolder(role, exceptDeviceId) { return imuMgr.mountHolder(role, exceptDeviceId) }
     // The holder as the golfer may read it — never a raw id (ImuManager::displayNameForDevice,
     // the rule Settings ▸ IMUs uses too).
     function sensorName(deviceId) { return imuMgr.displayNameForDevice(deviceId) }
@@ -618,7 +608,7 @@ QtObject {
                 rig.camerasDisabled.indexOf(camList[i].cameraKey) < 0)
         var devList = imuMgr.imuDeviceList
         for (var j = 0; j < devList.length; ++j)
-            imuMgr.setSessionImuEnabled(devList[j].id, settings.imuExcluded.indexOf(devList[j].id) < 0)
+            imuMgr.setSessionImuEnabled(devList[j].id, rig.sensorsDisabled.indexOf(devList[j].id) < 0)
     }
 
     // The ceremony recorded in this visit is the session's only when the session starts (the recorder
