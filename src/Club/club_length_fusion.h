@@ -167,7 +167,7 @@ struct LengthFused {
 };
 
 // Persistent per-athlete·club·camera length prior. Round-tripped through the
-// swing.json / AppSettings by P3/P4; decideTrack reads emaPx/varPx/n only.
+// swing.json / the Rig's rig.json (SET-05) by P3/P4; decideTrack reads emaPx/varPx/n only.
 // disagreeRun is carried so the reset-after-N self-heal survives serialization.
 struct LengthPriorState {
     double emaPx       = -1.0;  // running EMA of the PRIOR-FREE fused length (px); <0 ⇒ uninitialised

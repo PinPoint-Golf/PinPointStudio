@@ -16,8 +16,8 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// rig_import_test: the copy of the camera keys from settings into rig.json, one group, with a fingerprint that notices
-// an older build (src/Stores/rig_store.*; docs/design/rig_design.md §4.4 "From settings to the file" and "Going back to
+// rig_import_test: the copy of the camera keys (and, since C-7, the club-length prior) from settings into rig.json, a
+// group at a time, with a fingerprint that notices an older build (src/Stores/rig_store.*; docs/design/rig_design.md §4.4 "From settings to the file" and "Going back to
 // an older build", §9 question 6; rig_design_addendum.md decisions 9 and 10). The settings store is ppSettings() inside
 // IsolatedStores (made first, #187): a temporary INI file, never the real one, and never a hand-made QSettings path.
 // The four cases of §4.4's table are D1 to D4.
@@ -39,6 +39,19 @@
 //   P1  the camera keys gone from settings after the group was taken (the settings reset or deleted): the Rig is left
 //       as it is, no copy and no wipe; a group with one key still copies again when its fingerprint differs
 //   P2  a group copied again keeps what the copy cannot type and what the file holds that this build cannot read
+//
+// The club-length prior's group (SET-05, analysis/clubLenPrior; C-7), written as the settings writer before C-7 wrote it
+// (one whole map, by today's open-coded key):
+//   L1  a machine with priors and no rig: each prior whose key spells itself again is copied, by its typed key; a key
+//       that does not (one '|' too few, an upper-case athlete id) and a value that is not a map are kept verbatim; the
+//       group is recorded as taken; no event
+//   L2  the fingerprint is the same for the values as set and as parsed from the file; the keys untouched by the copy
+//   L3  a prior learned on the shot before the cut-over (the old writer's last read, set, write back) is in the copy
+//   L4  a prior learned after the copy, through the Rig, stands at the next launch: settings unchanged, no copy again
+//   L5  an older build learns a prior in settings: the whole group is copied again, and says so (the last writer wins)
+//   L6  the prior's key gone from settings (P1): the Rig's priors are left as they are
+//   L7  a group copied again keeps a prior entry in rig.json this build cannot read (P2)
+//   L8  the two groups apart: a camera group copied again leaves the priors, and each group's kept entries stay
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -493,6 +506,177 @@ int main(int argc, char **argv)
         check(readJson(f + "/rig.json").value("keptFromSettings").toObject().value("camera/alias").toObject()
                   .value("entries").toObject().value(kBare).toString() == "Old fixture camera",
               "P2c and the bare key's entries are still kept from settings");
+    }
+
+    std::printf("\nL1 the club-length prior: a machine with priors and no rig\n");
+    const QString athlete = QStringLiteral("5b0c7f1e-2a3d-4c5b-8e6f-7a8b9c0d1e2f");
+    // SET-05's key, as capture_context.cpp built it on 8273d1cf, before C-1c (athlete uuid | club | camera key).
+    auto todaysPriorKey = [](const QString &uuid, const QString &club, const QString &cameraKey) {
+        return uuid + QLatin1Char('|') + club + QLatin1Char('|') + cameraKey;
+    };
+    const QString pA       = todaysPriorKey(athlete, "7i", kBlackfly);
+    const QString pNoOne   = todaysPriorKey(QString(), "Driver", kFaceTime);   // no athlete chosen
+    const QString pBare    = QStringLiteral("FO1|7i");                          // one '|' too few
+    const QString pUpper   = todaysPriorKey(athlete.toUpper(), "7i", kBlackfly);   // never what the reader spells
+    const QString pOdd     = todaysPriorKey(athlete, "PW", kBlackfly);          // its value is not a map
+    const ClubLengthPriorKey kA(AthleteId::fromString(athlete), "7i", blackfly);
+    const ClubLengthPriorKey kNoOne(AthleteId(), "Driver", facetime);
+    auto entry = [](int n, const QString &when) {
+        return QVariantMap{ { "emaPx", 512.25 + n }, { "varPx", 3.5 }, { "n", n }, { "disagreeRun", 0 }, { "lengthMm", 940 },
+                            { "frameW", 1280 }, { "frameH", 1024 }, { "lastUpdatedUtc", when } };
+    };
+    // The settings writer before C-7 (ShotProcessor through AppSettings::setClubLenPrior): read the whole map, set the
+    // shot's entry, write the whole map back.
+    auto oldWriterLearns = [&](const QString &key, const QVariantMap &value) {
+        QSettings s = ppSettings();
+        QVariantMap all = s.value("analysis/clubLenPrior", QVariantMap{}).toMap();
+        all[key] = value;
+        s.setValue("analysis/clubLenPrior", all);
+        s.sync();
+    };
+    // A log line that holds both (the group's name is quoted by the log stream).
+    auto lineHas = [](const QString &log, const char *a, const char *b) {
+        for (const QString &line : log.split('\n'))
+            if (line.contains(QLatin1String(a)) && line.contains(QLatin1String(b))) return true;
+        return false;
+    };
+    const QList<RigStore::Group> both{ RigStore::Group::Cameras, RigStore::Group::ClubLengthPrior };
+    const QString lf = stores.path() + "/l/rig";
+    {
+        QSettings s = ppSettings();
+        s.clear();
+        s.setValue("analysis/clubLenPrior",
+                   QVariantMap{ { pA, entry(6, "2026-11-20T10:00:00Z") }, { pNoOne, entry(2, "2026-11-19T09:00:00Z") },
+                                { pBare, entry(1, "x") }, { pUpper, entry(4, "y") }, { pOdd, QStringLiteral("not a map") } });
+        s.sync();
+    }
+    // L3's case is in the fixture: the shot before the cut-over learned n 7, through the old writer.
+    oldWriterLearns(pA, entry(7, "2026-11-27T08:00:00Z"));
+    const QString priorAsSet = RigStore::settingsFingerprint(RigStore::Group::ClubLengthPrior);
+    reparse(ini);
+    const QByteArray priorKeys = readAll(ini);
+    messagesSince(seq);
+    {
+        Launch l(lf, both);
+        const QString log = messagesSince(seq);
+        const QJsonObject j = readJson(lf + "/rig.json");
+        const QVariantMap a = clubLengthPriorOf(l.rig.parts().other, kA);
+        const QVariantMap b = clubLengthPriorOf(l.rig.parts().other, kNoOne);
+        check(l.rig.parts().other.clubLengthPriors.size() == 2 && !a.isEmpty() && !b.isEmpty()
+                  && b.value("n").toInt() == 2 && b.value("emaPx").toDouble() == 514.25,
+              "L1a the two priors whose keys spell themselves again are copied, each found by its typed key");
+        const QJsonObject kept = j.value("keptFromSettings").toObject().value("analysis/clubLenPrior").toObject()
+                                     .value("entries").toObject();
+        check(kept.size() == 3 && kept.contains(pBare) && kept.contains(pUpper) && kept.value(pOdd).toString() == "not a map"
+                  && kept.value(pUpper).toObject().value("n").toInt() == 4,
+              "L1b a key with one '|' too few, an upper-case athlete id and a value that is not a map: kept verbatim");
+        check(j.value("groupsTaken").toObject().value("clubLengthPrior").toObject().value("fingerprint").toString()
+                      == RigStore::settingsFingerprint(RigStore::Group::ClubLengthPrior),
+              "L1c rig.json records the prior's group as taken, with its fingerprint");
+        check(l.events == 0 && lineHas(log, "clubLengthPrior", "keys are copied from settings"),
+              "L1d one load, no event; the copy is logged");
+        check(a.value("n").toInt() == 7 && a.value("emaPx").toDouble() == 519.25
+                  && a.value("lastUpdatedUtc").toString() == "2026-11-27T08:00:00Z" && a.value("frameW").toInt() == 1280,
+              "L3 the prior learned on the shot before the cut-over is the one copied");
+    }
+    check(RigStore::settingsFingerprint(RigStore::Group::ClubLengthPrior) == priorAsSet,
+          "L2a the prior's fingerprint is the same as set and as parsed from the file");
+    check(readAll(ini) == priorKeys, "L2b the copy wrote no settings key");
+
+    std::printf("\nL4 a prior learned after the copy stands\n");
+    {
+        { Launch l(lf, both); l.rig.learnClubLength(kA, entry(8, "2026-11-27T09:00:00Z")); }
+        reparse(ini);
+        Launch l(lf, both);
+        const QString log = messagesSince(seq);
+        check(clubLengthPriorOf(l.rig.parts().other, kA).value("n").toInt() == 8 && !log.contains("copied again")
+                  && ppSettings().value("analysis/clubLenPrior").toMap().value(pA).toMap().value("n").toInt() == 7,
+              "L4 the next launch: the Rig's n 8 stands, the settings' n 7 is not copied over it");
+    }
+
+    std::printf("\nL5 an older build learns a prior in settings\n");
+    {
+        oldWriterLearns(pA, entry(9, "2026-11-28T10:00:00Z"));
+        reparse(ini);
+        Launch l(lf, both);
+        const QString log = messagesSince(seq);
+        check(clubLengthPriorOf(l.rig.parts().other, kA).value("n").toInt() == 9 && log.contains("WARN")
+                  && lineHas(log, "clubLengthPrior", "no longer match") && l.events == 0,
+              "L5 the whole group is copied again, with one ppWarn line: the older build's n 9 replaces the Rig's n 8");
+    }
+
+    std::printf("\nL6 the prior's key gone from settings (P1)\n");
+    {
+        QSettings s = ppSettings();
+        const QVariant saved = s.value("analysis/clubLenPrior");
+        s.remove("analysis/clubLenPrior");
+        s.sync();
+        reparse(ini);
+        const QByteArray before = readAll(lf + "/rig.json");
+        {
+            Launch l(lf, both);
+            check(clubLengthPriorOf(l.rig.parts().other, kA).value("n").toInt() == 9
+                      && l.rig.parts().other.clubLengthPriors.size() == 2 && readAll(lf + "/rig.json") == before
+                      && !messagesSince(seq).contains("copied"),
+                  "L6 no prior key in settings: the Rig's priors are left as they are, nothing written");
+        }
+        s.setValue("analysis/clubLenPrior", saved);
+        s.sync();
+        reparse(ini);
+    }
+
+    std::printf("\nL7 a re-copy keeps a prior entry this build cannot read (P2)\n");
+    {
+        QJsonObject j = readJson(lf + "/rig.json");
+        QJsonObject other = j.value("other").toObject();
+        QJsonArray priors = other.value("clubLengthPriors").toArray();
+        const QJsonObject unreadable{ { "athlete", athlete }, { "club", "7i" }, { "faceOnCamera", "no camera key" },
+                                      { "value", QJsonObject{ { "n", 3 } } } };
+        priors.append(unreadable);
+        other.insert("clubLengthPriors", priors);
+        j.insert("other", other);
+        writeAll(lf + "/rig.json", QJsonDocument(j).toJson());
+        oldWriterLearns(pNoOne, entry(3, "2026-11-28T11:00:00Z"));
+        reparse(ini);
+        {
+            Launch l(lf, both);
+            check(messagesSince(seq).contains("copied again") && clubLengthPriorOf(l.rig.parts().other, kNoOne).value("n").toInt() == 3,
+                  "L7a the group is copied again");
+        }
+        check(readJson(lf + "/rig.json").value("other").toObject().value("clubLengthPriors").toArray().contains(unreadable),
+              "L7b the entry this build cannot read is written back as read");
+    }
+
+    std::printf("\nL8 the two groups apart\n");
+    {
+        writeFixture();   // the camera keys, with their bare entries
+        reparse(ini);
+        { Launch l(lf, both); }
+        {
+            QSettings s = ppSettings();
+            QVariantMap p = s.value("camera/perspective").toMap();
+            p[kBlackfly] = 1;
+            s.setValue("camera/perspective", p);
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        {
+            Launch l(lf, both);
+            const QString log = messagesSince(seq);
+            check(lineHas(log, "cameras", "no longer match") && !lineHas(log, "clubLengthPrior", "keys")
+                      && clubLengthPriorOf(l.rig.parts().other, kA).value("n").toInt() == 9,
+                  "L8a a camera group copied again leaves the priors as they are");
+        }
+        const QJsonObject kept = readJson(lf + "/rig.json").value("keptFromSettings").toObject();
+        check(kept.contains("analysis/clubLenPrior") && kept.contains("camera/perspective") && kept.contains("camera/alias"),
+              "L8b each group's kept entries stay when the other is copied again");
+        oldWriterLearns(pA, entry(10, "2026-11-28T12:00:00Z"));
+        reparse(ini);
+        { Launch l(lf, both); }
+        const QJsonObject kept2 = readJson(lf + "/rig.json").value("keptFromSettings").toObject();
+        check(kept2.contains("analysis/clubLenPrior") && kept2.contains("camera/perspective") && kept2.contains("camera/alias"),
+              "L8c and when the prior's group is copied again, the camera's kept entries stay");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

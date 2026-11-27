@@ -39,6 +39,9 @@
 //   · while PinPoint Studio runs on this machine (pgrep / tasklist) — and no app on ANY machine may have the
 //     library open: the share is not locked as a whole;
 //   · while any folder lock (.pinpoint-lock, R-PERS-6) is held anywhere in the library;
+//   · once the machine's Rig keeps the learned club lengths (its rig.json has taken them from the settings; the
+//     rig folder is --rig-dir, by default this machine's): the whole write run, since re-keying the settings copy
+//     would undo every length learned since (the Product Owner, 27 Nov 2026). A dry run still works;
 //   · while any session's session.json says inProgress (D11), unless `--allow-in-progress` (a session a crash
 //     left open), which then passes over those sessions.
 //   · an archived session's mirror (archived.json's `location`, outside the library) that is not under the scratch
@@ -128,6 +131,7 @@
 #include "migrate_step2.h"
 
 #include "../../src/Core/atomic_write.h"
+#include "../../src/Stores/rig_store.h"   // RigStore::defaultFolder: this machine's rig folder, --rig-dir's default
 
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -160,6 +164,10 @@ bool writeOut(const QString &path, const QByteArray &bytes, const QString &what)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // This machine's rig folder as the app finds it (PINPOINT_RIG_DIR, else <AppData>/rig under the app's name), the
+    // default of --rig-dir: taken before the tool's own name changes where AppData is.
+    QCoreApplication::setApplicationName(QStringLiteral("PinPointStudio"));
+    const QString appRigFolder = RigStore::defaultFolder();
     QCoreApplication::setApplicationName(QLatin1String(migrate::kToolName));
     QCoreApplication::setApplicationVersion(QLatin1String(migrate::kToolVersion));
 
@@ -178,7 +186,8 @@ int main(int argc, char **argv)
     const QCommandLineOption backup(QStringLiteral("backup-dir"), QStringLiteral("--write: where every file is copied before it changes."), QStringLiteral("dir"));
     const QCommandLineOption approved(QStringLiteral("i-have-marks-approval"), QStringLiteral("--write outside the scratch folder: Mark's real run only."));
     const QCommandLineOption inProgress(QStringLiteral("allow-in-progress"), QStringLiteral("Pass over sessions left in progress instead of refusing."));
-    p.addOptions({ library, settings, report, exportTo, readList, other, decisions, machine, write, backup, approved, inProgress });
+    const QCommandLineOption rigDir(QStringLiteral("rig-dir"), QStringLiteral("--write: the machine's rig folder (default: this machine's). A write is refused once its Rig keeps the learned club lengths."), QStringLiteral("dir"));
+    p.addOptions({ library, settings, report, exportTo, readList, other, decisions, machine, write, backup, approved, inProgress, rigDir });
     p.process(app);
 
     if (!p.isSet(library)) {
@@ -195,6 +204,7 @@ int main(int argc, char **argv)
     o.backupDir          = p.value(backup);
     o.approved           = p.isSet(approved);
     o.allowInProgress    = p.isSet(inProgress);
+    o.rigFolder          = p.isSet(rigDir) ? p.value(rigDir) : appRigFolder;
     o.scratchRoots       = { QStringLiteral("/mnt/swingdata/scratch") };
 #ifdef Q_OS_WIN
     o.scratchRoots << QStringLiteral("C:/PinPointStudio/scratch");

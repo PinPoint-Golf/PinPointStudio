@@ -848,6 +848,7 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_list_model.h          src/Gui/shot/shot_list_model.cpp
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
     src/Gui/shot/capture_context.h          src/Gui/shot/capture_context.cpp
+    src/Gui/shot/club_length_prior_entry.h
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
     src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
     src/Gui/markup/markup_truth.h           src/Gui/markup/markup_truth.cpp
@@ -3446,6 +3447,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/swing_doc_analysis.cpp
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
         src/Stores/swing_paths.cpp
+        src/Stores/rig_store.cpp   # a write is refused once the Rig keeps the learned club lengths
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Core/pp_log_stream.cpp
         src/Core/PpMessageLog.cpp

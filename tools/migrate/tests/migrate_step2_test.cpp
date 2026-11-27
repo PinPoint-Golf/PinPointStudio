@@ -33,7 +33,9 @@
 //   A  the dry-run report: M1–M4 as expected (blocked first: the machines disagree; then decided)
 //   B  a dry run writes NOTHING: every file of the fixture (library, settings, inputs) hashed before and after
 //   C  the guards: a write outside the scratch roots, with a folder lock held, with the app running — refused,
-//      nothing written
+//      nothing written; C5–C7: once the machine's Rig keeps the learned club lengths (its rig.json has taken the
+//      group from settings) the whole write run is refused and a dry run still runs; a write with a settings file
+//      and no rig folder is refused (the Product Owner, 27 Nov 2026)
 //   D  a scratch write: athlete.json, session.json, session_input.json, the reviews, diagnostics.json, the ★,
 //      the settings, the backups — each read back through the app's own doors
 //   E  a second run writes nothing
@@ -42,6 +44,7 @@
 //   ctest --test-dir build/tests -R '^migrate_step2_test$' --output-on-failure
 
 #include "../migrate_step2.h"
+#include "../../../src/Stores/rig_store.h"   // RigStore::hasTakenGroup (C6b)
 
 #include "../../../src/DomainModel/session_identity.h"
 #include "../../../src/Stores/athlete_files.h"
@@ -225,6 +228,7 @@ struct Fixture {
         o.settingsFile = settings;
         o.machine      = QStringLiteral("mac");
         o.scratchRoots = { root };
+        o.rigFolder    = root + QStringLiteral("/no-rig");   // a machine whose Rig holds nothing yet (no rig.json)
         o.appRunning   = [] { return false; };
         return o;
     }
@@ -302,6 +306,7 @@ struct OneAthlete {
         Options o;
         o.library = lib; o.settingsFile = settings; o.machine = QStringLiteral("mac"); o.scratchRoots = roots;
         o.write = true; o.backupDir = backup; o.appRunning = [] { return false; };
+        o.rigFolder = root + QStringLiteral("/no-rig");   // a machine whose Rig holds nothing yet (no rig.json)
         return o;
     }
 };
@@ -489,6 +494,39 @@ int main(int argc, char **argv)
         Options o = w;
         o.backupDir = mark + QStringLiteral("/backups");
         check(run(o).refused, "C4 backups inside an athlete folder are refused");
+    }
+    {
+        // The Rig has taken the learned club lengths: its rig.json records the group (as RigStore writes it), in a
+        // scratch folder of its own, never the machine's.
+        QTemporaryDir rigTmp;
+        const QString rigDir = QDir::cleanPath(rigTmp.path()) + QStringLiteral("/rig");
+        writeJson(rigDir + QStringLiteral("/rig.json"), QJsonObject{
+            { QStringLiteral("schema"), QStringLiteral("pinpoint.rig/1") },
+            { QStringLiteral("rigId"), QStringLiteral("6f1c2b6e-0d1e-4c71-9a64-3e2b9d0c5a11") },
+            { QStringLiteral("groupsTaken"), QJsonObject{ { QStringLiteral("clubLengthPrior"),
+                QJsonObject{ { QStringLiteral("fingerprint"), QStringLiteral("ab12") },
+                             { QStringLiteral("takenUtc"), QStringLiteral("2026-11-27T10:00:00.000Z") } } } } } });
+        Options o = w;
+        o.rigFolder = rigDir;
+        const Result r = run(o);
+        check(r.refused && r.refusal.contains(QStringLiteral("learned club lengths")) && r.log.written.isEmpty(),
+              "C5 a write once the Rig keeps the learned club lengths is refused, whole, with the reason");
+        Options dryRig = dry;
+        dryRig.rigFolder = rigDir;
+        check(!run(dryRig).refused, "C6 … and a dry run still runs");
+        // Another group taken, or none: no refusal on this account (only the club-length group is the Rig's here).
+        writeJson(rigDir + QStringLiteral("/rig.json"), QJsonObject{
+            { QStringLiteral("schema"), QStringLiteral("pinpoint.rig/1") },
+            { QStringLiteral("rigId"), QStringLiteral("6f1c2b6e-0d1e-4c71-9a64-3e2b9d0c5a11") },
+            { QStringLiteral("groupsTaken"), QJsonObject{ { QStringLiteral("cameras"),
+                QJsonObject{ { QStringLiteral("fingerprint"), QStringLiteral("cd34") } } } } } });
+        check(!RigStore::hasTakenGroup(rigDir, RigStore::Group::ClubLengthPrior)
+                  && RigStore::hasTakenGroup(rigDir, RigStore::Group::Cameras),
+              "C6b only the club-length group taken counts (a Rig that has taken the cameras alone does not)");
+        Options noRig = w;
+        noRig.rigFolder.clear();
+        const Result r2 = run(noRig);
+        check(r2.refused && r2.refusal.contains(QStringLiteral("--rig-dir")), "C7 a write with settings and no rig folder is refused");
     }
     check(treeHash(fx.root) == before2, "C the refused writes wrote nothing");
 

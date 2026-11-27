@@ -172,4 +172,22 @@ void Rig::setEnabledOnThisMachine(const rig::DeviceKey &device, bool enabled)
     emit rigDeviceLabelChanged(device, RigDeviceLabel::EnabledOnThisMachine);
 }
 
+void Rig::learnClubLength(const rig::ClubLengthPriorKey &key, const QVariantMap &learned)
+{
+    if (key.isNull()) return;
+    auto &priors = m_parts.other.clubLengthPriors;
+    const QString spelling = key.persisted();   // by its spelling, as the reader finds it (rig_state.h)
+    auto it = std::find_if(priors.begin(), priors.end(), [&](const auto &p) { return p.first.persisted() == spelling; });
+    QVariantMap entry = it == priors.end() ? QVariantMap() : it->second;
+    for (auto m = learned.cbegin(); m != learned.cend(); ++m) entry.insert(m.key(), m.value());
+    if (it != priors.end()) {
+        if (entry == it->second) return;   // nothing learned that the entry did not hold
+        it->second = entry;
+    } else {
+        if (entry.isEmpty()) return;
+        priors.append({ key, entry });
+    }
+    save();   // learned state: no event (rig_commands.h); a failure is remembered and saved again (P4)
+}
+
 } // namespace pinpoint

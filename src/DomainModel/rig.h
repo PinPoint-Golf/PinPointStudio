@@ -22,8 +22,8 @@
 // model LC-RIG; docs/design/rig_design.md §4.1). It holds the machine's capture set-up in two parts side by side
 // (rig::RigParts): the rig state, versioned, whose digest is its RigStateId; and the Rig's other facts, not versioned.
 // It is their one writer, and the one writer of rig.json, through RigRepository (rig_repository.h). It changes them only
-// by its commands (rig_commands.h, the contract its callers are handed; the camera commands so far, C-5a.1, which the
-// camera manager and app.rig call since C-5b).
+// by its commands (rig_commands.h, the contract its callers are handed: the camera commands, C-5a.1, which the camera
+// manager and app.rig call since C-5b; learnClubLength, which the capture service calls since C-7).
 //
 // LIFECYCLE. The composition root makes it, with its store, on the GUI thread, and calls load() once. It has no
 // states and lives for the application's lifetime. On a machine with nothing stored it starts empty, with a new
@@ -46,7 +46,7 @@
 
 namespace pinpoint {
 
-class Rig : public QObject, public RigCameraCommands
+class Rig : public QObject, public RigCameraCommands, public RigLearningCommands
 {
     Q_OBJECT
 public:
@@ -75,6 +75,9 @@ public:
     void clearHittingArea(const rig::DeviceKey &camera) override;
     void setAlias(const rig::DeviceKey &device, const QString &alias) override;
     void setEnabledOnThisMachine(const rig::DeviceKey &device, bool enabled) override;
+
+    // ── The learned prior (RigLearningCommands; rig_commands.h): saved, no event ──
+    void learnClubLength(const rig::ClubLengthPriorKey &key, const QVariantMap &learned) override;
 
 signals:
     // EVT-15: the versioned part changed. Once per command, after the save; never for the state loaded at launch.

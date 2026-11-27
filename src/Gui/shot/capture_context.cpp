@@ -19,6 +19,7 @@
 #include "capture_context.h"
 
 #include "app_settings.h"
+#include "../../Vocabulary/Rig/rig_state.h"   // rig::RigOtherFacts, clubLengthPriorOf
 #include "athlete_controller.h"
 #include "camera_instance.h"
 #include "hm_instance.h"
@@ -203,7 +204,7 @@ void clubFromRecord(const QVariantMap &rec, pinpoint::SwingExportJob &job)
 
 CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std::vector<CaptureCamera> &cameras,
                                  const ImuManager *imuManager, const AppSettings *settingsIn,
-                                 const CaptureAthlete &athlete, int sessionType, int shotSource,
+                                 const pinpoint::rig::RigOtherFacts *learned, const CaptureAthlete &athlete, int sessionType, int shotSource,
                                  int64_t impactUs)
 {
     AppSettings  fallback;
@@ -349,26 +350,13 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
             // AthleteId's own spelling (AthleteController::currentUuid), so it reads back unchanged.
             snap.lengthPriorKey = pinpoint::rig::ClubLengthPriorKey(pinpoint::AthleteId::fromString(athlete.uuid),
                                                                     athlete.sessionClub, faceOn);
-            const QVariantMap prior = settings.clubLenPrior().value(snap.lengthPriorKey.persisted()).toMap();
-            if (!prior.isEmpty()) {
-                const int entryW = prior.value(QStringLiteral("frameW"), 0).toInt();
-                const int entryH = prior.value(QStringLiteral("frameH"), 0).toInt();
-                // Camera-move self-heal: an entry with recorded dims must match the live camera's
-                // frame size; one that predates the field is trusted as it is.
-                const bool dimsOk = (entryW <= 0 || entryH <= 0)
-                    || (entryW == faceOnCtrl->frameWidth() && entryH == faceOnCtrl->frameHeight());
-                if (dimsOk) {
-                    auto &st = snap.lengthPriorState;
-                    st.emaPx       = prior.value(QStringLiteral("emaPx"), -1.0).toDouble();
-                    st.varPx       = prior.value(QStringLiteral("varPx"), 0.0).toDouble();
-                    st.n           = prior.value(QStringLiteral("n"), 0).toInt();
-                    st.disagreeRun = prior.value(QStringLiteral("disagreeRun"), 0).toInt();
-                    if (st.n > 0 && st.emaPx > 0.0) {
-                        ctxJob.priorClubLenPx    = st.emaPx;
-                        ctxJob.priorClubLenVarPx = st.varPx;
-                        ctxJob.priorClubLenN     = st.n;
-                    }
-                }
+            // The Rig's learned prior, as it stands at this freeze (SET-05; handed in as its other facts, read
+            // live: a prior learned on the shot before is in them). Found by the key's spelling, as before C-7.
+            const QVariantMap prior = learned ? pinpoint::rig::clubLengthPriorOf(*learned, snap.lengthPriorKey)
+                                              : QVariantMap();
+            if (const auto st = lengthPriorFromEntry(prior, faceOnCtrl->frameWidth(), faceOnCtrl->frameHeight())) {
+                snap.lengthPriorState = *st;
+                joinLengthPrior(*st, ctxJob);   // n > 0 and emaPx > 0: the analysis joins it
             }
         }
     }

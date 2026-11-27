@@ -47,8 +47,8 @@
 //
 // THE COPY FROM SETTINGS, one group of keys at a time (rig_design.md §4.4, "From settings to the file" and "Going back
 // to an older build"; §9 question 6; rig_design_addendum.md decisions 9 and 10). A group is copied in the item that
-// makes the Rig its writer, so the composition root names the groups the Rig writes: the camera group since C-5b; the
-// sensor keys and the prior stay AppSettings' until C-6b.1 and C-7. For each group named, at load():
+// makes the Rig its writer, so the composition root names the groups the Rig writes: the camera group since C-5b, the
+// club-length prior since C-7; the sensor keys stay AppSettings' until C-6b.1. For each group named, at load():
 //   - none of the group's keys exists in settings (the settings reset or deleted, or a later stage removing them): the
 //     Rig is left as it is, no copy and no wipe (P1, the Solution Architect, 27 Nov 2026);
 //   - rig.json missing, or the group not taken yet: the group is read from the settings store (ppSettings(), never an
@@ -66,7 +66,11 @@
 //
 // The camera group: camera/perspective, camera/isMirrored, camera/fixedInPlace, camera/ballRoi and camera/alias (maps
 // by the camera key) and camera/excluded (a list of camera keys). An absent entry and its default (false, None) read
-// the same. The sensors and the club-length prior join in C-6b.1 and C-7.
+// the same.
+// The club-length prior (C-7): analysis/clubLenPrior, a map by the prior's key ("<athlete uuid>|<club>|<camera key>",
+// ClubLengthPriorKey::persisted()). A map key is typed only when its parse spells it again byte for byte and its value
+// is a map of numbers, strings and flags; any other entry is kept verbatim. Copied again, the group replaces the Rig's
+// priors whole. The sensors join in C-6b.1.
 //
 // READ-ONLY. A file of a newer pinpoint.rig/N is read for the fields this build knows and never saved over, nor moved,
 // whatever it holds. It says so with ppWarn, once at the load and again at every refused save.
@@ -89,10 +93,10 @@ class RigStore final : public pinpoint::RigRepository
 {
 public:
     // A group of settings keys the copy takes (rig_design.md §4.4).
-    enum class Group { Cameras };
+    enum class Group { Cameras, ClubLengthPrior };
 
     // `groupsTheRigWrites`: the groups whose writer the Rig is, which load() copies from settings (the composition
-    // root's: the cameras, since C-5b; a test's store may name none).
+    // root's: the cameras, since C-5b, and the club-length prior, since C-7; a test's store may name none).
     explicit RigStore(QString folder, QList<Group> groupsTheRigWrites = {});
 
     pinpoint::RigLoad load() override;
@@ -122,6 +126,12 @@ public:
 
     // Whether the settings store holds at least one key of `g` (P1). Reads the settings store; writes nothing.
     static bool settingsHoldAnyKeyOf(Group g);
+
+    // Whether <folder>/rig.json records `g` as taken from settings (its groupsTaken entry). Reads the file only: no
+    // copy, no move aside, no save. False when there is no file, or none this build can parse as JSON. For a tool that
+    // must not change a group's settings keys once the Rig writes them (the step-2 migration tool, which refuses its
+    // write run when the club-length group is taken: the Product Owner, 27 Nov 2026).
+    static bool hasTakenGroup(const QString &folder, Group g);
 
 private:
     void    copyGroups(pinpoint::RigLoad &out);   // the groups the Rig writes, from settings, into `out`

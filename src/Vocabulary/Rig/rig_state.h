@@ -120,6 +120,18 @@ struct RigOtherFacts {
     QList<QPair<ClubLengthPriorKey, QVariantMap>>  clubLengthPriors;   // the value as SET-05 stores it
 };
 
+// The learned club-length prior's entry for `key`, found by the key's spelling (ClubLengthPriorKey::persisted(), as
+// analysis/clubLenPrior was looked up), never by key equality; empty when there is none, or for a null key. The Rig
+// (learnClubLength) and the capture side's read at the freeze both find an entry this way.
+inline QVariantMap clubLengthPriorOf(const RigOtherFacts &facts, const ClubLengthPriorKey &key)
+{
+    if (key.isNull()) return {};
+    const QString spelling = key.persisted();
+    for (const auto &p : facts.clubLengthPriors)
+        if (p.first.persisted() == spelling) return p.second;
+    return {};
+}
+
 // The Rig's two parts side by side, as the Rig holds them and rig.json stores them (rig_design.md §4.4). Its id is the
 // rig state's: rigStateIdOf(parts) reads `state` only.
 struct RigParts {

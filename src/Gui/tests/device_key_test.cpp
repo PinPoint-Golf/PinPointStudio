@@ -25,8 +25,9 @@
 // tuningKey as they were before C-1b; imu_roles::aliasKey and capture_context.cpp's prior key as they
 // were before C-1c, which spell through the types now), and hm_unit_id::unitIdFor. It is
 // written through the REAL AppSettings into a scratch store, read back by a second AppSettings, and only
-// then looked up with the typed keys; the six camera keys the Rig took over (platform refactor C-5b), which
-// AppSettings no longer holds, are written and read raw, whole maps, as the last build before it wrote them.
+// then looked up with the typed keys; the six camera keys the Rig took over (platform refactor C-5b) and the
+// club-length prior (C-7), which AppSettings no longer holds, are written and read raw, whole maps, as the last
+// build before it wrote them.
 // A test that built the fixture with the types would prove nothing.
 //
 // Devices: two cameras (one with a serial, one without, whose device id is a Windows path full of '#'),
@@ -350,6 +351,9 @@ static void testSettingsFixture()
             raw.setValue(QStringLiteral("camera/ballRoi"), QVariantMap{ { camA, box(0.4, 0.6, 0.1, 0.1) } });
             raw.setValue(QStringLiteral("camera/alias"), QVariantMap{ { camA, QStringLiteral("Face-on") }, { camB, QStringLiteral("Webcam") } });
             raw.setValue(QStringLiteral("camera/excluded"), QStringList{ camB });
+            // SET-05, which the Rig took over in C-7, as the last build before it wrote it: one whole map.
+            raw.setValue(QStringLiteral("analysis/clubLenPrior"),
+                         QVariantMap{ { prior, QVariantMap{ { "lenM", 0.94 }, { "frameW", 1280 }, { "frameH", 1024 } } } });
         }
         AppSettings s;   // today's writer of the rest
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.0, 1.0, 1.0) },
@@ -365,7 +369,6 @@ static void testSettingsFixture()
         s.setImuRoles({ { kWit.id, pinpoint::imu_roles::pelvis() },
                         { hmLower, pinpoint::imu_roles::leadForearm() },
                         { hmPalm, pinpoint::imu_roles::leadHand() } });
-        s.setClubLenPrior({ { prior, QVariantMap{ { "lenM", 0.94 }, { "frameW", 1280 }, { "frameH", 1024 } } } });
     }
 
     AppSettings r;   // today's reader, a fresh load from the scratch store
@@ -395,7 +398,8 @@ static void testSettingsFixture()
     keysAre("imu/excluded", r.imuExcluded(), { w.persistedId() });
     keysAre("imu/roles", r.imuRoles().keys(), { PlacementKey(w).persisted(), PlacementKey(h, Lane::LowerArm).persisted(),
                                                 PlacementKey(h, Lane::Palm).persisted() });
-    keysAre("analysis/clubLenPrior", r.clubLenPrior().keys(), { todaysPriorKey(a.persistedCameraKey()) });
+    const QString typedPrior = ClubLengthPriorKey(AthleteId::fromString(kAthlete), kClub, a).persisted();
+    keysAre("analysis/clubLenPrior", rawMap("analysis/clubLenPrior").keys(), { typedPrior });
 
     // And each value resolves through the typed key.
     check("perspective A", rawMap("camera/perspective").value(a.persistedCameraKey()).toInt() == 2);
@@ -422,7 +426,7 @@ static void testSettingsFixture()
     check("role Witmotion", r.imuRoles().value(PlacementKey(w).persisted()).toString() == pinpoint::imu_roles::pelvis());
     check("role lowerArm", r.imuRoles().value(PlacementKey(h, Lane::LowerArm).persisted()).toString() == pinpoint::imu_roles::leadForearm());
     check("role palm", r.imuRoles().value(PlacementKey(h, Lane::Palm).persisted()).toString() == pinpoint::imu_roles::leadHand());
-    check("prior", r.clubLenPrior().value(todaysPriorKey(a.persistedCameraKey())).toMap().value("lenM").toDouble() == 0.94);
+    check("prior", rawMap("analysis/clubLenPrior").value(typedPrior).toMap().value("lenM").toDouble() == 0.94);
 
     // Read back the other way: every stored key parses, and spells itself again.
     for (const QString &k : rawMap("camera/perspective").keys())
@@ -534,10 +538,12 @@ static void testSites()
 
 // ── 7. SET-05: a club-length prior stored by today's code is found under the typed key ──────────────
 //
-// capture_context.cpp reads the prior and ShotProcessor writes it under ClubLengthPriorKey::persisted();
-// today's build stored it under the open-coded expression (todaysPriorKey). The store is written with
-// today's spelling, read back by a fresh AppSettings, and looked up with the typed key; then written
-// with the typed key, as the writer now does, and found with today's spelling.
+// capture_context.cpp reads the prior and the Rig keeps it under ClubLengthPriorKey::persisted() (since C-7,
+// in rig.json); today's build stored it under the open-coded expression (todaysPriorKey). The settings store
+// is written raw with today's spelling, as the last build before the Rig took the key over wrote it, read
+// back raw from the file, and looked up with the typed key. The writer's update under the typed key is the
+// Rig's now: rig_commands_test K12 (saved under today's spelling, byte for byte; the entry's other members
+// kept) and club_length_prior_test R4.
 
 static void testClubLengthPrior()
 {
@@ -567,36 +573,25 @@ static void testClubLengthPrior()
         same(QStringLiteral("prior key = today: ") + QLatin1String(c.label), typed(c).persisted(), today(c));
 
     {
-        AppSettings s;   // today's writer, today's keys
+        QSettings raw = ppSettings();   // the last writer before C-7, today's keys: one whole map
         QVariantMap all;
         for (const Case &c : cases) all[today(c)] = QVariantMap{ { "emaPx", 512.0 }, { "lenM", c.lenM } };
-        s.setClubLenPrior(all);
+        raw.setValue(QStringLiteral("analysis/clubLenPrior"), all);
+        raw.sync();
     }
     {
-        AppSettings r;   // a fresh load: the prior capture_context.cpp reads for each shot
+        QSettings f(ppSettings().fileName(), QSettings::IniFormat);   // parsed from the file's text, as a launch reads it
+        const QVariantMap stored = f.value(QStringLiteral("analysis/clubLenPrior")).toMap();
         QStringList want;
         for (const Case &c : cases) {
             want << typed(c).persisted();
             check(QStringLiteral("prior found under the typed key: ") + QLatin1String(c.label),
-                  r.clubLenPrior().value(typed(c).persisted()).toMap().value("lenM").toDouble() == c.lenM);
+                  stored.value(typed(c).persisted()).toMap().value("lenM").toDouble() == c.lenM);
         }
-        QStringList got = r.clubLenPrior().keys();
+        QStringList got = stored.keys();
         got.sort(); want.sort();
         check("analysis/clubLenPrior: stored keys = typed spellings", got == want);
-
-        // The writer (ShotProcessor::onAnalysisFinished): read, update, write back under the typed key.
-        QVariantMap all = r.clubLenPrior();
-        const QString key = typed(cases.first()).persisted();
-        QVariantMap entry = all.value(key).toMap();
-        entry[QStringLiteral("n")] = 7;
-        all[key] = entry;
-        r.setClubLenPrior(all);
     }
-    AppSettings back;
-    check("the writer's update lands on today's entry",
-          back.clubLenPrior().size() == cases.size()
-              && back.clubLenPrior().value(today(cases.first())).toMap().value("n").toInt() == 7
-              && back.clubLenPrior().value(today(cases.first())).toMap().value("lenM").toDouble() == 0.94);
 
     // Null means "nothing to learn for this shot": only a key with no face-on camera.
     const AthleteId athlete = AthleteId::fromString(kAthlete);

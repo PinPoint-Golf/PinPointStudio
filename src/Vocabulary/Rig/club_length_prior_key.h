@@ -35,7 +35,10 @@
 // AthleteController::currentUuid(), itself an AthleteId's toString()). The key is null only when it was
 // never given a camera, which is how its holder says "nothing to learn for this shot".
 //
-// No parser: nothing reads the key back into its parts, and a camera key holds '|' itself.
+// No parser here: a camera key holds '|' itself, so the parts cannot be read back from the spelling in
+// general. The one reading back is the Rig store's copy of the settings key (rig_store.cpp,
+// priorKeyFromSettings, platform refactor C-7), which trusts a parse only when the typed key spells the
+// settings key again byte for byte, and keeps any other entry verbatim; every lookup is by the spelling.
 
 #include "device_key.h"
 #include "../Identity/identity.h"

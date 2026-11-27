@@ -25,8 +25,9 @@
 // area, Identity and Platform (Qt value types), never rig.h, Gui, Buffer or app_settings.h.
 //
 // Today: the camera commands, which the app calls since the cameras' cut-over (C-5b): CameraManager is handed
-// RigCameraCommands by the composition root (src/Gui/cameras/camera_rig_link.h), and app.rig forwards QML's. The sensor
-// commands and learnClubLength join in C-6a.2 and C-7.
+// RigCameraCommands by the composition root (src/Gui/cameras/camera_rig_link.h), and app.rig forwards QML's. The
+// learned club-length prior's command (RigLearningCommands), which the capture service calls since C-7: ShotProcessor
+// is handed it by the composition root. The sensor commands join in C-6a.2.
 //
 // WHAT EACH COMMAND DOES (rig_design.md §4.1, §4.2):
 //   - The versioned ones (the perspective, mirrored, fixed in place, the hitting-area box) make a new rig state, save
@@ -35,6 +36,8 @@
 //   - The unversioned ones (an alias, enabled on this machine) save, then emit RigDeviceLabelChanged once, carrying
 //     the device's key and which of the two changed (decision 8). They make no new rig state and no RigChanged. One
 //     that changes nothing saves nothing and emits nothing.
+//   - learnClubLength (SET-05) is learned state: it saves, and emits nothing at all (no RigChanged, no
+//     RigDeviceLabelChanged; the Rig design addendum's decision 8). One that changes nothing saves nothing.
 //   - A save that fails is logged by the store; the change stands in memory, its event is emitted, and the Rig
 //     remembers it is unsaved: the next command, or the quit, saves the whole rig again (P4). No command is refused
 //     because the disk failed.
@@ -44,10 +47,12 @@
 //   - A camera command given a key that is not a camera's (a sensor's, or a null key) changes nothing, and so does
 //     setAlias or setEnabledOnThisMachine given a null key.
 
+#include "../Vocabulary/Rig/club_length_prior_key.h"
 #include "../Vocabulary/Rig/device_key.h"
 
 #include <QRectF>
 #include <QString>
+#include <QVariantMap>
 
 namespace pinpoint {
 
@@ -80,6 +85,22 @@ public:
     // Whether the device is enabled on this machine: a machine-wide preference that seeds each session. Enabled is
     // the default and is not stored.
     virtual void setEnabledOnThisMachine(const rig::DeviceKey &device, bool enabled) = 0;
+};
+
+// The Rig's learned state (SET-05; information_model.md OBJ-RIG, CLS-RIG): the club-length prior, one entry per
+// athlete, club and face-on camera, kept in the Rig's other facts and saved to rig.json under the key's own spelling
+// (ClubLengthPriorKey::persisted(), today's analysis/clubLenPrior key, byte for byte).
+class RigLearningCommands
+{
+public:
+    virtual ~RigLearningCommands() = default;
+
+    // What a shot learned for `key`, after its live analysis: each member of `learned` replaces the stored entry's
+    // member of that name, and every other member of the stored entry stays, as the settings writer before C-7 read
+    // the entry, set its fields and wrote it back. The entry is found by the key's spelling, never by key equality, as
+    // the reader finds it. A null key, or an entry already holding every member as given, changes nothing and saves
+    // nothing. Saved, with no event; never refused because the disk failed.
+    virtual void learnClubLength(const rig::ClubLengthPriorKey &key, const QVariantMap &learned) = 0;
 };
 
 } // namespace pinpoint

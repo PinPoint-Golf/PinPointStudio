@@ -62,11 +62,13 @@
 #include "../../Vocabulary/Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
 #include "../../Club/club_length_fusion.h"        // LengthPriorState
+#include "club_length_prior_entry.h"               // the learned prior's entry, read and written (SET-05)
 #include "../../Stores/capture_export_facts.h"     // the Recording's inputs the export takes from the freeze
 #include <QHash>
 #include "shot_outcome.h"                          // PersistPath
 
 class AppSettings;
+namespace pinpoint::rig { struct RigOtherFacts; }   // rig_state.h: the Rig's other facts, the learned prior among them
 class AthleteController;
 class CameraInstance;
 class ImuManager;
@@ -131,10 +133,11 @@ struct CaptureSnapshot {
 };
 
 // The Recording of the shot, at the freeze. `impactUs` is the trigger's instant on the ring clock.
-// A null `settings` reads the defaults; a null `imu` binds no IMU.
+// A null `settings` reads the defaults; a null `imu` binds no IMU. `learned` is the Rig's other facts as they
+// stand (the learned club-length prior, SET-05, since C-7); null joins no prior.
 CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std::vector<CaptureCamera> &cameras,
                                  const ImuManager *imu, const AppSettings *settings,
-                                 const CaptureAthlete &athlete, int sessionType, int shotSource,
+                                 const pinpoint::rig::RigOtherFacts *learned, const CaptureAthlete &athlete, int sessionType, int shotSource,
                                  int64_t impactUs);
 
 // The export job's athlete (name, uuid, handedness, height), its club (name, geometry, the length

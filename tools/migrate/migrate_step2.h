@@ -72,6 +72,11 @@ struct Options {
     // The files the caller will write (the report, its appendices): refused when inside an athlete or session
     // folder, before anything is written.
     QStringList outputs;
+    // The target machine's rig folder (FILE-APP-07; the tool's --rig-dir, by default this machine's, as the app finds
+    // it). A write run refuses when its rig.json has taken the club-length group from settings: the Rig keeps the
+    // learned lengths since then, and a re-keyed settings map would be copied over them at the next launch (the
+    // Product Owner, 27 Nov 2026). A write run with a settings file and no rig folder refuses too. A dry run reads none.
+    QString rigFolder;
     // Tests: whether the app is running on this machine (the default asks the OS).
     std::function<bool()> appRunning;
     // Tests: called after M3 wrote a session's new homes, before its check (a test can make the check fail).

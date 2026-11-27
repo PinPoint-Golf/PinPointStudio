@@ -26,7 +26,8 @@
 #include "../../src/DomainModel/session_input.h"
 #include "../../src/Stores/athlete_files.h"
 #include "../../src/Stores/athlete_store.h"
-#include "../../src/Stores/recording_header.h"   // captureEndUtcOf: the inferred end's one rule (J-18)
+#include "../../src/Stores/recording_header.h"
+#include "../../src/Stores/rig_store.h"   // RigStore::hasTakenGroup: the write refuses once the Rig keeps the club lengths   // captureEndUtcOf: the inferred end's one rule (J-18)
 #include "../../src/Stores/session_diagnostics_files.h"
 #include "../../src/Stores/session_files.h"
 #include "../../src/Stores/session_store.h"
@@ -1364,6 +1365,8 @@ void Writer::changeSettings()
                 s.setValue(QStringLiteral("currentAthleteUuid"), it.value());
                 m_log.settingsChanges << QStringLiteral("currentAthleteUuid %1 → %2").arg(it.key(), it.value());
             }
+            // The learned club lengths: re-keyed here only on a machine whose Rig has not taken them (run() refuses
+            // the write run otherwise: Options::rigFolder).
             QVariantMap prior = s.value(QStringLiteral("analysis/clubLenPrior")).toMap();
             bool changed = false;
             for (const QString &k : prior.keys())
@@ -1714,6 +1717,18 @@ Result run(const Options &options)
                 return refuse(QStringLiteral("--write would change the settings file %1, which is not a copy under %2: a scratch run "
                                              "takes a copy of the settings").arg(options.settingsFile, options.scratchRoots.join(QStringLiteral(" or "))));
         }
+        // The Rig has taken the learned club lengths (SET-05) from this machine's settings: M1's re-key of
+        // analysis/clubLenPrior would change that group's settings keys, and the app's next launch would copy them,
+        // as they stood before the Rig took them, over every length learned since. So the whole write run is refused
+        // (the Product Owner, 27 Nov 2026); a dry run still runs.
+        if (!options.settingsFile.isEmpty() && options.rigFolder.isEmpty())
+            return refuse(QStringLiteral("--write with a settings file needs the machine's rig folder (--rig-dir), to "
+                                         "check that its Rig has not taken the learned club lengths"));
+        if (!options.rigFolder.isEmpty() && RigStore::hasTakenGroup(options.rigFolder, RigStore::Group::ClubLengthPrior))
+            return refuse(QStringLiteral("--write refused: the Rig in %1 keeps this machine's learned club lengths "
+                                         "(rig.json has taken them from the settings), so re-keying the settings copy "
+                                         "would undo every length learned since; a dry run still works")
+                              .arg(options.rigFolder));
         const bool running = options.appRunning ? options.appRunning() : appIsRunning();
         if (running)
             return refuse(QStringLiteral("PinPoint Studio is running on this machine: quit it first (and on every other machine "

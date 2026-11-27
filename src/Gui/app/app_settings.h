@@ -345,12 +345,9 @@ class AppSettings : public QObject
     // it in PinPoint too. Off by default. FSX2020 names only a club family ("Irn", "Wdg") and is
     // usually left unchanged, so it is never followed (LaunchMonitorController::followDeviceClub).
     Q_PROPERTY(bool    launchMonitorFollowClub READ launchMonitorFollowClub WRITE setLaunchMonitorFollowClub NOTIFY launchMonitorFollowClubChanged)
-    // Persistent per-athlete·club·camera club-length prior (club_length_fusion.h /
-    // plan: robust club length — starry-shimmying-wind). Key = "athleteUuid|clubName|
-    // cameraKey" -> {emaPx, varPx, n, disagreeRun, lengthMm, frameW, frameH,
-    // lastUpdatedUtc}. Written ONLY by the live ShotProcessor path; re-analysis reads
-    // the recorded swing.json copy instead (never AppSettings — determinism).
-    Q_PROPERTY(QVariantMap clubLenPrior READ clubLenPrior WRITE setClubLenPrior NOTIFY clubLenPriorChanged)
+    // The persistent club-length prior (SET-05, analysis/clubLenPrior) is not here since platform refactor C-7:
+    // the Rig keeps it (learnClubLength; rig.json), and copies the key from the settings store at launch. The
+    // key stays in the store, written by nothing in the app, until Stage E.
 
 public:
     // Volume geometry ONLY — total, free, name. Cheap: three QStorageInfo reads and no directory
@@ -597,8 +594,6 @@ public:
         m_gsProInterface = ppSettings().value(QStringLiteral("launchmonitor/gsproInterface"), QStringLiteral("any")).toString();
         if (m_gsProInterface != QLatin1String("any") && m_gsProInterface != QLatin1String("loopback"))
             m_gsProInterface = QStringLiteral("any");
-
-        m_clubLenPrior = ppSettings().value(QStringLiteral("analysis/clubLenPrior"), QVariantMap{}).toMap();
     }
 
     QString appVersion()     const { return QStringLiteral(PINPOINT_VERSION_STRING); }
@@ -719,8 +714,6 @@ public:
     bool    launchMonitorChimeEnabled() const { return m_launchMonitorChimeEnabled; }
     bool    launchMonitorStandalone()   const { return m_launchMonitorStandalone; }
     bool    launchMonitorFollowClub()   const { return m_launchMonitorFollowClub; }
-
-    QVariantMap clubLenPrior() const { return m_clubLenPrior; }
 
     QStringList imuExcluded()             const { return m_imuExcluded; }
     QVariantMap imuPlacement()            const { return m_imuPlacement; }   // derived — see the property
@@ -1618,14 +1611,6 @@ public:
         emit launchMonitorFollowClubChanged();
     }
 
-    void setClubLenPrior(const QVariantMap &v)
-    {
-        if (m_clubLenPrior == v) return;
-        m_clubLenPrior = v;
-        ppSettings().setValue(QStringLiteral("analysis/clubLenPrior"), v);
-        emit clubLenPriorChanged();
-    }
-
 signals:
     void sessionBytesChanged();
     void themeIndexChanged();
@@ -1733,7 +1718,6 @@ signals:
     void launchMonitorEnabledChanged();
     void gsProPortChanged();
     void gsProInterfaceChanged();
-    void clubLenPriorChanged();
 
 private:
     // Reads imu/roles, or — once, behind the imu/rolesMigrated marker — builds it from
@@ -1862,8 +1846,6 @@ private:
     bool    m_launchMonitorEnabled = true;
     int     m_gsProPort      = 921;
     QString m_gsProInterface = QStringLiteral("any");
-
-    QVariantMap m_clubLenPrior;
 
     // ── Library-size scan ────────────────────────────────────────────────────
     // -1 is "never measured", which is NOT the same statement as 0 and must not collapse into it:

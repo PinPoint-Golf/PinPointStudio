@@ -384,8 +384,9 @@ int main(int argc, char *argv[])
     // on the GUI thread with its store, which takes its folder from here (RigStore::defaultFolder(): <AppData>/rig,
     // or PINPOINT_RIG_DIR for a test or a probe), and loaded once: a machine with nothing stored gets an empty rig and
     // a new RigId, written once. Since the cameras' cut-over (C-5b) it is the one writer of the camera keys' facts
-    // (SET-09), so their group is copied from settings at this load, before the camera manager reads them; the sensor
-    // keys and the club-length prior follow (C-6b.1, C-7). Made before the camera manager, so it outlives it.
+    // (SET-09), so their group is copied from settings at this load, before the camera manager reads them; since C-7 it
+    // keeps the learned club-length prior too (SET-05), its group copied at the same load, before any shot; the sensor
+    // keys follow (C-6b.1). Made before the camera manager, so it outlives it.
     // THE CAMERA ROLE PROBE (PINPOINT_PROBE_CAMERA_ROLES, below) moves real cameras through every role: it runs on a
     // scratch copy of the rig folder, so the machine's rig.json is never written by it (F29).
     QString rigFolder = RigStore::defaultFolder();
@@ -395,7 +396,7 @@ int main(int argc, char *argv[])
         roleProbeOnScratchRig = !scratch.isEmpty();
         if (roleProbeOnScratchRig) rigFolder = scratch;
     }
-    RigStore               rigStore(rigFolder, { RigStore::Group::Cameras });
+    RigStore               rigStore(rigFolder, { RigStore::Group::Cameras, RigStore::Group::ClubLengthPrior });
     pinpoint::Rig          rig(rigStore);
     rig.load();
     // `app.rig`: the cameras' set-up, read and written. Made here, before the camera manager's connections, so a view
@@ -1033,6 +1034,9 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
+    // The learned club-length prior (SET-05, C-7): a live shot asks the Rig to learn it after its analysis, and each
+    // freeze reads it from the Rig's parts as they stand (no event: the parts are the Rig's own, never a copy).
+    shotProcessor.attachRig(&rig, &rig.parts());
     // With no golfer chosen (or a library re-pointed to one that does not list the golfer: D7, J-67), capture's session
     // is the library's Unassigned owner's, a full Session (§5.11; DEC-198); its record is written at the first Start.
     shotProcessor.setUnassignedAthlete(athleteCallables.unassigned);

@@ -275,7 +275,8 @@ pp_add_test(camera_roi_test
 # for byte; parse then spell is the identity; the lanes equal hm_unit_id.h's. The fixture (two cameras,
 # one with no serial, a Witmotion, a HackMotion) is written by the REAL AppSettings, with keys spelled
 # by today's code, into a scratch store (IsolatedStores), and read back through the typed keys; the six camera keys
-# the Rig took over (C-5b) are written and read raw, as the last build before the cut-over wrote them.
+# the Rig took over (C-5b) and the club-length prior (C-7) are written and read raw, as the last build before each
+# cut-over wrote them.
 pp_add_test(device_key_test
     SOURCES device_key_test.cpp
             ${SRC}/Vocabulary/Rig/device_key.h

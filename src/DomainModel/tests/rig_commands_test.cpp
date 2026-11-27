@@ -33,6 +33,11 @@
 //   K10 a key of the wrong kind changes nothing
 //   K11 the Rig remembers a change whose save failed and saves it again at quit (P4), the launch's own save too;
 //       nothing is saved at quit when nothing is unsaved, nor over a file this build must not write
+//   K12 learnClubLength (SET-05, C-7): saved, and no event of either kind, the RigStateId unchanged; the members given
+//       replace the entry's and every other member stays (the settings writer's read, set, write back); the entry
+//       found by the key's spelling, so two keys that spell the same are one entry; nothing learned saves nothing; a
+//       null key is nothing; a failed save is remembered (P4); through the real store, rig.json holds it under
+//       today's spelling, byte for byte, and a reload finds it
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -44,6 +49,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 #include <cstdio>
 #include <functional>
@@ -420,6 +428,84 @@ int main(int argc, char **argv)
         rig.saveIfUnsaved();
         check(!rig.hasUnsavedChange() && repo.saves == saves,
               "K11h a read-only file: a refused save is not an unsaved change, and the quit tries nothing");
+    }
+
+    std::printf("\nK12 the learned club-length prior (learnClubLength)\n");
+    {
+        const AthleteId athlete = AthleteId::fromString(u"5b0c7f1e-2a3d-4c5b-8e6f-7a8b9c0d1e2f");
+        const ClubLengthPriorKey key(athlete, QStringLiteral("7i"), camA);
+        MemoryRepository repo;
+        repo.loaded.id = RigId::create();
+        repo.loaded.source = RigLoad::Source::File;
+        // An entry stored before, with a member the writer does not set.
+        repo.loaded.parts.other.clubLengthPriors.append(
+            { key, QVariantMap{ { "emaPx", 500.0 }, { "n", 5 }, { "note", "kept" } } });
+        Rig rig(repo);
+        rig.load();
+        Events ev(rig, &repo);
+        const RigStateId state = rig.stateId();
+        int saves = repo.saves;
+        rig.learnClubLength(key, QVariantMap{ { "emaPx", 512.5 }, { "n", 6 } });
+        const QVariantMap e = clubLengthPriorOf(rig.parts().other, key);
+        check(repo.saves == saves + 1 && clubLengthPriorOf(repo.savedParts.other, key).value("n").toInt() == 6,
+              "K12a saved once, with the learned value");
+        check(ev.changed.isEmpty() && ev.labels.isEmpty() && rig.stateId() == state,
+              "K12b no RigChanged, no RigDeviceLabelChanged, the RigStateId unchanged");
+        check(e.value("emaPx").toDouble() == 512.5 && e.value("n").toInt() == 6 && e.value("note").toString() == "kept"
+                  && e.size() == 3 && rig.parts().other.clubLengthPriors.size() == 1,
+              "K12c the members given replace the entry's; every other member stays");
+        saves = repo.saves;
+        rig.learnClubLength(key, QVariantMap{ { "emaPx", 512.5 }, { "n", 6 } });
+        rig.learnClubLength(ClubLengthPriorKey(), QVariantMap{ { "n", 1 } });
+        rig.learnClubLength(ClubLengthPriorKey(athlete, "7i", DeviceKey()), QVariantMap{ { "n", 1 } });
+        check(repo.saves == saves && rig.parts().other.clubLengthPriors.size() == 1 && ev.changed.isEmpty() && ev.labels.isEmpty(),
+              "K12d nothing learned that the entry did not hold, or a null key: nothing saved, nothing emitted");
+        // Two keys whose parts differ but which spell the same: a '|' in the camera's description, or in the club.
+        const DeviceKey pipeCam = DeviceKey::camera("Rig|Cam A", "SN 9", "d");
+        const DeviceKey plainCam = DeviceKey::camera("Cam A", "SN 9", "d");
+        const ClubLengthPriorKey k1(athlete, QStringLiteral("5i"), pipeCam), k2(athlete, QStringLiteral("5i|Rig"), plainCam);
+        check(k1 != k2 && k1.persisted() == k2.persisted(), "K12e (two keys, unequal, one spelling)");
+        rig.learnClubLength(k1, QVariantMap{ { "n", 1 } });
+        rig.learnClubLength(k2, QVariantMap{ { "n", 2 } });
+        check(rig.parts().other.clubLengthPriors.size() == 2 && clubLengthPriorOf(rig.parts().other, k1).value("n").toInt() == 2,
+              "K12f the entry is found by its spelling, as the reader finds it: one entry, not two");
+        repo.fail = true;
+        rig.learnClubLength(key, QVariantMap{ { "n", 7 } });
+        check(rig.hasUnsavedChange() && clubLengthPriorOf(rig.parts().other, key).value("n").toInt() == 7,
+              "K12g a failed save: the prior stands in memory and is remembered as unsaved (P4)");
+        repo.fail = false;
+        rig.saveIfUnsaved();
+        check(!rig.hasUnsavedChange() && clubLengthPriorOf(repo.savedParts.other, key).value("n").toInt() == 7,
+              "K12h and saved at quit");
+    }
+    {
+        // Through the real store: rig.json holds the prior under today's spelling (capture_context.cpp's expression on
+        // 8273d1cf, before C-1c: athlete uuid + '|' + club + '|' + description + '|' + serial-or-id).
+        const QString folder = stores.path() + "/k12/rig";
+        const QString athlete = QStringLiteral("5b0c7f1e-2a3d-4c5b-8e6f-7a8b9c0d1e2f");
+        const QString todays  = athlete + "|7i|" + "Blackfly S BFS-U3-16S2M|24157001";
+        const ClubLengthPriorKey key(AthleteId::fromString(athlete), QStringLiteral("7i"), camA);
+        {
+            RigStore store(folder);
+            Rig      rig(store);
+            rig.load();
+            rig.learnClubLength(key, QVariantMap{ { "emaPx", 512.25 }, { "varPx", 3.5 }, { "n", 6 }, { "lengthMm", 940 } });
+        }
+        QFile f(folder + "/rig.json");
+        const QByteArray bytes = f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        const QJsonArray priors = QJsonDocument::fromJson(bytes).object().value("other").toObject().value("clubLengthPriors").toArray();
+        const QJsonObject p = priors.isEmpty() ? QJsonObject() : priors.first().toObject();
+        check(priors.size() == 1
+                  && (p.value("athlete").toString() + '|' + p.value("club").toString() + '|' + p.value("faceOnCamera").toString()).toUtf8()
+                         == todays.toUtf8(),
+              "K12i rig.json holds the prior under today's spelling, byte for byte");
+        RigStore store(folder);
+        Rig      rig(store);
+        rig.load();
+        const QVariantMap e = clubLengthPriorOf(rig.parts().other, key);
+        check(e.value("emaPx").toDouble() == 512.25 && e.value("varPx").toDouble() == 3.5 && e.value("n").toInt() == 6
+                  && e.value("lengthMm").toInt() == 940,
+              "K12j a reload finds it by the typed key, every member as learned");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

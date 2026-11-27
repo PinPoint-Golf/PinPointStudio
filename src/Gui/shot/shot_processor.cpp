@@ -21,6 +21,8 @@
 #include "app_settings.h"
 #include "camera_instance.h"
 #include "capture_context.h"   // the live facts → the Recording, and its first document (step 1.5)
+#include "../../DomainModel/rig_commands.h"   // RigLearningCommands: the Rig's learnClubLength (C-7)
+#include "../../Vocabulary/Rig/rig_state.h"   // rig::RigParts
 #include "camera_manager.h"
 #include "device_enumerator.h"
 #include "composite_payload_source.h"
@@ -584,7 +586,7 @@ void ShotProcessor::finishGatherAndLaunch()
             cams.push_back(std::move(c));
         }
         m_capture = std::make_unique<pinpoint::capture::CaptureSnapshot>(pinpoint::capture::snapshotAtFreeze(
-            *m_swingWindow, cams, m_imuManager, m_appSettings,
+            *m_swingWindow, cams, m_imuManager, m_appSettings, m_rigParts ? &m_rigParts->other : nullptr,
             pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
             m_sessionType, static_cast<int>(m_shotSource), m_impactUs));
         // Per-shot club-length prior stash: null/cold when this shot has no club or no fixed-in-place
@@ -1605,21 +1607,15 @@ void ShotProcessor::onAnalysisFinished()
         if (lengths.fusedInstantPx > 0.0 && lengths.fusedInstantConf >= cfg.updateConfMin) {
             pinpoint::analysis::updateLengthPrior(m_lengthPriorState, lengths.fusedInstantPx,
                                                   lengths.fusedInstantConf, cfg);
-            AppSettings  fallback;
-            AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-            const QString key = m_lengthPriorKey.persisted();   // "<athlete>|<club>|<camera>", today's spelling
-            QVariantMap all   = s->clubLenPrior();
-            QVariantMap entry = all.value(key).toMap();
-            entry[QStringLiteral("emaPx")]          = m_lengthPriorState.emaPx;
-            entry[QStringLiteral("varPx")]          = m_lengthPriorState.varPx;
-            entry[QStringLiteral("n")]              = m_lengthPriorState.n;
-            entry[QStringLiteral("disagreeRun")]    = m_lengthPriorState.disagreeRun;
-            entry[QStringLiteral("lengthMm")]       = static_cast<int>(std::lround(m_analysisJob.clubLengthM * 1000.0));
-            entry[QStringLiteral("frameW")]         = m_analysisResult.detail->shaft.frameWidth;
-            entry[QStringLiteral("frameH")]         = m_analysisResult.detail->shaft.frameHeight;
-            entry[QStringLiteral("lastUpdatedUtc")] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-            all[key] = entry;
-            s->setClubLenPrior(all);
+            // The Rig keeps it (SET-05, since C-7): saved to rig.json under the key's spelling, today's
+            // "<athlete>|<club>|<camera>", the members below written over the entry; no event.
+            if (m_rigLearning)
+                m_rigLearning->learnClubLength(
+                    m_lengthPriorKey,
+                    pinpoint::capture::learnedLengthPrior(m_lengthPriorState, m_analysisJob.clubLengthM,
+                                                          m_analysisResult.detail->shaft.frameWidth,
+                                                          m_analysisResult.detail->shaft.frameHeight,
+                                                          QDateTime::currentDateTimeUtc()));
         }
     }
 

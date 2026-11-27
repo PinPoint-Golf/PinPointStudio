@@ -37,7 +37,9 @@
 #include <QStandardPaths>
 #include <QtGlobal>
 
+#include <functional>
 #include <initializer_list>
+#include <optional>
 
 using namespace pinpoint;
 using namespace pinpoint::rig;
@@ -593,6 +595,120 @@ void applyCameraGroup(const CameraGroup &g, RigParts &parts)
     for (const DeviceKey &k : g.excluded) flags.append({ k, false });
 }
 
+// ── The club-length prior group (SET-05; C-7) ─────────────────────────────────────────────────────
+
+const char *const kPriorMap = "analysis/clubLenPrior";
+
+// A settings map key read back into its typed key: "<athlete uuid>|<club>|<camera key>". The key was never meant to be
+// parsed (club_length_prior_key.h: a camera key holds '|' itself), so the parse is trusted only when the typed key spells
+// the settings key again byte for byte; anything else is not a typed prior's key, and its entry is kept verbatim. Every
+// entry the reader could find is found again: it looks a prior up by the spelling, never by the parts.
+std::optional<ClubLengthPriorKey> priorKeyFromSettings(const QString &spelling)
+{
+    const int a = spelling.indexOf(QLatin1Char('|'));
+    const int c = a < 0 ? -1 : spelling.indexOf(QLatin1Char('|'), a + 1);
+    if (c < 0) return std::nullopt;
+    const QString   athletePart = spelling.left(a);
+    const AthleteId athlete     = AthleteId::fromString(athletePart);
+    if (!athletePart.isEmpty() && athlete.isNull()) return std::nullopt;
+    const ClubLengthPriorKey k(athlete, spelling.mid(a + 1, c - a - 1), DeviceKey::fromPersistedCameraKey(spelling.mid(c + 1)));
+    if (k.isNull() || k.persisted() != spelling) return std::nullopt;
+    return k;
+}
+
+// A prior's value, as the settings writer wrote it: a map of numbers, strings and flags. Anything else (a value that is
+// not a map, or a member JSON would not keep as it is) is not typed, and is kept verbatim.
+bool isPriorValue(const QVariant &v)
+{
+    if (v.typeId() != QMetaType::QVariantMap) return false;
+    const QVariantMap m = v.toMap();
+    for (auto it = m.cbegin(); it != m.cend(); ++it) {
+        switch (it.value().typeId()) {
+        case QMetaType::Bool: case QMetaType::QString: case QMetaType::Int: case QMetaType::LongLong:
+        case QMetaType::UInt: case QMetaType::ULongLong: case QMetaType::Double: case QMetaType::Float:
+            break;
+        default: return false;
+        }
+    }
+    return true;
+}
+
+struct PriorGroup {
+    QList<QPair<ClubLengthPriorKey, QVariantMap>> priors;
+    QJsonObject                                   kept;   // settings key -> {"entries": {key: value}} | {"whole": v}
+};
+
+PriorGroup readPriorGroup()
+{
+    const QSettings settings = ppSettings();   // read only: the copy never writes a key
+    PriorGroup      g;
+    const QString   key   = QLatin1String(kPriorMap);
+    const QVariant  whole = settings.value(key);
+    if (!whole.isValid()) return g;   // absent, or INI's "@Invalid()": no value at all
+    if (whole.typeId() != QMetaType::QVariantMap) {
+        g.kept.insert(key, QJsonObject{ { QStringLiteral("whole"), settingsValueToJson(whole) } });
+        return g;
+    }
+    const QVariantMap map = whole.toMap();
+    QJsonObject keptEntries;
+    for (auto it = map.cbegin(); it != map.cend(); ++it) {
+        const auto k = priorKeyFromSettings(it.key());
+        if (k && isPriorValue(it.value())) g.priors.append({ *k, it.value().toMap() });
+        else keptEntries.insert(it.key(), settingsValueToJson(it.value()));   // never dropped (decision 10)
+    }
+    if (!keptEntries.isEmpty()) g.kept.insert(key, QJsonObject{ { QStringLiteral("entries"), keptEntries } });
+    return g;
+}
+
+QString fingerprintOf(const PriorGroup &g)
+{
+    using namespace canonical_detail;
+    QByteArrayList entries;
+    for (const auto &p : g.priors)
+        entries << str(p.first.persisted()) + ' '
+                       + QJsonDocument(QJsonObject::fromVariantMap(p.second)).toJson(QJsonDocument::Compact);
+    const QByteArray bytes = "pinpoint.rigGroup/clubLengthPrior/1\npriors " + num(entries.size()) + '\n' + sorted(entries)
+                             + "\nkept " + QJsonDocument(g.kept).toJson(QJsonDocument::Compact) + '\n';
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+// The group into the Rig's other facts: the learned priors replaced, whole (the last writer wins for the group).
+void applyPriorGroup(const PriorGroup &g, RigParts &parts) { parts.other.clubLengthPriors = g.priors; }
+
+// One group, decoded from the settings store: its fingerprint, the entries it keeps verbatim, the settings keys those
+// entries are kept under, and how it goes into the Rig's two parts.
+struct DecodedGroup {
+    QString                         fingerprint;
+    QJsonObject                     kept;
+    QStringList                     keys;
+    std::function<void(RigParts &)> apply;
+};
+
+DecodedGroup decodeGroup(RigStore::Group g)
+{
+    DecodedGroup d;
+    switch (g) {
+    case RigStore::Group::Cameras: {
+        const CameraGroup c = readCameraGroup();
+        d.fingerprint = fingerprintOf(c);
+        d.kept        = c.kept;
+        for (const char *k : kCameraMaps) d.keys << QLatin1String(k);
+        d.keys << QLatin1String(kCameraList);
+        d.apply = [c](RigParts &parts) { applyCameraGroup(c, parts); };
+        break;
+    }
+    case RigStore::Group::ClubLengthPrior: {
+        const PriorGroup p = readPriorGroup();
+        d.fingerprint = fingerprintOf(p);
+        d.kept        = p.kept;
+        d.keys << QLatin1String(kPriorMap);
+        d.apply = [p](RigParts &parts) { applyPriorGroup(p, parts); };
+        break;
+    }
+    }
+    return d;
+}
+
 } // namespace
 
 RigStore::RigStore(QString folder, QList<Group> groupsTheRigWrites)
@@ -602,17 +718,12 @@ QString RigStore::groupName(Group g)
 {
     switch (g) {
     case Group::Cameras: return QStringLiteral("cameras");
+    case Group::ClubLengthPrior: return QStringLiteral("clubLengthPrior");
     }
     return {};
 }
 
-QString RigStore::settingsFingerprint(Group g)
-{
-    switch (g) {
-    case Group::Cameras: return fingerprintOf(readCameraGroup());
-    }
-    return {};
-}
+QString RigStore::settingsFingerprint(Group g) { return decodeGroup(g).fingerprint; }
 
 QString RigStore::defaultFolder()
 {
@@ -649,6 +760,15 @@ QString RigStore::asidePath() const
     return candidate;
 }
 
+bool RigStore::hasTakenGroup(const QString &folder, Group g)
+{
+    QFile f(QDir::cleanPath(folder) + QLatin1Char('/') + kFileName);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+    return doc.isObject()
+           && !doc.object().value(QStringLiteral("groupsTaken")).toObject().value(groupName(g)).toObject().isEmpty();
+}
+
 bool RigStore::settingsHoldAnyKeyOf(Group g)
 {
     const QSettings settings = ppSettings();   // read only
@@ -657,6 +777,10 @@ bool RigStore::settingsHoldAnyKeyOf(Group g)
         for (const char *k : kCameraMaps)
             if (settings.contains(QLatin1String(k))) return true;
         return settings.contains(QLatin1String(kCameraList));
+    case Group::ClubLengthPrior:
+        // A key with no value at all (INI's "@Invalid()") holds no prior: the same as absent, so it never wipes one
+        // (a blank or invalid club-length setting counts as absent under P1: the Solution Architect, 27 Nov 2026).
+        return settings.value(QLatin1String(kPriorMap)).isValid();
     }
     return false;
 }
@@ -753,11 +877,8 @@ void RigStore::copyGroups(RigLoad &out)
                 ppInfo() << "[RigStore] no" << name << "key in settings: the rig's" << name << "are left as they are";
             continue;
         }
-        CameraGroup   decoded;
-        switch (g) {
-        case Group::Cameras: decoded = readCameraGroup(); break;
-        }
-        const QString fingerprint = fingerprintOf(decoded);
+        const DecodedGroup decoded     = decodeGroup(g);
+        const QString      fingerprint = decoded.fingerprint;
         const QJsonObject taken   = m_groupsTaken.value(name).toObject();
         if (out.source == RigLoad::Source::File && taken.value(QStringLiteral("fingerprint")).toString() == fingerprint)
             continue;   // taken, and nothing changed since: nothing happens
@@ -768,14 +889,13 @@ void RigStore::copyGroups(RigLoad &out)
         else
             ppWarn() << "[RigStore] the" << name << "keys in settings no longer match rig.json's copy: an older build"
                      << "changed them, so the whole group is copied again (the last writer wins for the group)";
-        applyCameraGroup(decoded, out.parts);
+        decoded.apply(out.parts);
         // The group's kept entries replace its earlier ones; another group's stay.
-        for (const char *k : kCameraMaps) m_kept.remove(QLatin1String(k));
-        m_kept.remove(QLatin1String(kCameraList));
+        for (const QString &k : decoded.keys) m_kept.remove(k);
         for (auto it = decoded.kept.begin(); it != decoded.kept.end(); ++it) m_kept.insert(it.key(), it.value());
         if (!decoded.kept.isEmpty())
-            ppInfo() << "[RigStore]" << decoded.kept.size() << "camera settings kept verbatim (keys or values that fit no"
-                     << "device; matched to no camera)";
+            ppInfo() << "[RigStore]" << decoded.kept.size() << name << "settings kept verbatim (keys or values that fit"
+                     << "no device; matched to none)";
         m_groupsTaken.insert(name, QJsonObject{ { QStringLiteral("fingerprint"), fingerprint },
                                                 { QStringLiteral("takenUtc"), timeToJson(QDateTime::currentDateTimeUtc()) } });
         out.saveNeeded = true;

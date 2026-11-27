@@ -49,8 +49,9 @@
 #include "../DomainModel/recording_repository.h"   // WriteResult (the allocation's, J-22)
 #include "shot_outcome.h"
 
-namespace pinpoint { class Athlete; class EventBuffer; class RecordingRepository; class Session;
-                     struct SwingAllocation; }
+namespace pinpoint { class Athlete; class EventBuffer; class RecordingRepository; class RigLearningCommands;
+                     class Session; struct SwingAllocation; }
+namespace pinpoint::rig { struct RigParts; }
 namespace pinpoint::capture { struct CaptureSnapshot; }
 class AppSettings;
 class AthleteController;
@@ -159,6 +160,15 @@ public:
     // goes through it (create). Held by the composition root (main.cpp). Without one, a shot's
     // document is not written and the join says so.
     void setRecordingRepository(pinpoint::RecordingRepository *repository) { m_repository = repository; }
+    // THE RIG'S LEARNED PRIOR (SET-05; platform refactor C-7): the Rig's learning command, which a live shot calls after
+    // its analysis (learnClubLength), and its two parts, read at each freeze for the prior the shot joins. Both are the
+    // Rig's own, handed in by the composition root (main.cpp), which outlives this; the parts are the Rig's live value,
+    // never a copy, since a learned prior emits no event. Without them (a tool), no prior is joined or learned.
+    void attachRig(pinpoint::RigLearningCommands *commands, const pinpoint::rig::RigParts *parts)
+    {
+        m_rigLearning = commands;
+        m_rigParts    = parts;
+    }
     // THE SESSION CAPTURE WRITES INTO (refactor step 3.4a-ii; BRIEF §4.8): a Session of the current
     // Athlete, started, resumed and ended through the Athlete's and the Session's commands (DEC-78,
     // DEC-134, DEC-143), every shot allocated by Session::addShot (DEC-142), each shot's first document
@@ -438,12 +448,14 @@ private:
     ShotAnalysisJob                 m_analysisJob;
     pinpoint::analysis::AnalysisService m_analysisService;   // stateless (analysis_service.h)
     pinpoint::RecordingRepository  *m_repository = nullptr;  // the one door (setRecordingRepository)
+    pinpoint::RigLearningCommands  *m_rigLearning = nullptr; // the Rig's learnClubLength (attachRig)
+    const pinpoint::rig::RigParts  *m_rigParts    = nullptr; // the Rig's two parts, live (attachRig)
 
     // Persistent club-length prior (club_length_fusion.h / plan: robust club
     // length — starry-shimmying-wind). Stashed from the capture snapshot when the
     // face-on camera is fixed in place (the Rig's flag; else left null/cold — nothing to
     // update); onAnalysisFinished() folds the recorded fuse's fusedInstant* into
-    // m_lengthPriorState and persists it to AppSettings under m_lengthPriorKey.
+    // m_lengthPriorState and hands it to the Rig (learnClubLength) under m_lengthPriorKey.
     // Cleared at the start of every shot alongside m_analysisResult.
     pinpoint::rig::ClubLengthPriorKey  m_lengthPriorKey;
     pinpoint::analysis::LengthPriorState m_lengthPriorState;

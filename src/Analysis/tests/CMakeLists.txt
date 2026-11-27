@@ -676,7 +676,8 @@ pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept pe
 # new state, saved, then one RigChanged; Impact exclusive across three cameras; a camera put back gives its earlier
 # RigStateId; a no-op saves and emits nothing; the box kept while not fixed; an alias or an enabled flag emits one
 # RigDeviceLabelChanged and no RigChanged; aliases by their own spelling; an unknown code survives; a failed save
-# keeps the change and the next command saves it. Hand-rolled main.
+# keeps the change and the next command saves it; the learned club-length prior (learnClubLength, C-7) saved with no
+# event, its other members kept, found by its spelling, under today's spelling in rig.json. Hand-rolled main.
 pp_add_test(rig_commands_test
     SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
@@ -688,8 +689,10 @@ pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Imp
 # rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
 # the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
 # byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json
-# deleted; a newer rig.json); values of the wrong shape kept; neither keys nor rig; switched off. On ppSettings()
-# inside IsolatedStores. Hand-rolled main.
+# deleted; a newer rig.json); values of the wrong shape kept; neither keys nor rig; switched off; and the club-length
+# prior's group (C-7): copied by its typed key, a key that does not spell itself again kept verbatim, the shot before
+# the cut-over in the copy, a prior learned since standing, an older build's copied again, P1, P2, the groups apart. On
+# ppSettings() inside IsolatedStores. Hand-rolled main.
 pp_add_test(rig_import_test
     SOURCES ${SRC}/Stores/tests/rig_import_test.cpp
             ${SRC}/Stores/rig_store.cpp
@@ -888,6 +891,25 @@ pp_add_test(reuse_gate_test
     LINK    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
+
+# The learned club-length prior's move from the settings store to the Rig (SET-05; platform refactor C-7), in this
+# suite for the Recording's own writer: the capture side's read of the entry and the join into the job
+# (src/Gui/shot/club_length_prior_entry.h, the code capture_context.cpp runs at each freeze) give the same prior
+# state, the same recorded analysis context (capture.club.lengthPrior, by captureAnalysisContext) and the same job and
+# input stamp (buildAnalysisJob), from the settings store as written before C-7, from the Rig just after the copy and
+# from the Rig after a relaunch; the frame-size self-heal the same way; a prior learned after a shot is the next
+# freeze's, in the run and after a relaunch; today's eight members. Hand-rolled main.
+pp_add_test(club_length_prior_test
+    SOURCES ${SRC}/Gui/tests/club_length_prior_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/Gui/shot/club_length_prior_entry.h
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/Stores/rig_store.cpp
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+pp_requirement(club_length_prior_test REQ-INST-17)   # an update keeps the bay's learned club length, and the shot reads it unchanged
 
 # Step 1.2, the store side: Recording → disk → Recording equal; the full and analysis-only headers
 # one header but for the media; a pre-step-1 document → the legacy context (the empty-popover and
@@ -1862,8 +1884,11 @@ pp_add_test(migrate_step2_test
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${SRC}/Stores/rig_store.cpp   # the write refuses once the Rig keeps the learned club lengths (C5-C7)
     INCLUDE ${SRC} ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core
     AUTOMOC)
+# Its C5-C7 cases prove that a write run cannot undo the club lengths a bay's Rig has learned.
+pp_requirement(migrate_step2_test REQ-INST-17)
 
 # WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records
 # sessions which were never "ended", the fingerprint that leaves a current record alone and

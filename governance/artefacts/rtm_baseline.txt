@@ -462,7 +462,6 @@
 4 measure_facets_test
 4 measure_sample_test
 4 metric_catalogue_test
-4 migrate_step2_test
 4 missed_swing_notice_test
 4 model_browser_test
 4 move_files_selftest
