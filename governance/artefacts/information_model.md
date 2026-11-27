@@ -12,7 +12,7 @@
 
 | Mark | Meaning |
 |---|---|
-| A footnote reading "*Role*, *date* (DEC-nn)" | The decision of that role ([governance/roles.md](../../governance/roles.md)), in the register ([§13](#13-decisions-register)), with the day it was made. The footnotes are in [Notes](#notes) |
+| A footnote reading "*Role*, *date* (DEC-nn)" | The decision of that role (all four roles are the owner: [governance/AGENTS.md](../../governance/AGENTS.md)), in the register ([§13](#13-decisions-register)), with the day it was made. The footnotes are in [Notes](#notes) |
 | A footnote reading "Ratified by the *Role*, *date* (DEC-nn)" | A clarification written by the refactor lead (the agent that leads the refactor and wrote this page's first version), ratified by that role |
 | A footnote reading "Proposed, for the *Role*" | Written by the refactor lead and not yet decided by that role[^dec-85]. A plan may rely on one only with that role's approval. Version 1.7's "(proposed, for Mark; MD-12)" marks, the sentences the final re-audit found untraceable, were all decided on 15 Nov 2026[^dec-140] (SET-05's kind[^dec-153]). The ones that stood in version 1.8 are listed in its change-log rows (§15); one stands in version 1.9: RING-PLATFORM's name for the one worker pool's file, `work_pool` (listed in change-log row 1.9); 1.8.13's `DomainModel` allowance is decided[^dec-166]. |
 | **OPEN (Q-nn, step N)** | Not decided. Described as the code is today, with the interim rule; the named step's brief brings it to the Solution Architect ([§14](#14-open-decisions)) |

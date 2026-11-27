@@ -38,6 +38,8 @@ if("${_pp_ver_major}" STREQUAL "" OR "${_pp_ver_minor}" STREQUAL "" OR "${_pp_ve
     message(FATAL_ERROR "Could not parse version from src/Core/version.h")
 endif()
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PinPointCcache.cmake)   # before project(): every compile through ccache
+
 project(PinPointStudio
     VERSION ${_pp_ver_major}.${_pp_ver_minor}.${_pp_ver_build}
     LANGUAGES CXX)

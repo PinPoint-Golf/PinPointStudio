@@ -28,6 +28,14 @@ to its last close. The same panel carries the running total of those bugs closed
 slope shows the effort going into fixing them; opened = open + closed on every day. The
 panel has its own time axis, starting on the first day there is a bug on record.
 --no-issues leaves them off.
+
+Release readiness: for PinPoint, a panel at the top shows the requirements
+(governance/artefacts/requirements.md) as a heatmap of area by release and MoSCoW
+(v1 Must, v1 Should, v1 Could, v2): in each cell, done out of all with partial, planned
+and proposed beneath, and how many rows an open bug blocks; the shade is the share
+ready (done with no open bug). Under the bugs panel, the open bugs by their area label. It reads
+the page and the live issues through tools/method/requirements_table.py, the same reader
+as the traceability report (tools/method/make_rtm.py). --no-readiness leaves it off.
 """
 import argparse
 import csv
@@ -64,6 +72,7 @@ PRESETS = {
         # PinPointCapture's issues are its v1-v3 roadmap (epics, decisions), not defects;
         # the app's bug count is the stability signal.
         issues=["PinPoint-Golf/PinPointStudio"],
+        readiness=True,
         milestones=[
             ("Capture, IMU, audio, STT/TTS", "2026-04-29", 52, 0),
             ("Pose", "2026-05-08", 120, 0),
@@ -181,6 +190,108 @@ def bug_counts(repos, days):
     return bugs, closed_so_far
 
 
+META_LABELS = {"bug", "enhancement", "edge case", "finding", "follow-up", "engineering", "documentation",
+               "question", "platform refactor"}
+
+
+def readiness(root, want_issues):
+    """(rt, rows, have_issues, open bugs by area label) for the readiness panel."""
+    sys.path.insert(0, str(root / "tools/method"))
+    import requirements_table as rt
+    rows = rt.read_requirements(root)
+    issues = rt.read_issues() if want_issues else None
+    if want_issues and issues is None:
+        print("readiness: issues left off (gh issue list failed)", file=sys.stderr)
+    rt.link_issues(rows, issues)
+    by_label = None
+    if issues is not None:
+        by_label = defaultdict(int)
+        for it in issues.values():
+            if it["state"] == "OPEN" and it["bug"]:
+                for lab in it["labels"]:
+                    if lab not in META_LABELS and not lab.startswith("priority"):
+                        by_label[lab] += 1
+    return rt, rows, issues is not None, by_label
+
+
+def draw_readiness(axg, rt, rows, have_issues, by_label):
+    """The release-readiness heatmap."""
+    from matplotlib.colors import to_rgb
+    from matplotlib.patches import FancyBboxPatch
+    RED, INK, MUTED = "#b03a48", "#222", "#666"
+    lo, hi = np.array(to_rgb("#eef6f1")), np.array(to_rgb("#2e7a52"))   # one green ramp, light to dark
+    cols = ["v1 Must", "v1 Should", "v1 Could", "v2"]
+    areas = list(dict.fromkeys(r["area"] for r in rows))
+    live = [r for r in rows if r["status"] != "won't have"]
+    LABEL_W = 1.05                                   # the area names sit inside the axes, left of the cells
+    axg.set_xlim(-LABEL_W, len(cols))
+    axg.set_ylim(len(areas), -0.95)
+    axg.axis("off")
+    for j, col in enumerate(cols):
+        cr = [r for r in live if rt.column(r) == col]
+        done = sum(r["status"] == "done" for r in cr)
+        ready = sum(r["status"] == "done" and not r.get("open_bugs") for r in cr)
+        axg.text(j + 0.5, -0.62, col, ha="center", va="center", fontsize=11, fontweight="bold", color=INK)
+        axg.text(j + 0.5, -0.22, f"{100 * ready / max(len(cr), 1):.0f}% ready ({done}/{len(cr)} done)",
+                 ha="center", va="center", fontsize=8.5, color=MUTED)
+    for i, area in enumerate(areas):
+        axg.text(-0.04, i + 0.5, area, ha="right", va="center", fontsize=9.5, color=INK)
+        for j, col in enumerate(cols):
+            cr = [r for r in live if r["area"] == area and rt.column(r) == col]
+            x0, y0, w, h = j + 0.025, i + 0.07, 0.95, 0.86
+            if not cr:
+                axg.add_patch(FancyBboxPatch((x0, y0), w, h, boxstyle="round,pad=0,rounding_size=0.04",
+                                             fc="#f5f5f5", ec="none"))
+                axg.text(j + 0.5, i + 0.5, "-", ha="center", va="center", fontsize=9, color="#aaa")
+                continue
+            n = {s: sum(r["status"] == s for r in cr) for s in ("done", "partial", "planned", "proposed")}
+            blocked = sum(bool(r.get("open_bugs")) for r in cr)
+            frac = sum(r["status"] == "done" and not r.get("open_bugs") for r in cr) / len(cr)
+            fc = lo + (hi - lo) * frac
+            axg.add_patch(FancyBboxPatch((x0, y0), w, h, boxstyle="round,pad=0,rounding_size=0.04", fc=fc, ec="none"))
+            ink = "white" if frac > 0.55 else INK
+            sub = " · ".join(f"{v} {k[:4] + '.' if k == 'proposed' else k}" for k, v in n.items() if v and k != "done")
+            dy = 0.17 if blocked else 0.0
+            axg.text(j + 0.5, i + 0.36 - dy / 2, f"{n['done']} / {len(cr)} done", ha="center", va="center",
+                     fontsize=9, fontweight="bold", color=ink)
+            axg.text(j + 0.5, i + 0.66 - dy / 2, sub or " ", ha="center", va="center", fontsize=7,
+                     color=ink if frac > 0.55 else MUTED)
+            if blocked:
+                axg.text(j + 0.5, i + 0.86, f"\u26a0 {blocked} blocked by {'a bug' if blocked == 1 else 'bugs'}", ha="center", va="center",
+                         fontsize=7.5, fontweight="bold", color="white" if frac > 0.55 else RED)
+    axg.set_title("Release readiness: requirements by area, release and MoSCoW "
+                  "(done = shipped in a beta, used, no open bug)", loc="left", fontsize=11, pad=4)
+
+
+
+def draw_bugs_by_label(axl, have_issues, by_label):
+    """Open bugs by area label: one bar per label, the labels along the x axis, most first."""
+    INK, MUTED = "#222", "#666"
+    axl.set_title("Open bugs by area label", loc="left", fontsize=11)
+    for sp in ("top", "right"):
+        axl.spines[sp].set_visible(False)
+    if not by_label:
+        axl.axis("off")
+        axl.text(0, 0.5, "issues not read" if not have_issues else "no open bugs", fontsize=9, color=MUTED,
+                 transform=axl.transAxes)
+        return
+    items = sorted(by_label.items(), key=lambda kv: (-kv[1], kv[0]))
+    xs = np.arange(len(items))
+    axl.bar(xs, [v for _, v in items], width=0.62, color="#7a3e8f")
+    for x, (_, v) in zip(xs, items):
+        axl.text(x, v, f"{v}", ha="center", va="bottom", fontsize=9, color=INK)
+    axl.set_xticks(xs, [lab.replace(" ", "\n", 1) for lab, _ in items], fontsize=9)   # two-word labels wrap
+    from matplotlib.ticker import MaxNLocator
+    axl.yaxis.set_major_locator(MaxNLocator(integer=True))
+    axl.set_xlim(-0.6, len(items) - 0.4)
+    axl.set_ylim(0, max(v for _, v in items) * 1.22)
+    axl.set_ylabel("open bugs")
+    axl.tick_params(axis="x", length=0)
+    axl.tick_params(axis="y", labelsize=9)
+    axl.grid(axis="y", color="#e4e4e4", lw=0.8)
+    axl.set_axisbelow(True)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     root = Path(__file__).resolve().parents[2]
@@ -191,6 +302,7 @@ def main():
     ap.add_argument("--open", action="store_true", help="open the PNG when done (macOS)")
     ap.add_argument("--sigma", type=float, help="smoothing of the growth rate, in days (default per preset)")
     ap.add_argument("--no-issues", action="store_true", help="leave the bugs panel off")
+    ap.add_argument("--no-readiness", action="store_true", help="leave the release-readiness panel off")
     args = ap.parse_args()
     cfg = PRESETS[args.project]
     sigma = args.sigma or cfg["sigma"]
@@ -248,14 +360,28 @@ def main():
     import matplotlib.dates as mdates
     import matplotlib.pyplot as plt
 
+    ready = None
+    if cfg.get("readiness") and not args.no_readiness:
+        ready = readiness(root, not args.no_issues)
+
     BLUE, ORANGE, GREEN, GOLD, RED = "#4c6fcf", "#c8754a", "#5aa27c", "#d4a72c", "#b03a48"
-    fig = plt.figure(figsize=(14, 10 if bugs is None else 13))
-    gs = fig.add_gridspec(*(2, 1) if bugs is None else (3, 1), hspace=0.14 if bugs is None else 0.24,
-                          height_ratios=[3, 1] if bugs is None else [5.45, 1.75, 1.43])  # main panel stays 5.45 in tall either way
-    ax = fig.add_subplot(gs[0])
+    ratios = [3, 1] if bugs is None else [5.45, 1.75, 1.43]   # main panel stays 5.45 in tall either way
+    top = 0 if ready is None else 1
+    if ready is not None:
+        ratios = [len({r["area"] for r in ready[1]}) * 0.5 + 0.8] + ratios
+        if bugs is not None:
+            ratios.insert(3, 1.45)                    # open bugs by area label, under the bugs panel
+    fig = plt.figure(figsize=(14, (10 if bugs is None else 13)
+                              + (0 if ready is None else ratios[0] * 1.15 + (1.9 if bugs is not None else 0))))
+    gs = fig.add_gridspec(len(ratios), 1, hspace=(0.14 if bugs is None else 0.24) * (1 if ready is None else 0.8),
+                          height_ratios=ratios, **({} if ready is None else dict(top=0.965, bottom=0.06)))
+    if ready is not None:
+        axg = fig.add_subplot(gs[0])
+    ax = fig.add_subplot(gs[top])
     ax2 = fig.add_subplot(gs[-1], sharex=ax)
     ax.tick_params(labelbottom=False)
-    axb = None if bugs is None else fig.add_subplot(gs[1])
+    axb = None if bugs is None else fig.add_subplot(gs[top + 1])
+    axl = fig.add_subplot(gs[top + 2]) if ready is not None and bugs is not None else None
     x = mdates.date2num(days)
     span = x[-1] - x[0]
     ends = []
@@ -277,7 +403,13 @@ def main():
                     arrowprops=dict(arrowstyle="-", color="#888", lw=0.8, shrinkA=2, shrinkB=4))
     ax.set_ylabel("Lines (thousands)")
     ax.set_ylim(0, max(cum["product"][-1] * 1.25, 100))
-    ax.set_title(cfg["title"], loc="left", fontsize=15)
+    ax.set_title(cfg["title"], loc="left", fontsize=15 if ready is None else 12)
+    if ready is not None:
+        fig.suptitle(cfg["title"].split(":")[0] + ": release readiness, growth and bugs", x=0.125, ha="left",
+                     fontsize=15, y=0.99)
+        draw_readiness(axg, *ready[:4])
+        if axl is not None:
+            draw_bugs_by_label(axl, ready[2], ready[3])
 
     ax2.fill_between(x, weekly, color="#d3dff7")
     solid = len(days) - int(sigma)
@@ -351,7 +483,9 @@ def main():
              f"Excludes {', '.join(sorted(cfg['skip'] - {'node_modules'}))}/, test data and CSV/JSON.\n"
              f"Tests = anything under {'/, '.join(sorted(cfg['test_dirs'], key=str.lower))}/. "
              f"Growth rate is a Gaussian-smoothed daily rate (σ = {sigma:g} days)."
-             + (f" Bugs: issues labelled bug on GitHub ({', '.join(cfg['issues'])}), counted at the end of each day." if bugs is not None else ""),
+             + (f" Bugs: issues labelled bug on GitHub ({', '.join(cfg['issues'])}), counted at the end of each day." if bugs is not None else "")
+             + ("\nReadiness: governance/artefacts/requirements.md with the live issues; a row is blocked when an open bug cites it "
+                "(in its status or evidence, or by a Requirement: line). Detail: python3 tools/method/make_rtm.py." if ready is not None else ""),
              fontsize=8, color="#666")
     out = Path(args.out) if args.out else root / "build/history" / cfg["out"]
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -359,6 +493,12 @@ def main():
     print(f"product {cum['product'][-1]:.0f}k  tests {cum['tests'][-1]:.0f}k  docs {cum['docs'][-1]:.0f}k  tools {cum['tools'][-1]:.0f}k")
     wk = int(sigma)
     print(f"last {wk} days product net: {daily['product'][-wk:].sum()/1000:.1f}k; window before: {daily['product'][-2*wk:-wk].sum()/1000:.1f}k")
+    if ready is not None:
+        rt, rows = ready[0], ready[1]
+        for col in ("v1 Must", "v1 Should", "v1 Could", "v2"):
+            cr = [r for r in rows if rt.column(r) == col and r["status"] != "won't have"]
+            ok = sum(r["status"] == "done" and not r.get("open_bugs") for r in cr)
+            print(f"readiness {col}: {ok}/{len(cr)} ready ({100 * ok / max(len(cr), 1):.0f}%)")
     if bugs is not None:
         print("open bugs, last 8 days: " + "  ".join(f"{days[i]:%-d %b} {bugs[i]:.0f}" for i in range(-8, 0)))
         print("closed bugs, last 8 days: " + "  ".join(f"{days[i]:%-d %b} {closed_bugs[i]:.0f}" for i in range(-8, 0)))

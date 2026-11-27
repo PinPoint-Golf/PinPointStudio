@@ -1,5 +1,5 @@
 # QML rule exception list (session_setup_lint_test.cpp, W12; AD-52 in governance/controls/build.md; R-QML-4 in
-# governance/artefacts/information_model.md). Owner: the Solution Architect (governance/roles.md).
+# governance/artefacts/information_model.md). Exceptions are agreed with the owner (governance/README.md).
 #
 # One line per file:   path under src/Gui | W12 | rules allowed | WHY  # #issue [#issue …]
 # Every file the check counted rules in on 26 Nov 2026, when it landed, is frozen here at its count (the Product

@@ -7,7 +7,7 @@
 | **Owner** | Product Owner[^po][^home] |
 | **Home** | `governance/artefacts/use_cases.md`, beside the requirements, hand-edited like them[^home][^hand] |
 | **Governs** | Nothing on its own. It groups the requirements by what a golfer, a coach or a studio owner is trying to do, so a gap or an overlap shows. The requirements stay the governing text: where a use case and a requirement differ, the requirement holds |
-| **Traced by** | [`uc-map.csv`](uc-map.csv), beside this page: one row per requirement, with the use cases it is a step of, a path of, or a constraint on. The traceability matrix's generator reads it[^home] |
+| **Traced by** | [`uc-map.csv`](uc-map.csv), beside this page: one row per requirement, with the use cases it is a step of, a path of, or a constraint on.[^home] |
 | **How it changes** | As the requirements do (`requirements.md`, "How a requirement changes"): proposed, approved by the Product Owner, and recorded in this page's change log. A use case that needs a step no requirement covers names the gap and its proposed requirement in the same change (proposed, for the Product Owner) |
 | **Ids** | `EP-n` for an epic and `UC-n` for a use case, numbered once and never reused; a use case keeps its id if it moves to another epic. `UCG-n` numbers a step no requirement covers, fixed once and never reused, so a gap keeps its id when others are added or struck |
 | **Status of this page** | v1.2, 26 Nov 2026: 9 epics, 45 use cases, 202 main-path steps, 69 alternative or failure paths (43 of them could lose a shot, a setting or other work, or misfile it). 278 of the 278 requirements map to a use case; 0 steps and paths have no requirement. Of the 19 gaps the use cases found, 18 are now requirements and 1 is struck |
@@ -29,7 +29,7 @@ Each step's sentence traces to the requirements in its row. A requirement marked
 | Golfer | The person swinging: a committed amateur coaching themselves, or a newcomer still forming a swing. | personas.md §3, §4 |
 | Coach | A teaching professional giving lessons to several pupils a day, in a fixed studio. | personas.md §2 |
 | Studio owner | Whoever installs the app, connects the devices and keeps the studio running; often the coach or the golfer themselves. The requirements call them "the user". | requirements.md ("the user"); personas.md §2 |
-| Coaching Lead | The role `roles.md` defines ("The four roles"); in the app, the one who edits the diagnostics model. | roles.md, "The four roles"; REQ-DIAG-8 |
+| Coaching Lead | The owner's coaching role; in the app, the one who edits the diagnostics model. | roles.md, "The four roles"; REQ-DIAG-8 |
 | Analyst | Someone checking the club and body tracking (the trackers) against hand-marked truth. | REQ-REV-30 |
 
 ## The epics
@@ -50,7 +50,7 @@ Each step's sentence traces to the requirements in its row. A requirement marked
 
 The studio owner installs the app on the studio's computers and keeps it up to date, without ever losing a session or a golfer's history to an update.
 
-Where it stands: 24 requirements: 7 built, not verified; 8 partial; 6 planned; 3 proposed.
+Where it stands: 24 requirements: 2 done; 13 partial; 6 planned; 3 proposed.
 
 ### UC-1 Install the app on a studio computer
 
@@ -58,7 +58,7 @@ Where it stands: 24 requirements: 7 built, not verified; 8 partial; 6 planned; 3
 |---|---|---|
 | Studio owner | A working app on a new machine, ready for a first session. | A new or rebuilt studio computer. |
 
-Where it stands: 9 requirements: 4 built, not verified; 4 partial; 1 proposed.
+Where it stands: 9 requirements: 1 done; 7 partial; 1 proposed.
 
 **Main path**
 
@@ -85,7 +85,7 @@ Where it stands: 9 requirements: 4 built, not verified; 4 partial; 1 proposed.
 |---|---|---|
 | Studio owner | The latest build, installed safely, with the golfer's history intact. | An update is published on the chosen channel, or the studio owner asks for a check. |
 
-Where it stands: 14 requirements: 2 built, not verified; 5 partial; 5 planned; 2 proposed.
+Where it stands: 14 requirements: 1 done; 6 partial; 5 planned; 2 proposed.
 
 **Main path**
 
@@ -115,7 +115,7 @@ Where it stands: 14 requirements: 2 built, not verified; 5 partial; 5 planned; 2
 |---|---|---|
 | Studio owner | Enough information for support to solve a problem in the studio. | Something goes wrong, or the studio owner wants to know the version. |
 
-Where it stands: 3 requirements: 1 built, not verified; 1 partial; 1 planned.
+Where it stands: 3 requirements: 2 partial; 1 planned.
 
 **Main path**
 
@@ -134,7 +134,7 @@ Where it stands: 3 requirements: 1 built, not verified; 1 partial; 1 planned.
 
 The studio owner connects the cameras, phones, sensors and launch monitor, calibrates them once for the bay, and sets the app up the way the studio works, so each session can start in minutes.
 
-Where it stands: 51 requirements: 18 built, not verified; 17 partial; 12 planned; 4 proposed.
+Where it stands: 51 requirements: 9 done; 26 partial; 12 planned; 4 proposed.
 
 ### UC-4 Connect and frame the cameras
 
@@ -142,7 +142,7 @@ Where it stands: 51 requirements: 18 built, not verified; 17 partial; 12 planned
 |---|---|---|
 | Studio owner | Every camera giving a sharp, well-lit, well-framed picture in its role. | A new camera, a moved camera, or a first set-up. |
 
-Where it stands: 8 requirements: 4 built, not verified; 2 partial; 2 planned.
+Where it stands: 8 requirements: 2 done; 4 partial; 2 planned.
 
 **Main path**
 
@@ -167,7 +167,7 @@ Where it stands: 8 requirements: 4 built, not verified; 2 partial; 2 planned.
 |---|---|---|
 | Studio owner | One or two phones filming as cameras, reconnecting by themselves on later visits. | A phone is to be used as a camera. |
 
-Where it stands: 6 requirements: 1 built, not verified; 3 partial; 1 planned; 1 proposed.
+Where it stands: 6 requirements: 4 partial; 1 planned; 1 proposed.
 
 **Main path**
 
@@ -192,7 +192,7 @@ Where it stands: 6 requirements: 1 built, not verified; 3 partial; 1 planned; 1 
 |---|---|---|
 | Studio owner | Every sensor and the launch monitor connected, set up the same way each time, and worn where this session needs it. | A session needs sensors or ball data. |
 
-Where it stands: 7 requirements: 3 built, not verified; 4 planned.
+Where it stands: 7 requirements: 3 partial; 4 planned.
 
 **Main path**
 
@@ -240,7 +240,7 @@ Where it stands: 7 requirements: 6 partial; 1 proposed.
 |---|---|---|
 | Studio owner | Cameras calibrated once per bay, so 3-D readings are measured rather than estimated. | A new bay, or a camera moved. |
 
-Where it stands: 7 requirements: 1 built, not verified; 1 partial; 4 planned; 1 proposed.
+Where it stands: 7 requirements: 1 done; 1 partial; 4 planned; 1 proposed.
 
 **Main path**
 
@@ -266,7 +266,7 @@ Where it stands: 7 requirements: 1 built, not verified; 1 partial; 4 planned; 1 
 |---|---|---|
 | Studio owner | Screens, words, units, storage and privacy set once for the studio. | A first set-up, or a change of preference. |
 
-Where it stands: 15 requirements: 8 built, not verified; 5 partial; 1 planned; 1 proposed.
+Where it stands: 15 requirements: 4 done; 9 partial; 1 planned; 1 proposed.
 
 **Main path**
 
@@ -295,7 +295,7 @@ Where it stands: 15 requirements: 8 built, not verified; 5 partial; 1 planned; 1
 |---|---|---|
 | Studio owner | Know before hitting that the devices are healthy and what the rig can measure. | Before a session, or when something seems wrong. |
 
-Where it stands: 2 requirements: 2 built, not verified.
+Where it stands: 2 requirements: 2 done.
 
 **Main path**
 
@@ -308,7 +308,7 @@ Where it stands: 2 requirements: 2 built, not verified.
 
 The golfer hits balls at their own pace, hands on the club, and every swing is kept as one shot with everything every device saw, ready for the next swing at once.
 
-Where it stands: 68 requirements: 16 built, not verified; 31 partial; 11 planned; 8 proposed; 2 won't have.
+Where it stands: 68 requirements: 11 done; 36 partial; 11 planned; 8 proposed; 2 won't have.
 
 ### UC-11 Start a session
 
@@ -316,7 +316,7 @@ Where it stands: 68 requirements: 16 built, not verified; 31 partial; 11 planned
 |---|---|---|
 | Golfer | Capturing, for the right golfer, with the right club, in under two minutes. | The golfer, or the coach for a pupil, starts a practice or a lesson. |
 
-Where it stands: 17 requirements: 6 built, not verified; 6 partial; 1 planned; 4 proposed.
+Where it stands: 17 requirements: 6 done; 6 partial; 1 planned; 4 proposed.
 
 **Main path**
 
@@ -348,7 +348,7 @@ Where it stands: 17 requirements: 6 built, not verified; 6 partial; 1 planned; 4
 |---|---|---|
 | Golfer | Every real swing kept as one complete shot, with nothing for the golfer to touch. | The golfer swings while the app shows it is capturing. |
 
-Where it stands: 23 requirements: 5 built, not verified; 12 partial; 5 planned; 1 won't have.
+Where it stands: 23 requirements: 3 done; 14 partial; 5 planned; 1 won't have.
 
 **Main path**
 
@@ -386,7 +386,7 @@ Where it stands: 23 requirements: 5 built, not verified; 12 partial; 5 planned; 
 |---|---|---|
 | Golfer | One shot per ball with both phones' clips, and a clear view of which clips have arrived. | A session with one or two phones as cameras. |
 
-Where it stands: 5 requirements: 1 built, not verified; 2 partial; 2 planned.
+Where it stands: 5 requirements: 3 partial; 2 planned.
 
 **Main path**
 
@@ -410,7 +410,7 @@ Where it stands: 5 requirements: 1 built, not verified; 2 partial; 2 planned.
 |---|---|---|
 | Golfer | Every shot carries the club it was hit with. | The golfer changes club, or notices a shot logged with the wrong club. |
 
-Where it stands: 3 requirements: 1 built, not verified; 1 partial; 1 planned.
+Where it stands: 3 requirements: 1 done; 1 partial; 1 planned.
 
 **Main path**
 
@@ -426,7 +426,7 @@ Where it stands: 3 requirements: 1 built, not verified; 1 partial; 1 planned.
 |---|---|---|
 | Golfer | One failure costs at most what failed, never the session. | A device drops out, the shared library goes out of reach, or a problem recurs. |
 
-Where it stands: 5 requirements: 1 built, not verified; 1 partial; 1 planned; 1 proposed; 1 won't have.
+Where it stands: 5 requirements: 2 partial; 1 planned; 1 proposed; 1 won't have.
 
 **Main path**
 
@@ -449,7 +449,7 @@ Where it stands: 5 requirements: 1 built, not verified; 1 partial; 1 planned; 1 
 |---|---|---|
 | Golfer | A session closed with every shot and its diagnosis on disk. | The golfer presses End, closes the window, quits from the menu, or an update asks to quit. |
 
-Where it stands: 15 requirements: 1 built, not verified; 12 partial; 1 planned; 1 proposed.
+Where it stands: 15 requirements: 13 partial; 1 planned; 1 proposed.
 
 **Main path**
 
@@ -479,7 +479,7 @@ Where it stands: 15 requirements: 1 built, not verified; 12 partial; 1 planned; 
 |---|---|---|
 | Golfer | Swings recorded on a phone elsewhere join the golfer's history. | The golfer comes back with a phone session and launch-monitor files. |
 
-Where it stands: 4 requirements: 2 built, not verified; 1 partial; 1 proposed.
+Where it stands: 4 requirements: 2 done; 1 partial; 1 proposed.
 
 **Main path**
 
@@ -500,7 +500,7 @@ Where it stands: 4 requirements: 2 built, not verified; 1 partial; 1 proposed.
 |---|---|---|
 | Coach | Pupil after pupil, all day, without the app slowing down or misfiling a shot. | A teaching day. |
 
-Where it stands: 7 requirements: 1 built, not verified; 4 partial; 1 planned; 1 proposed.
+Where it stands: 7 requirements: 1 done; 4 partial; 1 planned; 1 proposed.
 
 **Main path**
 
@@ -524,7 +524,7 @@ Where it stands: 7 requirements: 1 built, not verified; 4 partial; 1 planned; 1 
 
 The golfer or coach looks back at a shot: sees it from every camera, reads what the app measured and how far to trust it, and asks what happened on it and how it compares.
 
-Where it stands: 78 requirements: 30 built, not verified; 30 partial; 14 planned; 4 proposed.
+Where it stands: 78 requirements: 21 done; 39 partial; 14 planned; 4 proposed.
 
 ### UC-19 Replay a shot
 
@@ -532,7 +532,7 @@ Where it stands: 78 requirements: 30 built, not verified; 30 partial; 14 planned
 |---|---|---|
 | Golfer | See the swing from every side, in step, with what the app tracked drawn over it. | A shot is captured, or the golfer picks one from the session. |
 
-Where it stands: 9 requirements: 4 built, not verified; 5 partial.
+Where it stands: 9 requirements: 3 done; 6 partial.
 
 **Main path**
 
@@ -560,7 +560,7 @@ Where it stands: 9 requirements: 4 built, not verified; 5 partial.
 |---|---|---|
 | Golfer | Every reading the shot supports, named and graded in golf words. | The golfer opens a shot's readings. |
 
-Where it stands: 37 requirements: 13 built, not verified; 13 partial; 9 planned; 2 proposed.
+Where it stands: 37 requirements: 8 done; 18 partial; 9 planned; 2 proposed.
 
 **Main path**
 
@@ -591,7 +591,7 @@ Where it stands: 37 requirements: 13 built, not verified; 13 partial; 9 planned;
 |---|---|---|
 | Golfer | Know how sure each number is, and why one is missing. | A reading looks surprising, or is missing. |
 
-Where it stands: 11 requirements: 4 built, not verified; 4 partial; 3 planned.
+Where it stands: 11 requirements: 2 done; 6 partial; 3 planned.
 
 **Main path**
 
@@ -617,7 +617,7 @@ Where it stands: 11 requirements: 4 built, not verified; 4 partial; 3 planned.
 |---|---|---|
 | Golfer | A plain answer to "what happened there?" after a bad shot. | A shot the golfer did not like. |
 
-Where it stands: 5 requirements: 2 built, not verified; 2 partial; 1 planned.
+Where it stands: 5 requirements: 2 done; 2 partial; 1 planned.
 
 **Main path**
 
@@ -635,7 +635,7 @@ Where it stands: 5 requirements: 2 built, not verified; 2 partial; 1 planned.
 |---|---|---|
 | Golfer | See how a reading moved through the swing and what changed against another swing. | The golfer asks "what did I change?". |
 
-Where it stands: 13 requirements: 6 built, not verified; 4 partial; 1 planned; 2 proposed.
+Where it stands: 13 requirements: 5 done; 5 partial; 1 planned; 2 proposed.
 
 **Main path**
 
@@ -656,7 +656,7 @@ Where it stands: 13 requirements: 6 built, not verified; 4 partial; 1 planned; 2
 |---|---|---|
 | Golfer | The golfer's own feel about a shot kept with the shot. | The golfer reviews a shot. |
 
-Where it stands: 3 requirements: 1 built, not verified; 2 partial.
+Where it stands: 3 requirements: 1 done; 2 partial.
 
 **Main path**
 
@@ -675,7 +675,7 @@ Where it stands: 3 requirements: 1 built, not verified; 2 partial.
 
 After or during a session the golfer and coach see what the session showed: the faults and their likely causes, the evidence, what went well, and the few things to work on.
 
-Where it stands: 35 requirements: 9 built, not verified; 18 partial; 3 planned; 5 proposed.
+Where it stands: 35 requirements: 9 done; 18 partial; 3 planned; 5 proposed.
 
 ### UC-24 See the session's diagnosis
 
@@ -683,7 +683,7 @@ Where it stands: 35 requirements: 9 built, not verified; 18 partial; 3 planned; 
 |---|---|---|
 | Golfer | Know what the session showed, and why, with the evidence to check it. | During a session, or after it, on Home or the session's diagnosis. |
 
-Where it stands: 19 requirements: 7 built, not verified; 12 partial.
+Where it stands: 19 requirements: 7 done; 12 partial.
 
 **Main path**
 
@@ -713,7 +713,7 @@ Where it stands: 19 requirements: 7 built, not verified; 12 partial.
 |---|---|---|
 | Coach | One or two things to work on, causes before what they cause, that the golfer can take home. | The end of a session or a lesson, or a look at the work-ons. |
 
-Where it stands: 12 requirements: 1 built, not verified; 5 partial; 3 planned; 3 proposed.
+Where it stands: 12 requirements: 1 done; 5 partial; 3 planned; 3 proposed.
 
 **Main path**
 
@@ -742,7 +742,7 @@ Where it stands: 12 requirements: 1 built, not verified; 5 partial; 3 planned; 3
 |---|---|---|
 | Golfer | An answer to "what do I do on my pushes that I don't on my good shots?". | A self-coaching golfer looks for a pattern. |
 
-Where it stands: 4 requirements: 1 built, not verified; 1 partial; 2 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
+Where it stands: 4 requirements: 1 done; 1 partial; 2 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
 
 **Main path**
 
@@ -756,7 +756,7 @@ Where it stands: 4 requirements: 1 built, not verified; 1 partial; 2 proposed. *
 
 The golfer and coach follow what is being worked on from one session to the next: lessons with a purpose, practice against the one thing prescribed, play, and progress over weeks and months.
 
-Where it stands: 25 requirements: 3 built, not verified; 6 partial; 3 planned; 13 proposed. **Half or more of its requirements are proposed: much of this epic is not yet built or scheduled.**
+Where it stands: 25 requirements: 3 done; 6 partial; 3 planned; 13 proposed. **Half or more of its requirements are proposed: much of this epic is not yet built or scheduled.**
 
 ### UC-27 Track progress over weeks and months
 
@@ -764,7 +764,7 @@ Where it stands: 25 requirements: 3 built, not verified; 6 partial; 3 planned; 1
 |---|---|---|
 | Golfer | See whether last week's work stuck, and how the numbers moved over months. | The golfer or coach looks back over the golfer's history. |
 
-Where it stands: 8 requirements: 3 built, not verified; 2 partial; 1 planned; 2 proposed.
+Where it stands: 8 requirements: 3 done; 2 partial; 1 planned; 2 proposed.
 
 **Main path**
 
@@ -848,7 +848,7 @@ Where it stands: 1 requirement: 1 proposed. **Every requirement here is proposed
 
 The golfer leaves with a report, and the golfer's data can leave the app when the golfer chooses: to a coach for review, or out as files, and nothing more than the golfer chose.
 
-Where it stands: 22 requirements: 3 built, not verified; 7 partial; 4 planned; 8 proposed.
+Where it stands: 22 requirements: 3 done; 7 partial; 4 planned; 8 proposed.
 
 ### UC-32 Make and send a session report
 
@@ -856,7 +856,7 @@ Where it stands: 22 requirements: 3 built, not verified; 7 partial; 4 planned; 8
 |---|---|---|
 | Coach | The golfer takes home what happened, what to work on and why, under the studio's name. | The end of a session or lesson. |
 
-Where it stands: 12 requirements: 1 built, not verified; 6 partial; 3 planned; 2 proposed.
+Where it stands: 12 requirements: 1 done; 6 partial; 3 planned; 2 proposed.
 
 **Main path**
 
@@ -898,7 +898,7 @@ Where it stands: 1 requirement: 1 planned. **Nothing here is built yet.**
 |---|---|---|
 | Golfer | Coaching between visits, with no server the project must run. | The golfer wants a coach's view of a session between visits. |
 
-Where it stands: 5 requirements: 1 built, not verified; 4 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
+Where it stands: 5 requirements: 1 done; 4 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
 
 **Main path**
 
@@ -916,7 +916,7 @@ Where it stands: 5 requirements: 1 built, not verified; 4 proposed. **Half or mo
 |---|---|---|
 | Golfer | The golfer's data in other tools: spreadsheets, motion software, a reader of the open format. | A researcher, a spreadsheet coach or the golfer wants the data. |
 
-Where it stands: 4 requirements: 1 built, not verified; 1 partial; 2 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
+Where it stands: 4 requirements: 1 done; 1 partial; 2 proposed. **Half or more of its requirements are proposed: much of this use case is not yet built or scheduled.**
 
 **Main path**
 
@@ -931,7 +931,7 @@ Where it stands: 4 requirements: 1 built, not verified; 1 partial; 2 proposed. *
 
 The golfer's and coach's history is never lost, misfiled or removed without their say: through crashes, upgrades and a shared folder, and back again from the trash or an archive.
 
-Where it stands: 29 requirements: 8 built, not verified; 13 partial; 3 planned; 4 proposed; 1 won't have.
+Where it stands: 29 requirements: 6 done; 15 partial; 3 planned; 4 proposed; 1 won't have.
 
 ### UC-36 Look after the golfers
 
@@ -939,7 +939,7 @@ Where it stands: 29 requirements: 8 built, not verified; 13 partial; 3 planned; 
 |---|---|---|
 | Coach | Each golfer's details and bag right, so every norm and per-club number fits them. | A new pupil, a change of details, or a pupil list to bring in. |
 
-Where it stands: 5 requirements: 1 built, not verified; 3 partial; 1 proposed.
+Where it stands: 5 requirements: 1 done; 3 partial; 1 proposed.
 
 **Main path**
 
@@ -961,7 +961,7 @@ Where it stands: 5 requirements: 1 built, not verified; 3 partial; 1 proposed.
 |---|---|---|
 | Coach | A session recorded under the wrong golfer, or none, ends up with the right one, complete. | The coach notices shots filed under the wrong golfer, or under no golfer. |
 
-Where it stands: 2 requirements: 2 built, not verified.
+Where it stands: 2 requirements: 2 done.
 
 **Main path**
 
@@ -982,7 +982,7 @@ Where it stands: 2 requirements: 2 built, not verified.
 |---|---|---|
 | Golfer | A shot removed only by choice, and recoverable until the app's own clean-up purges it. | A false shot, or a shot the golfer does not want. |
 
-Where it stands: 3 requirements: 1 built, not verified; 2 partial.
+Where it stands: 3 requirements: 3 partial.
 
 **Main path**
 
@@ -1006,7 +1006,7 @@ Where it stands: 3 requirements: 1 built, not verified; 2 partial.
 |---|---|---|
 | Studio owner | A library that fits the disk, with nothing lost that was not chosen. | The disk is filling, or the archiving rules fall due. |
 
-Where it stands: 5 requirements: 3 built, not verified; 1 planned; 1 proposed.
+Where it stands: 5 requirements: 1 done; 2 partial; 1 planned; 1 proposed.
 
 **Main path**
 
@@ -1030,7 +1030,7 @@ Where it stands: 5 requirements: 3 built, not verified; 1 planned; 1 proposed.
 |---|---|---|
 | Studio owner | Two computers in the studio see the same golfers, without tearing a session in two. | A second computer uses the studio's library. |
 
-Where it stands: 5 requirements: 2 built, not verified; 1 partial; 1 proposed; 1 won't have.
+Where it stands: 5 requirements: 2 done; 1 partial; 1 proposed; 1 won't have.
 
 **Main path**
 
@@ -1093,7 +1093,7 @@ Where it stands: 7 requirements: 4 partial; 2 planned; 1 proposed.
 
 The faults and norms a golfer is graded against are kept right by the coach who owns them, inside the app, and the club and body tracking is checked against marked truth, so a gap is found before a golfer meets it.
 
-Where it stands: 6 requirements: 3 built, not verified; 2 partial; 1 planned.
+Where it stands: 6 requirements: 3 done; 2 partial; 1 planned.
 
 ### UC-44 Tune the diagnostics model
 
@@ -1101,7 +1101,7 @@ Where it stands: 6 requirements: 3 built, not verified; 2 partial; 1 planned.
 |---|---|---|
 | Coaching Lead | What counts as good is owned and changed by the coach, not a developer. | A norm, a fault or a cause needs changing. |
 
-Where it stands: 4 requirements: 2 built, not verified; 2 partial.
+Where it stands: 4 requirements: 2 done; 2 partial.
 
 **Main path**
 
@@ -1118,7 +1118,7 @@ Where it stands: 4 requirements: 2 built, not verified; 2 partial.
 |---|---|---|
 | Analyst | A measured accuracy for the club and body tracking. | The tracking changes, or its accuracy is in question. |
 
-Where it stands: 2 requirements: 1 built, not verified; 1 planned.
+Where it stands: 2 requirements: 1 done; 1 planned.
 
 **Main path**
 

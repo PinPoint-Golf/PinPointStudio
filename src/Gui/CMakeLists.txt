@@ -210,8 +210,8 @@ else()
     # A file not in the table gets the default. A new file is picked up at the next configure
     # (CONFIGURE_DEPENDS); give it a row here if it runs past a minute on the Mac.
     file(GLOB _pp_qml_tests CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/qml/tst_*.qml")
-    # Each file's `// REQ: REQ-REV-5` (or CTL-<control id>) lines are its test's requirement labels, appended after
-    # qml_ui below (test_strategy.md §5; tools/method/make_rtm.py reads the same lines). The files are configure
+    # Each file's `// REQ: REQ-REV-5` lines are its test's requirement labels, appended after qml_ui below
+    # (tools/method/make_rtm.py reads the same lines for the on-demand traceability report). The files are configure
     # dependencies, so a changed line is picked up at the next build without a full reconfigure.
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_pp_qml_tests})
     set(_pp_qml_timeout_default 120)
@@ -247,7 +247,7 @@ else()
             TIMEOUT ${_t})
         file(STRINGS "${_q}" _pp_req_lines REGEX "^[ \t]*//[ \t]*REQ:")
         foreach(_pp_req_line IN LISTS _pp_req_lines)
-            string(REGEX MATCHALL "(REQ-[A-Z]+-[0-9]+|CTL-[A-Z]+-[0-9]+[a-z]?)" _pp_req_ids "${_pp_req_line}")
+            string(REGEX MATCHALL "REQ-[A-Z]+-[0-9]+" _pp_req_ids "${_pp_req_line}")
             if(_pp_req_ids)
                 set_property(TEST qml_ui.${_n} APPEND PROPERTY LABELS ${_pp_req_ids})
             endif()

@@ -127,7 +127,7 @@ The last line must read `100% tests passed, 0 tests failed out of N` (N grows as
 and tests are added: 121 as of v0.1-alpha11). If the umbrella fails to configure or build,
 or any test fails, stop ([BT-17](../controls/release.md)): fix it and re-run before you tag. Do not proceed to
 the build/sign steps below.
-Then [BT-42](../controls/release.md): refresh the issue snapshot (`python3 tools/method/make_rtm.py --refresh-issues --library <the library folder>`), regenerate the RTM at the release commit, run the smoke checklist, and list the last observed build of every other hardware requirement.
+Then [BT-42](../controls/release.md): run the traceability report (`python3 tools/method/make_rtm.py`) and the growth chart (`python3 tools/history/loc_history.py`), read the v1 Must rows not ready and the open bugs, run the smoke checklist on this build, and name the known gaps that matter to a user in the release notes.
 
 > Deleting `build/tests` first and using the umbrella are [BT-25](../controls/release.md), not housekeeping. The
 > umbrella works because `tests/CMakeLists.txt` enumerates the suites, so one added later is

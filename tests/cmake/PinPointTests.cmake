@@ -445,26 +445,24 @@ function(pp_add_test name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-# --- Requirement and control labels (the traceability matrix) -----------------
-# pp_requirement(<test> <ID>...)
+# --- Requirement labels (the traceability report) ------------------------------
+# pp_requirement(<test> <REQ-ID>...)
 #
-# Names what a test proves (governance/artefacts/test_strategy.md §5, condition 1;
-# BT-39): each requirement (REQ-ANA-8) or control (CTL-UI-1, CTL-BT-7) it checks.
-# Call it beside the test's pp_add_test or add_test, in the same CMakeLists.txt and
-# inside the same guards, AFTER the registration and after any
-# set_tests_properties(... LABELS ...), which replaces a test's labels. It APPENDS,
-# so a label already set (qml_ui) survives, and `ctest -L REQ-ANA-8` then runs the
-# requirement's tests. A test this configuration does not register is skipped
-# here: tools/method/make_rtm.py, which greps these calls from the source whatever
-# the guards, fails on a name no registration makes. A QML test (tst_*.qml) names
-# its ids with `// REQ:` lines instead (src/Gui/CMakeLists.txt, the QML loop).
+# Names the requirements a test checks (REQ-ANA-8), when it checks one: a habit, not a
+# gate, so an unlabelled test is fine. Call it beside the test's pp_add_test or add_test,
+# AFTER the registration and after any set_tests_properties(... LABELS ...), which
+# replaces a test's labels. It APPENDS, so a label already set (qml_ui) survives, and
+# `ctest -L REQ-ANA-8` then runs the requirement's tests. A test this configuration does
+# not register is skipped. tools/method/make_rtm.py greps these calls to list each
+# requirement's tests. A QML test (tst_*.qml) names its ids with `// REQ:` lines instead
+# (src/Gui/CMakeLists.txt, the QML loop).
 function(pp_requirement test)
     if(NOT ARGN)
-        message(FATAL_ERROR "pp_requirement(${test}): name at least one REQ-<AREA>-n or CTL-<control id>")
+        message(FATAL_ERROR "pp_requirement(${test}): name at least one REQ-<AREA>-n")
     endif()
     foreach(_id IN LISTS ARGN)
-        if(NOT _id MATCHES "^(REQ-[A-Z]+-[0-9]+|CTL-[A-Z]+-[0-9]+[a-z]?)$")
-            message(FATAL_ERROR "pp_requirement(${test}): '${_id}' is not REQ-<AREA>-n or CTL-<control id>")
+        if(NOT _id MATCHES "^REQ-[A-Z]+-[0-9]+$")
+            message(FATAL_ERROR "pp_requirement(${test}): '${_id}' is not REQ-<AREA>-n")
         endif()
     endforeach()
     if(TEST ${test})

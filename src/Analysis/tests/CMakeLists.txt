@@ -659,7 +659,7 @@ pp_add_test(rig_state_test
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Vocabulary/Recording/perspective.h
     AUTOMOC)
-pp_requirement(rig_state_test REQ-DEV-17 CTL-AD-7)   # supports: one value for a bay's set-up and calibration, named by its content; AD-7's camera assumptions pinned
+pp_requirement(rig_state_test REQ-DEV-17)   # supports: one value for a bay's set-up and calibration, named by its content; AD-7's camera assumptions pinned
 # rig_store_test: the Rig and its one file (src/DomainModel/rig.*, src/Stores/rig_store.*; FILE-APP-07): a machine with
 # no rig gets an empty one with a new RigId, written once; the next launch reads it and writes nothing; the schema is
 # checked on read (another schema, not JSON, no rigId: read-only, never saved over); a newer pinpoint.rig/N is read for
@@ -701,7 +701,7 @@ pp_add_test(rig_commands_test
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     AUTOMOC)
-pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17 CTL-AD-10)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports, the sensors' alignment records (K20-K23) among it
+pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports, the sensors' alignment records (K20-K23) among it
 # rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
 # the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
 # byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json

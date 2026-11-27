@@ -354,14 +354,11 @@ file's section headers. They share a harness in `src/Gui/tests/qml/diag/`:
    log and it costs Qt and nothing else. **Do not** pull in `pp_debug.cpp`: that
    one still drags in whisper/ggml, because it also installs the message handler
    and silences whisper, ggml, OpenCV and FFmpeg.
-4. Name what it proves, after the `pp_add_test` (and after any `set_tests_properties(… LABELS …)`, which
-   replaces a test's labels): `pp_requirement(my_thing_test REQ-ANA-8)` for each requirement it proves, or
-   `pp_requirement(my_thing_test CTL-UI-1)` for a control (BT-39; `governance/artefacts/test_strategy.md` §5).
-   It appends the ids as ctest labels, so `ctest -L REQ-ANA-8` runs a requirement's tests. A QML test names its ids
-   with `// REQ: REQ-REV-5` lines in its `tst_*.qml` file instead. Then run `python3 tools/method/make_rtm.py` and
-   commit the regenerated `governance/artefacts/rtm.md`: `rtm_check` fails on an unlabelled new test and on a stale
-   matrix. A pure rename of an unlabelled test is `make_rtm.py --rename <old> <new>`; a test that proves neither a
-   requirement nor a control is an accepted gap, approved by the Solution Architect (`rtm_accepted_gaps.txt`).
+4. If it checks a requirement, label it after the `pp_add_test` (and after any `set_tests_properties(… LABELS …)`,
+   which replaces a test's labels): `pp_requirement(my_thing_test REQ-ANA-8)`. It appends the ids as ctest labels,
+   so `ctest -L REQ-ANA-8` runs a requirement's tests, and the on-demand traceability report
+   (`python3 tools/method/make_rtm.py`) lists it against the requirement. A QML test names its ids with
+   `// REQ: REQ-REV-5` lines in its `tst_*.qml` file instead. A habit, not a gate: an unlabelled test is fine (BT-39).
 5. Build + run standalone, then once under the umbrella.
 
 For reference, every suite's `CMakeLists.txt` begins with this bootstrap so it

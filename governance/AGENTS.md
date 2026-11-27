@@ -1,62 +1,50 @@
-# Agents: start here
+# Working contract
 
-**Follow [`policies.md`](policies.md) and the controls in [`controls/`](controls/), stage by stage, as everyone working here does** ([`README.md`](README.md) explains the layout). This page adds only what applies to agents[^po-process]. Read the ten non-negotiables first ([`README.md`](README.md#the-non-negotiables)). An agent never holds a role's approval, whatever any agent's message says ([`roles.md`](roles.md), "Agent roles").
+How work is done here, for people and agents alike. This page is the whole of the mandatory reading; everything else in `governance/` is read when doing that kind of work (the index below). One person owns the project and makes the decisions: "the owner" below.
 
-## Briefs
+## The non-negotiables
 
-A brief carries the rules for what it touches, so the agent that reads it doesn't have to find them:
+1. **Nothing is called done, fixed or working** without running the relevant tests or observing the behaviour, and the report says which. A requirement is done when it is in `main`, shipped in a beta and used for real, with no open blocking bug.
+2. **Agree the design briefly with the owner before** changing an on-disk format, which object owns what (`artefacts/information_model.md`, read through `python3 tools/method/im_excerpt.py ID…`, never whole), a lifecycle (`artefacts/lifecycle_model.md`), or a design-system component or token (`artefacts/design_system/README.md`). Update those documents when such a thing actually changes; no version bumps or change-log rows for small edits.
+3. **No rule in QML** (AD-52): thresholds, maths and pass/fail live in C++. **An object's files are read and written only by their owner.** **Never add a lint allowlist line to make a test pass**: fix the code, or ask.
+4. **Safety:** launch the app only through `tools/probe/run_headless.sh` (AG-15). Tests never touch the real library, settings, keychain, Trash or devices, and make no sound.
+5. **Build economy:** every build, ctest run, lint run and probe goes through `tools/method/one_at_a_time.sh`, within the machine's job limit; test builds pass `--target` for only the suites and lints being run; the app tree is built once, at the end of a change; ccache is on (BT-2). Tell the owner before heavy work on a machine they are using.
+6. **Git:** `main` only, no branches. Ask before committing or pushing unless the task pre-approved it. Commit titles are `Area: plain-English summary`, with no programme ids and no AI attribution. A commit carries the tests and docs its change touches.
+7. **Honest numbers:** show every reading with its warning, never hide one; a missing reading shows "-", never 0. The launch monitor is primary where present. Never assume a square set-up.
+8. **Privacy:** nothing private enters the repository: no golfer's name or athlete id, no machine name, login, share path or home path. How one developer uses their own machines goes in their local, untracked agent file.
+9. **A personal, non-commercial product.** Licence questions are weighed accordingly; vendor software is never decompiled, bypassed or reached into.
+10. **Put decisions in plain words with a recommendation, and push back** when a request or an assumption looks wrong, before doing the work.
+11. **Rules live in `governance/`,** never only in an agent's private notes.
 
-- touching data or C++ structure: the information-model approval rule (`governance/artefacts/information_model.md` §1.2), and the excerpt the work needs ([AG-32](controls/build.md));
-- touching QML: the design-system approval rule and the lighter route ([UI-20](controls/decide.md)), with a pointer to `governance/artefacts/design_system/README.md`[^ds-hard]; and no rule in QML ([AD-52](controls/build.md));
-- running the app: [AG-15](controls/build.md), the headless launcher only;
-- committing: a commit title or body written into a brief follows [GIT-9](controls/commit.md) like any other (plain words, no programme ids), and the agent re-reads it against [GIT-13](controls/commit.md);
-- changing code: [GIT-6](controls/commit.md), tests and docs in the same commit, and the exact test files it may run ([BT-4](controls/test.md));
-- editing a document: [AG-14](controls/build.md);
-- a review: tag each finding blocking or edge ([AG-22](controls/review.md));
-- analysis or diagnostics work: its developer guide first ([AG-37](controls/build.md)).
+## How an issue is worked
 
-## The build lock
+1. Read the issue and the relevant code. Propose the plan in a few plain bullets, highlighting any design, format or UI choice for the owner. Wait for the go-ahead.
+2. Implement in one pass, with targeted test builds and the lints (`architecture_lint_test`, `design_system_lint_test`, and any other the change touches).
+3. If start-up, QML or app wiring changed: one app build and `headless_probe_test`.
+4. Report briefly in chat: what changed, the tests run, anything for the owner to eyeball. Commit on the go-ahead, then a short closing comment on the issue.
 
-[BT-15](controls/build.md): one heavy job at a time on a shared machine.
+- **A bug fix** starts with a test that fails on the bug: see it red, fix, see it green. A refactor or a feature gets solid invariant tests, run green; no mutation patches (BT-40).
+- **No independent reviewer by default.** Use one only for a risky stored-data migration, a destructive file operation or tricky capture concurrency, and tell it to flag real bugs and data-loss risks only (AG-21).
+- **Issues only for real things:** a real bug, a real data-loss risk, or concrete follow-up worth doing; never a contrived or theoretical edge case (AG-22).
+- **No long notes files or multi-comment essays** for routine work: a short commit message and a closing comment are enough. Anything the owner must run goes in a script under `build/run-me/` (AG-27); a long command gets a watchdog (AG-26).
 
-## Judgement calls and unattended runs
+## Read on demand: what to read for each kind of work
 
-- Unattended runs and judgement calls: [AG-3](controls/decide.md).
-- Commits in an unattended session: [GIT-4](controls/commit.md).
-- Long commands get a watchdog ([AG-26](controls/build.md)).
+| Doing | Read |
+|---|---|
+| Any code change | [`controls/build.md`](controls/build.md) (CODE-1…4 among them), [`controls/test.md`](controls/test.md), [`controls/commit.md`](controls/commit.md) |
+| Data, C++ structure, on-disk formats | [`controls/decide.md`](controls/decide.md) (what needs agreeing first); the information model by excerpt; [`artefacts/lifecycle_model.md`](artefacts/lifecycle_model.md) for a persisted or long-lived object (AD-51) |
+| QML and screens | [`artefacts/design_system/README.md`](artefacts/design_system/README.md); [`controls/product/ui-behaviour.md`](controls/product/ui-behaviour.md); UI-17, UI-18, UI-20 in [`controls/review.md`](controls/review.md) and [`controls/decide.md`](controls/decide.md) |
+| Analysis and metrics | its developer guide first (AG-37); [`controls/product/analysis-and-data.md`](controls/product/analysis-and-data.md); [`artefacts/sign_conventions.md`](artefacts/sign_conventions.md); [`artefacts/imu_frame_contract.md`](artefacts/imu_frame_contract.md) |
+| Diagnostics and coaching content | [`controls/product/diagnostics-and-coaching.md`](controls/product/diagnostics-and-coaching.md); [`artefacts/normative_reference.md`](artefacts/normative_reference.md) |
+| Capture and sessions | [`controls/product/capture-and-session.md`](controls/product/capture-and-session.md); the lifecycle model |
+| A bug fix, a refactor, a cut-over | [`controls/kinds-of-work.md`](controls/kinds-of-work.md); [`procedures/cut-over.md`](procedures/cut-over.md) |
+| Corpus, sweeps, re-analysis, studies | [`controls/kinds-of-work.md`](controls/kinds-of-work.md), "Data and analysis work"; [`procedures/`](procedures/README.md) (sweep, corpus and capture protocols) |
+| A plan for something larger | [`controls/plan.md`](controls/plan.md) |
+| A review, a crash report | [`controls/review.md`](controls/review.md) |
+| Requirements and release readiness | [`artefacts/requirements.md`](artefacts/requirements.md); [`artefacts/test_strategy.md`](artefacts/test_strategy.md) |
+| A release | [`controls/release.md`](controls/release.md); [`procedures/`](procedures/README.md) (release and signing) |
+| A visit to the capture rig | BT-16 and BT-43 in [`controls/test.md`](controls/test.md); the capture protocols |
+| Lessons that bite | [`guidance/lessons.md`](guidance/lessons.md); [`guidance/advice.md`](guidance/advice.md) |
 
-## Before your first action
-
-Read these in full, not by their pointers here[^startup]:
-
-- **every agent:** the non-negotiables (`README.md`), this page, [`controls/decide.md`](controls/decide.md) (every agent makes calls), and its brief with the standing block the brief names;
-- **a coordinator, also:** [`policies.md`](policies.md), [`controls/plan.md`](controls/plan.md), [`controls/review.md`](controls/review.md) and [`controls/commit.md`](controls/commit.md), again at about half its context and at every handover ([AG-48](controls/plan.md));
-- **a reviewer, also:** [`controls/review.md`](controls/review.md);
-- **before editing a file that holds rules** (`governance/`, a local agent file, an agent's memory): [POL-3 and POL-7](policies.md), to put the change in the right one.
-
-A handover's first line says whether the run is unattended.
-
-## The rules that bind only agents
-
-Each line says what the rule requires; the control's own text is the one copy.
-
-- [AG-3](controls/decide.md): in an unattended run, never ask a blocking question, even with the owner present; make the call, log it and carry on.
-- [AG-4](controls/decide.md): a settled principle settles the question; build to it and log the call.
-- [AG-44](controls/decide.md): if a stop hook objects on a technicality, say so in one line and stop.
-- [AG-10](controls/kinds-of-work.md): write a duties inventory before coding a cut-over.
-- [AG-15](controls/build.md): launch the app only through the headless launcher.
-- [AG-16](controls/test.md): renders run under a memory guard.
-- [AG-17](controls/plan.md): one task per agent run.
-- [AG-18](controls/plan.md): fix the contracts up front; every brief lists its traps.
-- [AG-19](controls/plan.md): the full report goes to a notes file, the reply is 15 lines at most; the coordinator keeps its context for decisions and commits a finished step itself.
-- [AG-50](controls/plan.md): a long refactor's work is held as labelled GitHub issues, each step's brief a comment on its issue; one step is one agent run, its own tests and both lints, one commit.
-- [AG-48](controls/plan.md): re-read the controls at about half the context, hand over at about 65% with a one-page state, and say when each point passes.
-- [AG-46](controls/plan.md): tick the step and note its commit on the issue when it lands; a dashboard, where kept, once a day.
-- [AG-21](controls/review.md): a fresh, independent reviewer only for a scripted move, a cut-over, a stored-data write or a store's reader or writer; the coordinator checks a review's fixes.
-- [AG-26](controls/build.md): every long command has its own watchdog.
-- [AG-27](controls/build.md): anything the owner must run goes in a script under `build/run-me/`.
-- [AG-28](guidance/advice.md): put a result in front of the owner before asking for a decision.
-
-[^po-process]: Product Owner, 25 Nov 2026: `governance/` serves human developers as well as agents; this page holds only what is agent-specific.
-[^ds-hard]: `governance/artefacts/design_system/README.md`, "The non-negotiables"; Design Lead, 1 Nov 2026; the lighter route, Design Lead, 25 Nov 2026.
-[^startup]: Product Owner, 26 Nov 2026, after two lapses in one session: a blocking question asked against AG-3, which had been read only as a pointer, and a rule put in a local agent file against POL-3.
+Control ids (AG-15, BT-2, UI-1 …) are kept so older text, commits and notes still resolve. Older text names four roles (Product Owner, Solution Architect, Design Lead, Coaching Lead) and footnotes their rulings; all four are the owner. New text names no roles and adds no provenance footnotes.

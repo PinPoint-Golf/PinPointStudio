@@ -30,6 +30,10 @@ KEPT = [
      'the change-log row that records the move names where the documents came from'),
     ('docs/implementation/swe-audit/06-refactor-report.md', 'git show origin/main:docs/developer/information_model.md',
      'a dated record: the command the count was taken with on 24 Nov 2026, at the commit it names'),
+    ('docs/implementation/platform_refactor/notes/stage-B1/NOTES-B1.5-prep.md', '`make_im_excerpts.sh` read `docs/developer/information_model.md`',
+     'a dated record: the step notes say which old path the excerpt script read before it was fixed'),
+    ('docs/implementation/platform_refactor/notes/stage-B1/NOTES-B1.5-prep.md', 'The brief cited no `docs/deve',
+     'a dated record: the step notes say the brief cited none of the old paths'),
 ]
 
 OLD_FILES = ('docs/developer/information_model.md', 'docs/design/pinpoint_sign_conventions.md',

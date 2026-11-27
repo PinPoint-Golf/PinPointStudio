@@ -255,7 +255,6 @@ pp_add_test(imu_role_map_test
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/IMU
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
-pp_requirement(imu_role_map_test CTL-AD-10 CTL-AD-52)   # one claim per role keeps one arm instrument (AD-10); the pickers' refusal is the C++ rule, not QML (AD-52)
 
 # The camera crop is per role (cameras/camera_roi.h, flir_camera_settings.md §2.1): the
 # impact strip's own key, the recommended-mode fallback, and AppSettings' one-time
@@ -328,7 +327,7 @@ pp_add_test(imu_rig_link_test
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Video
     AUTOMOC)
-pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17 CTL-AD-10)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
+pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
 # step 1; rig_design_addendum.md decision 4; the set and clear lists of
@@ -638,7 +637,6 @@ pp_add_test(session_setup_lint_test
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}"
                     -DPP_QML_RULE_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/qml_rule_allowlist.txt")
-pp_requirement(session_setup_lint_test CTL-AD-52)   # W12 is AD-52's check (no rule in QML), and R-QML-4's
 
 # Design-system lint (governance/artefacts/design_system/README.md, #133). Reads every screen's QML and fails on a
 # hand-drawn control, a raw text input, a popup that draws its own surface, a literal colour, or space
@@ -663,7 +661,6 @@ pp_add_test(architecture_lint_test
     LINK    Qt6::Core
     COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
                     -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
-pp_requirement(architecture_lint_test CTL-BT-40)   # every rule runs on its fixtures first, red then green, so one that stops matching fails
 
 # The names QML reads are the names C++ gives it (R-QML-1: the context globals are only devices, settings, logging and
 # `app`): main.cpp registers exactly the ruled globals, no production QML or JS reads one of the five names that moved
@@ -731,7 +728,6 @@ if(UNIX)
     add_test(NAME run_headless_selftest
              COMMAND ${SRC}/../tools/probe/run_headless_selftest.sh ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(run_headless_selftest PROPERTIES TIMEOUT 120 RUN_SERIAL TRUE)   # it times a 1 s window
-    pp_requirement(run_headless_selftest CTL-AG-15)   # the one launcher keeps a probe off the real home, settings, library and Rig folder
 endif()
 
 # THE QUIT PINS (SE-1b; testing_developer_guide.md "The quit pins"): the APP BINARY (the same one headless_probe_test
@@ -753,7 +749,6 @@ if(UNIX AND Python3_Interpreter_FOUND)
                      --repo ${PP_REPO_ROOT} --work ${CMAKE_CURRENT_BINARY_DIR}/quit_pins_work)
     add_test(NAME quit_pins_selftest COMMAND ${_pp_quit_cmd} --selftest)
     set_tests_properties(quit_pins_selftest PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE LABELS quit_pins)
-    pp_requirement(quit_pins_selftest CTL-BT-40)   # it proves the oracle can fail: each plant must turn a clean pin red
     foreach(_pin IN LISTS _pp_quit_pins)
         add_test(NAME quit_pin.${_pin} COMMAND ${_pp_quit_cmd} --pin ${_pin})
         set_tests_properties(quit_pin.${_pin} PROPERTIES TIMEOUT 900 RUN_SERIAL TRUE SKIP_RETURN_CODE 77
@@ -768,7 +763,6 @@ if(UNIX AND Python3_Interpreter_FOUND)
     add_test(NAME quit_pins_synthetic_selftest COMMAND ${_pp_quit_cmd} --selftest-synthetic)
     set_tests_properties(quit_pins_synthetic_selftest PROPERTIES TIMEOUT 600 RUN_SERIAL TRUE SKIP_RETURN_CODE 77
                                                              LABELS quit_pins)
-    pp_requirement(quit_pins_synthetic_selftest CTL-BT-40)
 endif()
 
 # The stand-in devices' switches (src/Core/synthetic_devices.h; testing_developer_guide.md, "The quit pins"): the
@@ -780,8 +774,6 @@ pp_add_test(synthetic_devices_test
     SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=1  LINK Qt6::Test  AUTOMOC)
 pp_add_test(synthetic_devices_off_test
     SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=0  LINK Qt6::Test  AUTOMOC)
-pp_requirement(synthetic_devices_test CTL-AG-15)
-pp_requirement(synthetic_devices_off_test CTL-AG-15)
 
 # governance/artefacts/design_system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
@@ -796,17 +788,6 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME im_changelog_merge_selftest
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/im_changelog_merge.py --self-test)
     set_tests_properties(im_excerpt_selftest im_changelog_merge_selftest PROPERTIES TIMEOUT 60)
-    # The requirements traceability matrix, governance/artefacts/rtm.md (test_strategy.md §8): rtm_check fails when it
-    # is stale, or on a flag that is neither an accepted gap (rtm_accepted_gaps.txt) nor in the baseline
-    # (rtm_baseline.txt); rtm_selftest proves every flag, red then green, on fixtures in a temporary directory. Both
-    # run offline, from committed files only (the issue snapshot is rtm_issues.json, refreshed with --refresh-issues).
-    add_test(NAME rtm_check
-             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/make_rtm.py --check)
-    add_test(NAME rtm_selftest
-             COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/method/make_rtm.py --self-test)
-    set_tests_properties(rtm_check rtm_selftest PROPERTIES TIMEOUT 120)
-    pp_requirement(rtm_check CTL-BT-39)
-    pp_requirement(rtm_selftest CTL-BT-39)
     # tools/refactor/move_files.py (platform refactor B1.2), the move tool every scripted move rests on: its rules,
     # refusals and --verify, proved on a fixture git repository it builds in a temporary directory (never this tree).
     # Exit 77, a skip, where there is no git.
@@ -821,7 +802,6 @@ if(Python3_Interpreter_FOUND)
              COMMAND ${Python3_EXECUTABLE} -I ${SRC}/../tools/refactor/dir_order_check.py --self-test
                      --order model,content,derived,engine --cycles)
     set_tests_properties(diagnostics_dir_order_check PROPERTIES TIMEOUT 60)
-    pp_requirement(diagnostics_dir_order_check CTL-BT-40)   # red then green on its fixture, so a check that stops matching fails
     # #195 moved the governing documents into governance/artefacts/ (governance/artefacts/README.md): fail when a
     # tracked file still cites one at its old path, by name or by a relative link; the dated records that keep the old
     # spelling are listed in the script with a reason. Exit 77, a skip, where there is no git.
