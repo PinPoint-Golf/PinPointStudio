@@ -29,7 +29,7 @@ Each step's sentence traces to the requirements in its row. A requirement marked
 | Golfer | The person swinging: a committed amateur coaching themselves, or a newcomer still forming a swing. | personas.md §3, §4 |
 | Coach | A teaching professional giving lessons to several pupils a day, in a fixed studio. | personas.md §2 |
 | Studio owner | Whoever installs the app, connects the devices and keeps the studio running; often the coach or the golfer themselves. The requirements call them "the user". | requirements.md ("the user"); personas.md §2 |
-| Coaching Lead | The owner's coaching role; in the app, the one who edits the diagnostics model. | roles.md, "The four roles"; REQ-DIAG-8 |
+| Coaching Lead | The owner's coaching role; in the app, the one who edits the diagnostics model. | REQ-DIAG-8 |
 | Analyst | Someone checking the club and body tracking (the trackers) against hand-marked truth. | REQ-REV-30 |
 
 ## The epics

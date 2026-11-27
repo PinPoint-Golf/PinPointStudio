@@ -9,7 +9,7 @@ How work is done here, for people and agents alike. This page is the whole of th
 3. **No rule in QML** (AD-52): thresholds, maths and pass/fail live in C++. **An object's files are read and written only by their owner.** **Never add a lint allowlist line to make a test pass**: fix the code, or ask.
 4. **Safety:** launch the app only through `tools/probe/run_headless.sh` (AG-15). Tests never touch the real library, settings, keychain, Trash or devices, and make no sound.
 5. **Build economy:** every build, ctest run, lint run and probe goes through `tools/method/one_at_a_time.sh`, within the machine's job limit; test builds pass `--target` for only the suites and lints being run; the app tree is built once, at the end of a change; ccache is on (BT-2). Tell the owner before heavy work on a machine they are using.
-6. **Git:** `main` only, no branches. Ask before committing or pushing unless the task pre-approved it. Commit titles are `Area: plain-English summary`, with no programme ids and no AI attribution. A commit carries the tests and docs its change touches.
+6. **Git:** `main` only, no branches. Ask before committing or pushing unless the task pre-approved it. Commit titles are `Area: plain-English summary`, with no programme ids and no AI attribution. Write commits, issues, comments and docs in the author's voice — never put the owner's personal name in them (say "the owner" if needed). A commit carries the tests and docs its change touches.
 7. **Honest numbers:** show every reading with its warning, never hide one; a missing reading shows "-", never 0. The launch monitor is primary where present. Never assume a square set-up.
 8. **Privacy:** nothing private enters the repository: no golfer's name or athlete id, no machine name, login, share path or home path. How one developer uses their own machines goes in their local, untracked agent file.
 9. **A personal, non-commercial product.** Licence questions are weighed accordingly; vendor software is never decompiled, bypassed or reached into.
@@ -32,7 +32,7 @@ How work is done here, for people and agents alike. This page is the whole of th
 
 | Doing | Read |
 |---|---|
-| Any code change | [`controls/build.md`](controls/build.md) (CODE-1…4 among them), [`controls/test.md`](controls/test.md), [`controls/commit.md`](controls/commit.md) |
+| Any code change | Look up the rule you need by id; don't load the pages whole for a small fix: CODE-1…4 and AD-52 in [`controls/build.md`](controls/build.md); BT-3…BT-7 in [`controls/test.md`](controls/test.md); GIT-6…GIT-10 in [`controls/commit.md`](controls/commit.md) |
 | Data, C++ structure, on-disk formats | [`controls/decide.md`](controls/decide.md) (what needs agreeing first); the information model by excerpt; [`artefacts/lifecycle_model.md`](artefacts/lifecycle_model.md) for a persisted or long-lived object (AD-51) |
 | QML and screens | [`artefacts/design_system/README.md`](artefacts/design_system/README.md); [`controls/product/ui-behaviour.md`](controls/product/ui-behaviour.md); UI-17, UI-18, UI-20 in [`controls/review.md`](controls/review.md) and [`controls/decide.md`](controls/decide.md) |
 | Analysis and metrics | its developer guide first (AG-37); [`controls/product/analysis-and-data.md`](controls/product/analysis-and-data.md); [`artefacts/sign_conventions.md`](artefacts/sign_conventions.md); [`artefacts/imu_frame_contract.md`](artefacts/imu_frame_contract.md) |
