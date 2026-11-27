@@ -138,6 +138,15 @@ public:
     void commit(const rig::CalibrationRecord &record) override { commitCalibration(record); }
     void clear(const rig::PlacementKey &subject, rig::CalibrationKind kind) override { clearCalibration(subject, kind); }
 
+    // ── Where a calibration's raw run is kept (the `evidence` pointer; rig_design_addendum.md decision 2; platform refactor
+    //    C-14, #380, ruled 26 Nov 2026: the trunk calibration's hand-over tells the Rig, after a good write) ──
+    // Sets `evidence` on `sensor`'s sensorAlignment record observed at `observedAtUtc` — that calibration and no other —
+    // IN PLACE: the pointer is outside the digest, so this makes no new rig state, emits no RigChanged and saves nothing
+    // (an alignment record is never saved). False, and nothing changed, when no such record is held (the sensor was
+    // calibrated again since, or the run never passed: #417). Not the sink: only the device objects call that (R-RIG-4).
+    bool attachEvidence(const rig::PlacementKey &sensor, const QDateTime &observedAtUtc,
+                        const rig::CalibrationEvidence &evidence);
+
 signals:
     // EVT-15: the versioned part changed. Once per command, after the save; never for the state loaded at launch.
     void rigChanged(const pinpoint::RigRef &ref);

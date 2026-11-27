@@ -201,6 +201,9 @@ public:
     QJSValue    replayAnalysisDetailJs() const { return m_replayAnalysisDetail.js(); } // the QML property
     double  analysisProgress() const { return m_analysisProgress; }
     QString activeSessionDir() const { return m_openSessionDir; }
+    // The Athlete's Session capture writes into, or null (none open, or its folder not made yet). The composition root
+    // hands it the trunk calibration's raw recording through it (src/App/trunk_ceremony_hand_over.h; C-14, #380).
+    pinpoint::Session *openSession() const;
     // False when beginSessionFolder() could not create the session folder — the
     // state a session used to start into silently.  Read by the session-start
     // preflight in main.cpp.

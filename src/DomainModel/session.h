@@ -171,6 +171,12 @@ public:
     // Written through SessionRepository (the session's lock for the one write); EVT-16 only after a rewrite landed.
     WriteResult freezeClubBaseline(const QJsonObject &root, bool rewrite);
 
+    // THE TRUNK CALIBRATION'S RAW RECORDING (FILE-SESS-11; platform refactor C-14, #380): the ceremony's bytes, handed by the
+    // composition root's hand-over (src/App/trunk_ceremony_hand_over.h), written into this session's folder through
+    // SessionRepository::writeTrunkCeremony (the earlier one copied aside first; the result names both files). Synchronous,
+    // on this thread; a failure says so and is logged. No event: nothing recomputes on it.
+    TrunkCeremonyWrite saveTrunkCeremony(const QByteArray &bytes);
+
     // THE ARCHIVE (LC-SESSION's `archive`; DEC-22, DEC-65; FILE-SESS-06, FILE-LIB-02; refactor step 3.8): the session
     // mirrored into `options.archiveRoot` and thinned to stubs in the library, in TWO HALVES so the copy (GBs) never runs
     // on this Session's thread (P8, R-CON-3):

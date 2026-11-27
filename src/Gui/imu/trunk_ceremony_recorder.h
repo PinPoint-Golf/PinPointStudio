@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "trunk_ceremony_file.h"
+#include "../../App/trunk_ceremony_hand_over.h"   // TrunkCeremonySolve: what the hand-over is given
 
 class AthleteController;
 class ImuManager;
@@ -53,14 +54,16 @@ namespace pinpoint { struct ImuSampleTap; }
 // step of that name: a map carrying "role" (calibrateTrunk's) goes under result[role], so one
 // standTall step holds { pelvis: …, thorax: … }; any other map replaces the result.
 //
-// PERSISTENCE. Setup runs before the session, so end() holds the ceremony in memory; when the next
-// session starts (SessionController::sessionStarted → onSessionStarted), it is written into the
-// session folder as trunk_ceremony.json (format: trunk_ceremony_file.h), off the GUI thread, with one
-// ppInfo line naming the path and the counts. A ceremony ended while a session is running is written
-// at once. An earlier trunk_ceremony.json in the folder (an extended session) is kept, renamed
-// trunk_ceremony_<n>.json. Dropped instead: on discard(); on a new begin(); and at session start when
-// its solves are no longer the ones in force (every trunk sensor it solved now carries another
-// calibration — the setup was abandoned and redone without it).
+// PERSISTENCE (FILE-SESS-11; platform refactor C-14, #380). Setup runs before the session, so end() holds
+// the ceremony in memory; when the next session starts (SessionController::sessionStarted →
+// onSessionStarted), it is HANDED to that session: its bytes (format: trunk_ceremony_file.h) and what it
+// solved go to the composition root's hand-over (src/App/trunk_ceremony_hand_over.h), which writes it
+// through the Session, keeps it until a write succeeds, and reports a failure; this class then holds it
+// no more and writes no file. A ceremony ended while a session is running is handed over at once.
+// Dropped instead, before any hand-over: on discard(); on a new begin(); and at session start when its
+// solves are no longer the ones in force (every trunk sensor it solved now carries another calibration —
+// the setup was abandoned and redone without it). Held at quit with no session running: the loss is
+// logged (onQuitting).
 //
 // CALL ORDER (W2.2):
 //   begin()                                      at the first calibrate step (the arm's, with a wG3)
@@ -77,7 +80,7 @@ class TrunkCeremonyRecorder : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool    recording   READ recording   NOTIFY stateChanged)   // between begin() and end()
-    Q_PROPERTY(bool    pendingWrite READ pendingWrite NOTIFY stateChanged) // ended, waiting for a session
+    Q_PROPERTY(bool    pendingWrite READ pendingWrite NOTIFY stateChanged) // ended, waiting for a session to hand it to
     Q_PROPERTY(int     laneCount   READ laneCount   NOTIFY stateChanged)
     Q_PROPERTY(QString currentStep READ currentStep NOTIFY stateChanged)   // the open step, "" when none
 
@@ -88,9 +91,14 @@ public:
     TrunkCeremonyRecorder(ImuManager *imuManager, AthleteController *athlete, QObject *parent = nullptr);
     ~TrunkCeremonyRecorder() override;
 
-    // The running session's folder, or "" when no session is running. Set by main.cpp
-    // (SessionController::running + ShotProcessor::activeSessionDir) so this class needs neither.
-    void setSessionDirResolver(std::function<QString()> fn) { m_sessionDir = std::move(fn); }
+    // The hand-over to the session (main.cpp, the composition root): whether a session is running, and the
+    // hand-over itself (TrunkCeremonyHandOver::take), so this class needs neither the session nor a file.
+    using HandOver = std::function<void(const QByteArray &bytes, const QList<pinpoint::TrunkCeremonySolve> &solves)>;
+    void setHandOver(std::function<bool()> sessionRunning, HandOver handOver)
+    {
+        m_sessionRunning = std::move(sessionRunning);
+        m_handOver       = std::move(handOver);
+    }
 
     bool    recording()    const { return m_recording; }
     bool    pendingWrite() const { return m_pending; }
@@ -104,7 +112,7 @@ public:
     Q_INVOKABLE void stepEnd(const QString &name);
     Q_INVOKABLE void mark(const QString &name);
     Q_INVOKABLE void attachResult(const QString &stepName, const QVariantMap &result);
-    // Stops recording and holds the ceremony for the session (or writes it now — see above).
+    // Stops recording and holds the ceremony for the session (or hands it over now — see above).
     Q_INVOKABLE void end();
     // Drops the ceremony, recording or held. Nothing is written.
     Q_INVOKABLE void discard();
@@ -133,8 +141,11 @@ public:
     Q_INVOKABLE QVariantMap checkTurn(const QString &direction, bool leftHanded);
 
 public slots:
-    // SessionController::sessionStarted — writes a held ceremony into the session folder.
+    // SessionController::sessionStarted — hands a held ceremony to the session.
     void onSessionStarted();
+    // The app is quitting: a ceremony still recording or held with a session running is handed over (the
+    // hand-over's own quit then writes it); with none running, the loss is logged.
+    void onQuitting();
 
 signals:
     void stateChanged();
@@ -151,12 +162,14 @@ private:
     void stopTaps();
     trunk_ceremony_file::Step *lastStepNamed(const QString &name);
     bool solvesStillInForce() const;
-    void write(const QString &sessionDir);
+    bool sessionRunning() const { return m_sessionRunning && m_sessionRunning(); }
+    void handOver();                  // the held ceremony to the session; this class holds it no more
     void clear();
 
     ImuManager        *m_imu     = nullptr;
     AthleteController *m_athlete = nullptr;
-    std::function<QString()> m_sessionDir;
+    std::function<bool()> m_sessionRunning;
+    HandOver              m_handOver;
 
     trunk_ceremony_file::Ceremony m_ceremony;
     std::vector<TapRef> m_taps;

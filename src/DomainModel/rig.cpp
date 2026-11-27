@@ -335,6 +335,24 @@ void Rig::clearCalibration(const rig::PlacementKey &subject, rig::CalibrationKin
         ppInfo() << "[Rig] a sensor's alignment cleared:" << subject.persisted() << "state" << m_stateId.toString();
 }
 
+bool Rig::attachEvidence(const rig::PlacementKey &sensor, const QDateTime &observedAtUtc,
+                         const rig::CalibrationEvidence &evidence)
+{
+    if (sensor.isNull() || !observedAtUtc.isValid()) return false;
+    // Not through changeState: the pointer is outside the digest, so changeState would see the same state and keep the
+    // old one. The state's id, its sinceUtc and its saved part are untouched; no event (addendum decision 2).
+    for (rig::SensorSetup &x : m_parts.state.sensors) {
+        if (!(x.key == sensor) || !x.calibration || x.calibration->kind != rig::CalibrationKind::SensorAlignment
+            || x.calibration->observedAtUtc != observedAtUtc)
+            continue;
+        x.calibration->evidence = evidence;
+        ppInfo() << "[Rig] a sensor's alignment points at its raw run:" << sensor.persisted() << "->"
+                 << evidence.sessionId.toString() << evidence.fileName;
+        return true;
+    }
+    return false;
+}
+
 void Rig::setAlias(const rig::DeviceKey &device, const QString &alias)
 {
     if (device.isNull()) return;

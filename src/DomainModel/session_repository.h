@@ -98,6 +98,7 @@
 #include "session_roll_up.h"        // SessionIndexSummary: the entry's summary (refactor step 5.7a-P1)
 #include "../Vocabulary/Identity/identity.h"
 
+#include <QByteArray>
 #include <QDateTime>
 #include <QJsonObject>
 #include <QList>
@@ -242,6 +243,15 @@ struct JsonFileRead {
     bool        ok = false;       // it opened and is a JSON object
     QJsonObject root;
     QString     error;
+};
+
+// A trunk calibration's raw recording written (writeTrunkCeremony): the result, the file's name in the session folder
+// (FILE-SESS-11's, as the store spells it) and, when an earlier one was copied aside first, that copy's name.
+struct TrunkCeremonyWrite {
+    WriteResult result;
+    QString     fileName;    // empty unless written
+    QString     asideName;   // empty unless an earlier ceremony was copied aside
+    bool ok() const { return result.ok(); }
 };
 
 class SessionRepository
@@ -410,6 +420,18 @@ public:
     {
         Q_UNUSED(id); Q_UNUSED(printedPdf); Q_UNUSED(pdfName);
         return { WriteResult::Status::Failed, QStringLiteral("This library cannot save a report.") };
+    }
+
+    // THE TRUNK CALIBRATION'S RAW RECORDING (FILE-SESS-11, `trunk_ceremony.json`; platform refactor C-14, #380): the bytes
+    // (format pinpoint.trunk_ceremony/1, made by its recorder) written into the session's folder, under the session's lock,
+    // atomically. An earlier one in the folder (a resumed session's) is COPIED aside first, to the first free
+    // `trunk_ceremony_<n>.json` (n ≥ 2); if that copy cannot be made, nothing is written and the earlier file is untouched
+    // (#265: the earlier ceremony is never replaced unless it was kept). A failed write leaves the folder as it was. Owner
+    // thread; synchronous, as every write here (the owner's ruling, 27 Nov 2026).
+    virtual TrunkCeremonyWrite writeTrunkCeremony(const SessionId &id, const QByteArray &bytes)
+    {
+        Q_UNUSED(id); Q_UNUSED(bytes);
+        return { { WriteResult::Status::Failed, QStringLiteral("This library cannot save a calibration recording.") }, {}, {} };
     }
 
     // THE SESSION SUMMARY'S READ, FOR ANOTHER THREAD (refactor 3.7-f, J-57: the athlete level reads its summaries on its

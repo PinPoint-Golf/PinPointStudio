@@ -1072,15 +1072,44 @@ int main(int argc, char *argv[])
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
 
     // The trunk ceremony recorder (trunk_imu_sequence_grf_design.md §16.2 W2.1c): records the trunk
-    // sensors (and a worn wG3) through session setup's calibration and writes trunk_ceremony.json
-    // into the session folder when the session starts. Declared after imuManager and shotProcessor
-    // so it is destroyed first.
+    // sensors (and a worn wG3) through session setup's calibration and, when the session starts, hands
+    // the recording to it. Declared after imuManager and shotProcessor so it is destroyed first.
+    //
+    // THE HAND-OVER (FILE-SESS-11; platform refactor C-14, #380, fixing #265): the recording is the running
+    // session's from then on, written through the Session (src/App/trunk_ceremony_hand_over.h), kept until a
+    // write succeeds and tried again within that session — when its folder appears (the first swing makes a
+    // folder that could not be made at Start), just before End, and at quit — and never written into a later
+    // session. After a good write it points the Rig's trunk records at the file. A failure is said below
+    // (the notifications), as a swing that cannot be saved is.
+    pinpoint::TrunkCeremonyHandOver trunkHandOver(
+        // The Session capture has open. A recording is handed over only while the golfer's session runs (the recorder
+        // asks SessionController), and each is bound to the session that took it, so an on-demand one never takes it.
+        [&shotProcessor]() -> pinpoint::Session * { return shotProcessor.openSession(); },
+        &rig);
     TrunkCeremonyRecorder     trunkCeremony(&imuManager, &athleteController);
-    trunkCeremony.setSessionDirResolver([&sessionController, &shotProcessor]() {
-        return sessionController.running() ? shotProcessor.activeSessionDir() : QString();
+    trunkCeremony.setHandOver([&sessionController] { return sessionController.running(); },
+                              [&trunkHandOver](const QByteArray &bytes, const QList<pinpoint::TrunkCeremonySolve> &solves) {
+                                  trunkHandOver.take(bytes, solves);
+                              });
+    // Last session's "not being saved" retired as a session starts, as the swing condition is (the preflight below), but
+    // here, connected BEFORE the hand-over at Start, so a failure of this session's own write is not retired with it.
+    QObject::connect(&sessionController, &SessionController::sessionStarted, &notificationCenter, [&notificationCenter](int) {
+        notificationCenter.resolve(QStringLiteral("calibration.trunk.not-saved"));
     });
     QObject::connect(&sessionController, &SessionController::sessionStarted,
                      &trunkCeremony, [&trunkCeremony](int) { trunkCeremony.onSessionStarted(); });
+    QObject::connect(&shotProcessor, &ShotProcessor::activeSessionDirChanged,
+                     &trunkHandOver, [&trunkHandOver] { trunkHandOver.retry(); });
+    // Before End lets the session go: SessionController::endSession emits runningChanged before the capture service
+    // ends the session's folder (both end paths), so the Session is still open here. Direct, so it runs first.
+    QObject::connect(&sessionController, &SessionController::runningChanged, &trunkHandOver,
+                     [&trunkHandOver, &sessionController] {
+                         if (!sessionController.running()) trunkHandOver.sessionEnding();
+                     }, Qt::DirectConnection);
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &trunkCeremony, [&trunkCeremony, &trunkHandOver] {
+        trunkCeremony.onQuitting();
+        trunkHandOver.quitting();
+    });
 
     // The launch monitor. Constructed unconditionally: with nothing configured it
     // holds an inert connector reporting Disabled, so QML can bind to it without
@@ -1382,6 +1411,29 @@ int main(int argc, char *argv[])
             n.actionLabel = QObject::tr("Open Storage settings");
             n.actionId    = QStringLiteral("settings.storage");
             notificationCenter.post(n);
+        });
+
+        // THE TRUNK CALIBRATION NOT SAVED (GU-18, adopted 26 Nov 2026; C-14, #380): as a swing that cannot be saved —
+        // the same severity, kind, cause and action — since if the calibration cannot be saved, nothing else will be (the
+        // owner's ruling, 27 Nov 2026). A condition: it latches until the recording is saved after all (resolved below),
+        // the next session starts (as the swing condition is retired; wired beside the recorder) or the golfer dismisses
+        // it. While the library itself is said to be unwritable, this stays in the log (R2).
+        QObject::connect(&trunkHandOver, &pinpoint::TrunkCeremonyHandOver::notSaved,
+                         &notificationCenter, [&notificationCenter](const QString &detail) {
+            N::Notification n;
+            n.id          = QStringLiteral("calibration.trunk.not-saved");
+            n.severity    = N::Error;
+            n.kind        = N::Condition;
+            n.title       = QObject::tr("The trunk calibration is not being saved");
+            n.detail      = detail;
+            n.cause       = QStringLiteral("library.unwritable");
+            n.actionLabel = QObject::tr("Open Storage settings");
+            n.actionId    = QStringLiteral("settings.storage");
+            notificationCenter.post(n);
+        });
+        QObject::connect(&trunkHandOver, &pinpoint::TrunkCeremonyHandOver::saved, &notificationCenter, [&notificationCenter] {
+            if (notificationCenter.isLive(QStringLiteral("calibration.trunk.not-saved")))
+                notificationCenter.resolve(QStringLiteral("calibration.trunk.not-saved"));
         });
 
         QObject::connect(&shotProcessor, &ShotProcessor::swingSaveFailed,

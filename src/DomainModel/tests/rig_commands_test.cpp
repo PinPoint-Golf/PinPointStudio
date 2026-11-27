@@ -81,6 +81,9 @@
 //   K23 Step 11's E2: an entry rig.json holds with no role and nothing else is not in the state, so the next no-op
 //       command saves and emits nothing, and the next save drops it; one with a member this build does not know is
 //       kept as read (P2)
+//   K24 the evidence pointer (attachEvidence; rig_design_addendum.md decision 2; C-14, #380): set in place on the record
+//       observed at that time only, with no new state, no event and no save; refused for any other time, sensor or a
+//       null key; kept by an equal commit, gone with a new calibration
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -1241,6 +1244,43 @@ int main(int argc, char **argv)
         check(written.contains(emptyWithMore) && !written.contains(empty) && written.size() == 3,
               "K23c at the next save the empty entry is gone and the one holding a member this build does not know is "
               "written back as read (P2)");
+    }
+
+    std::printf("\nK24 the evidence pointer (attachEvidence; addendum decision 2; C-14, #380): set in place, no new state\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        RigCalibrationSink &sink = rig;
+        const CalibrationRecord r1 = alignment("W1", 0.1f, 1764230400000);
+        sink.commit(r1);
+        const RigStateId held = rig.stateId();
+        const QDateTime  since = rig.parts().state.sinceUtc;
+        const int savesBefore = repo.saves;
+        Events ev(rig, &repo);
+        const SessionId session = SessionId::create();
+        const CalibrationEvidence e{ session, QStringLiteral("trunk_ceremony.json") };
+        check(rig.attachEvidence(PlacementKey(sensor("W1")), r1.observedAtUtc, e),
+              "K24a the record observed at that time takes the pointer");
+        const SensorSetup *w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(w1 && w1->calibration && w1->calibration->evidence && w1->calibration->evidence->sessionId == session
+                  && w1->calibration->evidence->fileName == QLatin1String("trunk_ceremony.json"),
+              "K24b it names the session and the file");
+        check(rig.stateId() == held && rig.parts().state.sinceUtc == since && ev.changed.isEmpty() && ev.labels.isEmpty()
+                  && repo.saves == savesBefore,
+              "K24c the rig state's id and its time are unchanged; no RigChanged, no label event, nothing saved");
+        check(!rig.attachEvidence(PlacementKey(sensor("W1")), r1.observedAtUtc.addMSecs(1), e)
+                  && !rig.attachEvidence(PlacementKey(sensor("W9")), r1.observedAtUtc, e)
+                  && !rig.attachEvidence(PlacementKey(), r1.observedAtUtc, e) && !rig.attachEvidence(PlacementKey(sensor("W1")), {}, e),
+              "K24d another time, a sensor with no record, a null key or no time: refused, nothing changed");
+        sink.commit(r1);
+        w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(w1 && w1->calibration && w1->calibration->evidence && ev.changed.isEmpty(),
+              "K24e a commit equal to what is held keeps the pointer (the same calibration)");
+        sink.commit(alignment("W1", 0.2f, 1764230401000));
+        w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(w1 && w1->calibration && !w1->calibration->evidence && ev.changed.size() == 1,
+              "K24f a new calibration replaces the record, and its pointer with it");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

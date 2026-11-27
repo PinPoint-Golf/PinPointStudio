@@ -324,6 +324,15 @@ WriteResult Session::freezeClubBaseline(const QJsonObject &root, bool rewrite)
     return w;
 }
 
+TrunkCeremonyWrite Session::saveTrunkCeremony(const QByteArray &bytes)
+{
+    const TrunkCeremonyWrite w = m_sessions ? m_sessions->writeTrunkCeremony(m_id, bytes)
+                                            : TrunkCeremonyWrite{ { WriteResult::Status::Failed, QStringLiteral("no session repository") }, {}, {} };
+    if (!w.ok())
+        ppWarn() << "[Session] the trunk calibration's recording was not saved for" << m_id.toString() << "-" << w.result.error;
+    return w;
+}
+
 // ── The report (refactor step 5.6a; FILE-SESS-07, 09, 13; DEC-201, J-66) ─────────────────────────────────────────────
 
 namespace {

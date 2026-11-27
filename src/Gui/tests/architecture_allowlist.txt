@@ -76,7 +76,6 @@ Gui/charts/posture_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, 
 Gui/imu/hm_instance.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/imu/imu_instance.cpp | A5 | 5 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/imu/imu_instance.h | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
-Gui/imu/trunk_ceremony_recorder.cpp | A5 | 7 | P11: the trunk ceremony recorder writes FILE-SESS-11 itself, on a pool thread; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
 Gui/launchmonitor/lm_club_art.cpp | A5 | 4 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 Gui/main.cpp | A5 | 8 | P11: the composition root constructs the stores and hands them to their owners; it also lists the bundled fonts and probes a folder; no step 1-8 moves it (Mark, 15 Nov 2026: kept)  # kept (composition root)
 Gui/media/llm_controller.cpp | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)

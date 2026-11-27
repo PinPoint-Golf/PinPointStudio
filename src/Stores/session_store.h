@@ -146,6 +146,9 @@ public:
     ReportStillWriter reportStillsWriter(const SessionId &id, const QString &key) override;
     QString           reportPrintTarget(const SessionId &id, const QString &pdfName) override;
     WriteResult       placeReportPdf(const SessionId &id, const QString &printedPdf, const QString &pdfName) override;
+    // The trunk calibration's raw recording (FILE-SESS-11; C-14, #380): the earlier one copied aside first, never replaced
+    // unless that copy was made; this store alone spells the file names (SessionFiles).
+    TrunkCeremonyWrite writeTrunkCeremony(const SessionId &id, const QByteArray &bytes) override;
 
     // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
     // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every

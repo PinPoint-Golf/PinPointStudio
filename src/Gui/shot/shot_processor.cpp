@@ -1292,6 +1292,8 @@ void ShotProcessor::setUnassignedAthlete(UnassignedAthlete unassigned)
                 Qt::UniqueConnection);
 }
 
+pinpoint::Session *ShotProcessor::openSession() const { return m_openSessionObject.data(); }
+
 void ShotProcessor::setOpenSession(pinpoint::Session *session)
 {
     m_openSessionObject = session;

@@ -1204,4 +1204,65 @@ WriteResult SessionStore::placeReportPdf(const SessionId &id, const QString &pri
     return session_report_io::placePdf(folder, printedPdf, pdfName);
 }
 
+// ── The trunk calibration's raw recording (FILE-SESS-11; platform refactor C-14, #380) ──────────────────────────────
+
+TrunkCeremonyWrite SessionStore::writeTrunkCeremony(const SessionId &id, const QByteArray &bytes)
+{
+    TrunkCeremonyWrite out;
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return { failed(kNotHeld), {}, {} };
+    if (!QFileInfo(folder).isDir())
+        return { failed(QStringLiteral("The session folder %1 is not there.").arg(folder)), {}, {} };
+    // The advisory lock, for this one write (R-PERS-6; J-11), as the session's other files.
+    FolderLock lock(folder);
+    switch (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs)) {
+    case FolderLock::Result::Acquired:
+        break;
+    case FolderLock::Result::Locked:
+        return { locked(folder, lock.holder()), {}, {} };
+    case FolderLock::Result::Failed:
+        return { failed(lock.errorString()), {}, {} };
+    }
+    const QDir    dir(folder);
+    const QString path = dir.filePath(SessionFiles::trunkCeremonyFileName());
+    // Both files go INTO the session folder, which must already be there (src/Core/atomic_write.h).
+    const AtomicWriteOptions inSession = AtomicWriteOptions::intoExistingFolder();
+    QString aside;
+    if (QFile::exists(path)) {   // a resumed session's earlier ceremony: kept, copied aside
+        for (int n = 2;; ++n) {
+            aside = dir.filePath(SessionFiles::trunkCeremonyAsideFileName(n));
+            if (!QFile::exists(aside)) break;
+        }
+        // COPIED, then the new one renamed over it: never moved away first, so the session never has a moment with no
+        // trunk_ceremony.json (R-PERS-2: no remove-then-rename).
+        QFile earlier(path);
+        const bool kept = earlier.open(QIODevice::ReadOnly)
+            && atomicWrite(aside, [&earlier](QIODevice &to, QString &) {
+                   for (QByteArray chunk; !(chunk = earlier.read(1 << 20)).isEmpty();)
+                       if (to.write(chunk) != chunk.size()) return false;
+                   return earlier.error() == QFileDevice::NoError;
+               }, inSession).ok;
+        // #265: the earlier ceremony is never replaced unless it was kept. Nothing is written; it stays as it was.
+        if (!kept) {
+            ppWarn() << "[SessionStore] could not copy the earlier" << path << "aside to" << aside
+                     << "- the new trunk calibration recording is not written, and the earlier one is untouched";
+            return { failed(QStringLiteral("The earlier trunk calibration recording %1 could not be copied aside, so the "
+                                           "new one was not saved.").arg(path)), {}, {} };
+        }
+    }
+    if (const AtomicWriteResult w = atomicWrite(path, bytes, inSession); !w.ok) {
+        ppWarn() << "[SessionStore]" << w.error << "-" << w.detail;
+        // The earlier ceremony is untouched (atomicWrite), so the copy just made of it is a duplicate: removed, so a
+        // later try does not keep it twice.
+        if (!aside.isEmpty() && !QFile::remove(aside))
+            ppWarn() << "[SessionStore] could not remove the copy" << aside << "of the earlier recording";
+        return { failed(w.error), {}, {} };
+    }
+    out.result   = written();
+    out.fileName = SessionFiles::trunkCeremonyFileName();
+    if (!aside.isEmpty()) out.asideName = QFileInfo(aside).fileName();
+    return out;
+}
+
 } // namespace pinpoint

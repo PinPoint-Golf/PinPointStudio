@@ -18,8 +18,6 @@
 
 #include "trunk_ceremony_recorder.h"
 
-#include "../../Core/atomic_write.h"
-#include "../../Stores/session_files.h"   // trunk_ceremony.json's name (FILE-SESS-11; lint A4)
 #include "pp_debug.h"
 #include "pp_version.h"
 #include "athlete_controller.h"
@@ -30,9 +28,7 @@
 #include "imu_sample_tap.h"
 
 #include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QThreadPool>
+#include <QElapsedTimer>
 
 namespace tcf = trunk_ceremony_file;
 
@@ -350,10 +346,9 @@ void TrunkCeremonyRecorder::end()
              << "— held for the session";
     emit stateChanged();
 
-    // Ended while a session is running (a re-check mid-session): written now.
-    const QString dir = m_sessionDir ? m_sessionDir() : QString();
-    if (!dir.isEmpty())
-        write(dir);
+    // Ended while a session is running (a re-check mid-session): handed over now.
+    if (sessionRunning())
+        handOver();
 }
 
 void TrunkCeremonyRecorder::discard()
@@ -393,7 +388,7 @@ void TrunkCeremonyRecorder::onSessionStarted()
 {
     if (m_recording) {
         ppWarn() << "[TrunkCeremony] the session started with the ceremony still recording — ended here";
-        end();   // writes it when the session folder is known; else it is still pending below
+        end();   // hands it over (a session is running); else it is still pending below
     }
     if (!m_pending)
         return;
@@ -403,57 +398,51 @@ void TrunkCeremonyRecorder::onSessionStarted()
         emit stateChanged();
         return;
     }
-    const QString dir = m_sessionDir ? m_sessionDir() : QString();
-    if (dir.isEmpty()) {
-        ppWarn() << "[TrunkCeremony] the session started without a session folder — ceremony not written";
-        clear();
-        emit stateChanged();
-        return;
-    }
-    write(dir);
+    handOver();
 }
 
-void TrunkCeremonyRecorder::write(const QString &sessionDir)
+void TrunkCeremonyRecorder::onQuitting()
 {
-    auto c = std::make_shared<tcf::Ceremony>(std::move(m_ceremony));
+    if (!m_recording && !m_pending)
+        return;
+    if (sessionRunning()) {
+        if (m_recording) end();   // hands it over
+        else             handOver();
+        return;
+    }
+    ppWarn() << "[TrunkCeremony] the app is quitting with a trunk calibration's recording that no session took — it is lost";
+}
+
+// The held ceremony's bytes, and the trunk sensors it solved (each valid stand-tall result's calibratedAt, the record's
+// observed time), to the session; this class holds it no more. Without a hand-over (a tool, a test), it stays held.
+void TrunkCeremonyRecorder::handOver()
+{
+    if (!m_pending)
+        return;
+    if (!m_handOver) {
+        ppWarn() << "[TrunkCeremony] no hand-over to a session; the ceremony stays held";
+        return;
+    }
+    QList<pinpoint::TrunkCeremonySolve> solves;
+    for (const tcf::Step &s : m_ceremony.steps) {
+        if (s.name != tcf::stepStandTall()) continue;
+        for (const tcf::Lane &L : m_ceremony.lanes) {
+            const QVariantMap r = s.result.value(L.role).toMap();
+            if (L.instrument != tcf::instrumentWitmotion() || !r.value(QStringLiteral("valid")).toBool()) continue;
+            const QDateTime at = QDateTime::fromString(r.value(QStringLiteral("calibratedAt")).toString(), Qt::ISODateWithMs);
+            if (at.isValid()) solves.append({ L.deviceId, at });
+        }
+    }
+    QElapsedTimer t;
+    t.start();
+    const QByteArray bytes = tcf::toJson(m_ceremony);
+    QStringList lanes;
+    for (const tcf::Lane &L : m_ceremony.lanes)
+        lanes << QStringLiteral("%1 %2 %3").arg(L.role, L.serial).arg(L.tUs.size());
+    ppInfo() << "[TrunkCeremony] handed to the session —" << m_ceremony.lanes.size() << "lanes ("
+             << qPrintable(lanes.join(QStringLiteral(", "))) << ")," << m_ceremony.steps.size() << "steps,"
+             << qPrintable(QString::number(double(bytes.size()) / 1e6, 'f', 2)) << "MB, made in" << t.elapsed() << "ms";
     clear();
     emit stateChanged();
-
-    // Off the GUI thread: a ceremony with a wG3 is a few MB of JSON, and the session folder may be
-    // on a share (memory note: the 28 MB document froze the GUI).
-    QThreadPool::globalInstance()->start([c, sessionDir]() {
-        const QDir dir(sessionDir);
-        const QString path = dir.filePath(pinpoint::SessionFiles::trunkCeremonyFileName());   // FILE-SESS-11's name
-        // Both files go INTO the session folder, which must already be there (src/Core/atomic_write.h).
-        const pinpoint::AtomicWriteOptions inSession = pinpoint::AtomicWriteOptions::intoExistingFolder();
-        if (QFile::exists(path)) {   // an extended session's earlier ceremony: kept, copied aside
-            QString aside;
-            for (int n = 2;; ++n) {
-                aside = dir.filePath(pinpoint::SessionFiles::trunkCeremonyAsideFileName(n));
-                if (!QFile::exists(aside)) break;
-            }
-            // COPIED, then the new one renamed over it — never moved away first, so the session never
-            // has a moment with no trunk_ceremony.json (R-PERS-2: no remove-then-rename).
-            QFile earlier(path);
-            const bool kept = earlier.open(QIODevice::ReadOnly)
-                && pinpoint::atomicWrite(aside, [&earlier](QIODevice &out, QString &) {
-                       for (QByteArray chunk; !(chunk = earlier.read(1 << 20)).isEmpty();)
-                           if (out.write(chunk) != chunk.size()) return false;
-                       return earlier.error() == QFileDevice::NoError;
-                   }, inSession).ok;
-            if (!kept)
-                ppWarn() << "[TrunkCeremony] could not move the earlier" << path << "aside to" << aside;
-        }
-        const QByteArray bytes = tcf::toJson(*c);
-        if (const pinpoint::AtomicWriteResult w = pinpoint::atomicWrite(path, bytes, inSession); !w.ok) {
-            ppWarn() << "[TrunkCeremony] could not write" << path << ":" << w.detail;
-            return;
-        }
-        QStringList lanes;
-        for (const tcf::Lane &L : c->lanes)
-            lanes << QStringLiteral("%1 %2 %3").arg(L.role, L.serial).arg(L.tUs.size());
-        ppInfo() << "[TrunkCeremony] wrote" << path << "—" << c->lanes.size() << "lanes ("
-                 << qPrintable(lanes.join(QStringLiteral(", "))) << ")," << c->steps.size() << "steps,"
-                 << qPrintable(QString::number(double(bytes.size()) / 1e6, 'f', 2)) << "MB";
-    });
+    m_handOver(bytes, solves);
 }

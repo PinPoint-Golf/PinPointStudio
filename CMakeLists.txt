@@ -800,6 +800,8 @@ qt_add_executable(PinPointStudio
     src/Vocabulary/Rig/battery_band.h
     src/Gui/imu/hm_instance.h                src/Gui/imu/hm_instance.cpp
     src/Gui/imu/trunk_ceremony_recorder.h    src/Gui/imu/trunk_ceremony_recorder.cpp
+    # The trunk calibration's raw recording handed to its session, kept until written (FILE-SESS-11; C-14, #380).
+    src/App/trunk_ceremony_hand_over.h       src/App/trunk_ceremony_hand_over.cpp
     # The one cloud-fallback piece of the speech-to-text, text-to-speech and AI Coach controllers.
     src/Gui/media/cloud_fallback.h           src/Gui/media/cloud_fallback.cpp
     src/Gui/media/transcription_controller.h src/Gui/media/transcription_controller.cpp

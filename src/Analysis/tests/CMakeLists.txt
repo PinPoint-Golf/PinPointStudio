@@ -692,7 +692,8 @@ pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept pe
 # the facts table's default; the derived placement view; the calibration sink (commit, clear; C-6b.2): one new state
 # and one RigChanged per change and none for a no-op, nothing saved for an alignment alone (rig.json's bytes unchanged,
 # no record in it, none after a relaunch), a record-only entry kept, a role released keeping its record, P4's retry,
-# and an empty entry read from rig.json no longer saving for nothing (Step 11's E2). Hand-rolled main.
+# and an empty entry read from rig.json no longer saving for nothing (Step 11's E2); the evidence pointer (attachEvidence,
+# C-14): set in place on its record only, no new state, no event, no save. Hand-rolled main.
 pp_add_test(rig_commands_test
     SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
@@ -957,6 +958,28 @@ pp_add_test(session_test
     LINK    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
+
+# ceremony_store_test: the trunk calibration's raw recording written by its Session (FILE-SESS-11; platform refactor
+# C-14, #380, fixing #265): SessionStore::writeTrunkCeremony behind Session::saveTrunkCeremony (tcf::toJson's bytes
+# exactly; earlier ceremonies kept aside as _2, _3; an earlier file that cannot be copied aside is never replaced; a
+# failed write leaves no stray copy), and the hand-over (src/App/trunk_ceremony_hand_over.*): kept until written within
+# its own session (a failed write, no folder yet, the session's end, a quit), reported, never written into a later
+# session; and the Rig's evidence pointer set in place after a good write (no new state, no RigChanged). Over the real
+# session store on a temporary library and a Rig over memory.
+pp_add_test(ceremony_store_test
+    SOURCES ${SRC}/Stores/tests/ceremony_store_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Vocabulary/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls
+            ${SRC}/App/trunk_ceremony_hand_over.h ${SRC}/App/trunk_ceremony_hand_over.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${SRC}/IMU ${SRC}/Buffer ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+pp_requirement(ceremony_store_test REQ-REL-5)   # a calibration's evidence saved with its session, or the golfer told it was not
 
 # Housekeeping, the one application service that ends things for good (refactor step 3.8; src/App/housekeeping.h): one
 # purge; archiving by age and for space through the app's Session from a worker (the job, the posted landing, EVT-18); a
