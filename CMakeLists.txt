@@ -4008,6 +4008,22 @@ set(PP_EIGEN_VERSION      "3.4.0")   # eigen  FetchContent GIT_TAG 3.4.0
 set(PP_SAMPLERATE_VERSION "0.2.2")   # libsamplerate FetchContent GIT_TAG 0.2.2
 configure_file(cmake/pp_deps.h.in "${CMAKE_BINARY_DIR}/generated/pp_deps.h" @ONLY)
 
+# ── The capture test rig (off by default; a Debug tree only) ─────────────────
+# A test that drives the real ShotProcessor with synthetic streams, no device and a scratch library
+# (src/Gui/tests/capture_rig/). It compiles the app's own sources a second time, because the test tree cannot link
+# FFmpeg, ONNX Runtime or the camera back-ends (docs/implementation/platform_d_capture_seam.md, T1). Here, after
+# every target_* call on the app, so it takes the app's whole source list, include paths, definitions and libraries;
+# the app's own link is untouched. Excluded from `all`, so the app's build never builds it:
+#   cmake -DPP_CAPTURE_RIG=ON <tree>; cmake --build <tree> --target capture_rig_test; ctest --test-dir <tree> -R capture_rig
+option(PP_CAPTURE_RIG "Build the capture test rig (compiles the app's sources a second time). Debug only." OFF)
+if(PP_CAPTURE_RIG)
+    if(NOT _pp_synthetic_debug)
+        message(FATAL_ERROR "PP_CAPTURE_RIG is a test of the Debug app's sources: configure it in a single-configuration "
+                            "Debug tree, or turn it off (-DPP_CAPTURE_RIG=OFF).")
+    endif()
+    include(cmake/PinPointCaptureRig.cmake)
+endif()
+
 # ── Windows installer packaging (CPack + Inno Setup) ─────────────────────────
 # Must come last: include(CPack) snapshots the CPACK_* variables and component
 # definitions set inside, and all install() rules must already be declared.
