@@ -17,7 +17,7 @@ On top of the stages, each kind of work adds its own controls. A control written
 ## Refactor
 
 **AG-31.** During any refactor plan, a feature freeze must hold: no new functionality unless the plan names it, even when it is asked for.
-A refactor held as issues and worked gradually ([AG-50](plan.md)) holds no freeze, except that an issue marked "finish once started" holds it over the files it changes until it lands[^ag-31b].
+A refactor held as issues ([AG-50](plan.md)) holds the freeze until the last issue of its backlog closes; bug fixes go ahead as before[^ag-31b].
 Bug fixes are not features. Before adding behaviour, check it is a line of the plan; if it isn't, name the freeze and offer an issue for after the refactor.
 *Why:* features landing in the old structure mid-refactor are how a refactor never finishes.[^d6]
 *Owner:* Product Owner · *Stage:* Refactor · *Compliance:* none yet
@@ -193,7 +193,7 @@ Which component writes each of a swing's files, and who owns it, is the informat
 
 **Guidance, lessons that bite here:** [L-29](../guidance/lessons.md) a score doesn't prove stages ran · [L-30](../guidance/lessons.md) the re-analysis path decides · [L-31](../guidance/lessons.md) trace files come from a second run · [L-32](../guidance/lessons.md) capture holes · [L-33](../guidance/lessons.md) verdicts written once · [L-34](../guidance/lessons.md) heuristics tuned to flicker · [L-36](../guidance/lessons.md) read the truth first · [L-37](../guidance/lessons.md) re-analysis isn't idempotent · [L-39](../guidance/lessons.md) tools outside their build folder · [L-41](../guidance/lessons.md) re-filing a session · [L-58](../guidance/lessons.md) OpenCV decodes differ across hosts · [L-59](../guidance/lessons.md) sensor timing and buffers · [L-60](../guidance/lessons.md) stalled gates and circular calibration.
 
-[^ag-31b]: Product Owner, 26 Nov 2026: the platform refactor moves into issues and is worked through gradually, "rather than spending weeks in this purgatory".
+[^ag-31b]: Product Owner, 26 Nov 2026: the platform refactor moves into issues, worked through in order one session at a time; on 27 Nov, the freeze kept until its backlog is done, with the work outside that backlog parked.
 [^d6]: Product Owner, 25 Nov 2026 (#195, decision D6); the freeze first ruled for the domain refactor, 14 Nov 2026.
 [^ag-10]: Product Owner, 21–22 Nov 2026.
 [^ad-14]: Product Owner, 19 Oct 2026.

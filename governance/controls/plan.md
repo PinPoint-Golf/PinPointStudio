@@ -78,7 +78,7 @@ The columns themselves are the programme's own files' business.
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* retired
 
 **AG-50.** A long refactor's remaining work must be held as GitHub issues under its own label (for the platform refactor, `platform refactor`), each a unit that leaves `main` consistent, with its steps as a checklist, what it waits for, and whether its steps get a fresh review; each step's brief must be recorded on the issue as a comment, never only in a local or build folder.
-Issues are worked one at a time, at the Product Owner's pace and between other work; an issue marked "finish once started" runs to its end once begun. A step is one plan item: one agent run, its own tests and both lints, one commit. Its build budget is its brief's ([BT-2](plan.md)). When a step lands, its box is ticked and the commit noted on the issue[^ag-50b].
+Issues are worked one at a time, in number order, at the Product Owner's pace; an issue marked "finish once started" runs to its end once begun. Work cut from the backlog is closed as not planned, with its briefs left on it, and is not worked unless the Product Owner reopens it. A step is one plan item: one agent run, its own tests and both lints, one commit. Its build budget is its brief's ([BT-2](plan.md)). When a step lands, its box is ticked and the commit noted on the issue[^ag-50b].
 *Why:* two lanes of chunks, each item paying for a fresh review, a full-suite run and a clerk's commit, cost more than they delivered: one coordinator session landed about 2.5 plan hours in 77 minutes while running thirteen agent runs.[^ag-50]
 *Owner:* Product Owner · *Stage:* Plan · *Compliance:* a review of the plan
 
