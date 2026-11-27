@@ -24,7 +24,7 @@
 //                 tiles share it). Connect starts the full capture pipeline on
 //                 every enabled camera — the screens' video tiles stream from it.
 //                 Calibrate is attention-framed once a camera is connected that is
-//                 not "fixed in place" (appSettings.cameraFixedInPlace) — i.e.
+//                 not "fixed in place" (the Rig's, app.rig.camerasFixedInPlace) — i.e.
 //                 needs stereo cal.
 //   "calibrate" — hosts CameraCalibrationFlow (a STUB for now) compactly in-panel.
 // The heading turns colorAttention while calibrating; the toolbar turns the
@@ -48,7 +48,7 @@ Item {
     // Attention once a connected camera is not "fixed in place" — a non-fixed camera
     // needs (stereo) calibration this session. Fixed cameras keep their calibration.
     // Written once in camera_health.js for this panel and the toolbar.
-    readonly property bool needsCalibration: CameraHealth.anyNeedsCalibration(cameraManager, appSettings)
+    readonly property bool needsCalibration: CameraHealth.anyNeedsCalibration(cameraManager, app.rig)
 
     // ── CR-02 CB6 — the torch, here and not as a sixth toolbar pill ────────
     //
@@ -132,9 +132,9 @@ Item {
     // Per-session camera enablement lives in CameraManager
     // (cameraManager.sessionCameraExcluded) so the per-screen video tiles,
     // every toolbar instance AND the start-session wizard share one list.
-    // Seeded from appSettings.cameraExcluded at startup, re-seeded by the
-    // wizard on open; never written back to settings (global enablement is
-    // owned by Settings).
+    // Seeded from the Rig's "enabled on this machine" flags at startup,
+    // re-seeded by the wizard on open; never written back (global enablement is
+    // the Rig's, set from Settings).
 
     // True when at least one camera is session-enabled and every enabled one is
     // connected — drives the Connect ⇄ Disconnect action toggle.

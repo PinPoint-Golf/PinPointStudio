@@ -20,6 +20,11 @@
 import QtQuick
 import QtTest
 import PinPointStudio
+import "../setup/fakes"
+
+// REQ: REQ-DEV-17
+// (the studio bay's camera set-up kept: Settings > Cameras holds a camera's box and mirror flag, and the VIEW combo's role change
+// after its role's device settings)
 
 // PpcpPairDialog, loaded for real and driven through its injected controller.
 //
@@ -524,10 +529,13 @@ Item {
     // registered in this binary as in the app (src/Gui/shell/perspective_qml.h). The face-on perspective is
     // still given below as its code, 2, as the settings store holds it.
     //
-    // The fake's writers do to the real AppSettings what camera_manager.cpp's do (setIsMirrored,
-    // setBallRoi with "empty means clear", clearBallRoi), so the store values asserted are the ones the
-    // app would hold. Names match the real Q_PROPERTYs and Q_INVOKABLEs.
+    // The cameras' set-up is the Rig's (platform refactor C-5b): `app.rig` is a FakeRig (setup/fakes), and the fake
+    // manager's writers ask it what camera_manager.cpp's ask the Rig (setIsMirrored, setBallRoi with "empty means
+    // clear", clearBallRoi), so the values asserted are the ones the Rig would hold. Names match the real
+    // Q_PROPERTYs and Q_INVOKABLEs.
     readonly property string camKey: "Blackfly S BFS-U3-16S2C|12345678"
+
+    FakeRig { id: camRig }
 
     QtObject {
         id: fakeCams
@@ -536,45 +544,39 @@ Item {
         property var  inst: null
         property bool isRecording: true
         property bool anyConnecting: false
+        property bool impact: false   // impact-capable, with one mode (the VIEW combo's order case)
         readonly property bool anySelected: true
         readonly property var instances: (live && inst) ? [inst] : []
         readonly property var cameraList: [{
             index: 0, cameraKey: probe.camKey, description: "Blackfly S BFS-U3-16S2C", alias: "Face-on",
             perspective: 2, selected: live, enabled: true, sessionEnabled: true, serialNumber: "12345678",
-            interface: "USB3", maxWidth: 1440, maxHeight: 1080, maxFps: 226, isPpcp: false, impactCapable: false,
-            impactModes: [], gainMaxDb: 48, hwTrigger: false, tuningLockable: false, vendorName: "FLIR",
+            interface: "USB3", maxWidth: 1440, maxHeight: 1080, maxFps: 226, isPpcp: false, impactCapable: impact,
+            impactModes: impact ? [{ w: 640, h: 240, fps: 600 }] : [], gainMaxDb: 48, hwTrigger: false, tuningLockable: false, vendorName: "FLIR",
             modelName: "Blackfly S", pixelFormat: "BayerRG8", bitsPerPixel: 8, slotWidth: 1440, slotHeight: 1080,
             slotBytesPerPixel: 1, slotFps: 226 }]
         function rec(name, args) { calls.push({ name: name, args: args }) }
         function named(name) { return calls.filter(function(c) { return c.name === name }) }
 
-        function setIsMirrored(target, mirrored) {                    // camera_manager.cpp:809–830
+        function setIsMirrored(target, mirrored) {                    // camera_manager.cpp, setIsMirrored
             rec("setIsMirrored", [mirrored])
             if (!target) return
             target.isMirrored = mirrored
-            var map = appSettings.cameraIsMirrored
-            if (mirrored) map[probe.camKey] = true
-            else delete map[probe.camKey]
-            appSettings.cameraIsMirrored = map
+            camRig.setMirrored(probe.camKey, mirrored)
         }
-        function setBallRoi(target, r) {                              // camera_manager.cpp:839–870
+        function setBallRoi(target, r) {                              // camera_manager.cpp, setBallRoi
             rec("setBallRoi", [r.x, r.y, r.width, r.height])
             if (!target) return
             var x1 = Math.max(0, Math.min(r.x, r.x + r.width)),  x2 = Math.min(1, Math.max(r.x, r.x + r.width))
             var y1 = Math.max(0, Math.min(r.y, r.y + r.height)), y2 = Math.min(1, Math.max(r.y, r.y + r.height))
             if (x2 - x1 <= 0 || y2 - y1 <= 0) { clearBallRoi(target); return }
             target.roi = Qt.rect(x1, y1, x2 - x1, y2 - y1)
-            var map = appSettings.cameraBallRoi
-            map[probe.camKey] = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
-            appSettings.cameraBallRoi = map
+            camRig.setHittingArea(probe.camKey, Qt.rect(x1, y1, x2 - x1, y2 - y1))
         }
-        function clearBallRoi(target) {                               // camera_manager.cpp:872–890
+        function clearBallRoi(target) {                               // camera_manager.cpp, clearBallRoi
             rec("clearBallRoi", [])
             if (!target) return
             target.roi = Qt.rect(0, 0, 0, 0)
-            var map = appSettings.cameraBallRoi
-            delete map[probe.camKey]
-            appSettings.cameraBallRoi = map
+            camRig.clearHittingArea(probe.camKey)
         }
         function relearnBallBaseline(t)    { rec("relearnBallBaseline", []) }
         function setSelected(i, on)        { rec("setSelected", [i, on]) }
@@ -587,7 +589,12 @@ Item {
         function setCameraAlias(i, a)      { rec("setCameraAlias", [i, a]) }
         function setExcluded(i, e)         { rec("setExcluded", [i, e]) }
         function reconnectCamera(k)        { rec("reconnectCamera", [k]) }
-        function assignPerspective(k, p)   { rec("assignPerspective", [k, p]) }
+        // What the role's device settings hold when the manager is asked (rig_design_addendum.md decision 8).
+        function assignPerspective(k, p)   {
+            rec("assignPerspective", [k, p, appSettings.cameraExposureUs[k] !== undefined,
+                                      appSettings.cameraRoi[k + "#impact"] !== undefined,
+                                      appSettings.cameraTargetFps[k] !== undefined])
+        }
     }
 
     // A live CameraInstance as createController leaves it (camera_manager.cpp:991–1019): the mirror flag
@@ -655,6 +662,7 @@ Item {
         id: camApp
         property var state: ({ replay: camShotReplay, mode: 0, selection: { valid: false, shotRef: "", swingDir: "" } })
         property var shotProcessor: camShotProcessor
+        property var rig: camRig
     }
 
     Item { id: camPanelHost; anchors.fill: parent; z: 100 }
@@ -679,9 +687,14 @@ Item {
             panel = null
             if (fakeCams.inst) fakeCams.inst.destroy()
             fakeCams.inst = null
-            appSettings.cameraBallRoi      = ({})
-            appSettings.cameraIsMirrored   = ({})
-            appSettings.cameraFixedInPlace = ({})
+            fakeCams.impact = false
+            camRig.hittingAreas        = ({})
+            camRig.camerasMirrored     = []
+            camRig.camerasFixedInPlace = []
+            camRig.calls               = []
+            appSettings.cameraExposureUs = ({})
+            appSettings.cameraRoi        = ({})
+            appSettings.cameraTargetFps  = ({})
         }
 
         function findAll(item, pred, out) {
@@ -702,14 +715,16 @@ Item {
         // The store as given, then (when `live`) a connected instance as createController leaves it, then
         // the panel.
         function makePanel(store, live) {
-            appSettings.cameraBallRoi      = store.ballRoi  || ({})
-            appSettings.cameraIsMirrored   = store.mirrored || ({})
-            appSettings.cameraFixedInPlace = store.fixed    || ({})
+            var saved = store.ballRoi ? store.ballRoi[probe.camKey] : null
+            camRig.hittingAreas        = saved ? one(Qt.rect(saved.x, saved.y, saved.w, saved.h)) : ({})
+            camRig.camerasMirrored     = store.mirrored ? [probe.camKey] : []
+            camRig.camerasFixedInPlace = store.fixed ? [probe.camKey] : []
+            camRig.calls = []
             fakeCams.calls = []
             fakeCams.live = live
-            var p = { isMirrored: appSettings.cameraIsMirrored[probe.camKey] === true }
-            var b = appSettings.cameraBallRoi[probe.camKey]
-            if (appSettings.cameraFixedInPlace[probe.camKey] === true && b) p.roi = Qt.rect(b.x, b.y, b.w, b.h)
+            var p = { isMirrored: camRig.camerasMirrored.indexOf(probe.camKey) >= 0 }
+            var b = camRig.hittingAreaOf(probe.camKey)
+            if (camRig.camerasFixedInPlace.indexOf(probe.camKey) >= 0 && b.width > 0) p.roi = b
             fakeCams.inst = live ? camInstComp.createObject(probe, p) : null
             panel = camPanelComp.createObject(camPanelHost, { width: camPanelHost.width, height: camPanelHost.height })
             verify(panel !== null, "CamerasPanel instantiates over the fake")
@@ -763,12 +778,12 @@ Item {
             compare(fakeCams.named("setBallRoi").length, row.wantSaves, "saves on opening")
             var want = row.saved ? savedBox : defaultBox
             sameBox(fakeCams.inst.roi, want, "the box the editor shows")
-            sameBox(appSettings.cameraBallRoi[probe.camKey], want, "the saved box")
+            sameBox(camRig.hittingAreaOf(probe.camKey), want, "the box the Rig holds")
             // A plain click inside the box.
             var px = f.ov.x + f.ov.width / 2, py = f.ov.y + f.ov.height / 2
             compare(f.area.hitZone(px, py), "move")
             mouseClick(f.area, px, py)
-            sameBox(appSettings.cameraBallRoi[probe.camKey], want, "the saved box after a click inside it")
+            sameBox(camRig.hittingAreaOf(probe.camKey), want, "the box the Rig holds after a click inside it")
         }
 
         // Outside the box: a click, with no drag or a jitter of a pixel or two, keeps the box; a drag
@@ -796,12 +811,12 @@ Item {
             compare(fakeCams.named("clearBallRoi").length, 0, "nothing clears the box")
             if (row.drawn) {
                 compare(fakeCams.named("setBallRoi").length, 1, "the drawn box is saved")
-                var r = appSettings.cameraBallRoi[probe.camKey]
-                verify(r && r.w > 0.1 && r.h > 0.1, "the drawn box " + JSON.stringify(r))
+                var r = camRig.hittingAreaOf(probe.camKey)
+                verify(r.width > 0.1 && r.height > 0.1, "the drawn box " + JSON.stringify(r))
             } else {
                 compare(fakeCams.named("setBallRoi").length, 0, "a click saves nothing")
                 sameBox(fakeCams.inst.roi, savedBox, "the live box")
-                sameBox(appSettings.cameraBallRoi[probe.camKey], savedBox, "the saved box")
+                sameBox(camRig.hittingAreaOf(probe.camKey), savedBox, "the box the Rig holds")
             }
         }
 
@@ -829,8 +844,30 @@ Item {
             } else {
                 compare(calls.length, 0, "no camera to apply it to")
             }
-            compare(appSettings.cameraIsMirrored[probe.camKey] === true, !row.from, "the saved flag")
+            compare(camRig.camerasMirrored.indexOf(probe.camKey) >= 0, !row.from, "the flag the Rig holds")
+            var asked = camRig.calls.filter(function(c) { return c.name === "setMirrored" })
+            verify(asked.length >= 1 && asked[0].args[1] === !row.from, "the Rig is asked for the clicked value first")
             compare(chip[0].isMirrored, !row.from, "the chip shows the click")
+        }
+
+        // Choosing Impact in the VIEW combo writes that role's device settings (the exposure, the #impact crop, the
+        // rate) BEFORE the manager asks the Rig for the role, so the reconnect the role change brings reads them
+        // (rig_design_addendum.md decision 8: the precondition of assignPerspective, pinned here).
+        function test_the_view_combo_writes_the_role_settings_first() {
+            fakeCams.impact = true
+            makePanel({}, true)
+            var combos = findAll(panel, function(o) { return o.viewOptions !== undefined && o.activated !== undefined })
+            compare(combos.length, 1, "the row's VIEW combo")
+            var opts = combos[0].viewOptions, idx = -1
+            for (var i = 0; i < opts.length; ++i) if (opts[i].perspective === Perspective.Impact) idx = i
+            verify(idx >= 0, "Impact is offered for an impact-capable camera")
+            combos[0].activated(idx)
+            var calls = fakeCams.named("assignPerspective")
+            compare(calls.length, 1, "one role change asked for")
+            compare(calls[0].args[0], probe.camKey)
+            compare(calls[0].args[1], Perspective.Impact)
+            verify(calls[0].args[2] && calls[0].args[3] && calls[0].args[4],
+                   "the exposure, the #impact crop and the rate were written before the role change")
         }
     }
 }

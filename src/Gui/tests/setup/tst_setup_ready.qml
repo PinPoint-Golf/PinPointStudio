@@ -371,7 +371,7 @@ Item {
         function setUpHardware(c) {
             if (c.cams !== "none")      d.addCamera("FO1", Perspective.FaceOn, false)
             if (c.cams.indexOf("dtl") >= 0) d.addCamera("DTL1", Perspective.DownTheLine, false)
-            if (c.cams === "fo+dtl-fixed") appSettings.cameraFixedInPlace = ({ "FO1": true, "DTL1": true })
+            if (c.cams === "fo+dtl-fixed") { d.rig.setFixedInPlace("FO1", true); d.rig.setFixedInPlace("DTL1", true) }
             if (c.ball === "present")   d.addCameraInstance("FO1", { ballPresent: true })
             if (c.imus === "wt2" || c.imus === "wt3") {
                 d.addWitmotion("WT-A", "A", false)

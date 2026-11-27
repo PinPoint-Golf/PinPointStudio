@@ -19,20 +19,20 @@
 
 // The camera health rule the session toolbar and its camera panel both read: "a
 // connected camera still needs calibrating". The ONE place it is written (D1). Pure:
-// it reads only the manager and settings it is given (cameraManager / appSettings, or
+// it reads only the manager and the Rig it is given (cameraManager / app.rig, or
 // fakes with the same shape). JS rather than a Q_INVOKABLE so a binding that calls it
-// records the reads (the camera list and appSettings.cameraFixedInPlace) and
+// records the reads (the camera list and the Rig's camerasFixedInPlace) and
 // re-evaluates when either changes.
 
 // True once a connected camera is not "fixed in place" — a non-fixed camera needs
 // (stereo) calibration this session; fixed cameras keep their calibration. Stays true
 // until the camera is calibrated/fixed. `mgr.instances` is read so the answer follows
 // connects and drops; its value is USED, so the read is never compiled away.
-function anyNeedsCalibration(mgr, settings) {
+function anyNeedsCalibration(mgr, rig) {
     if (!mgr.instances) return false     // the dependency read; also guards a manager with none
     var list  = mgr.cameraList
-    var fixed = settings.cameraFixedInPlace
+    var fixed = rig.camerasFixedInPlace
     for (var i = 0; i < list.length; ++i)
-        if (list[i].selected && fixed[list[i].cameraKey] !== true) return true
+        if (list[i].selected && fixed.indexOf(list[i].cameraKey) < 0) return true
     return false
 }

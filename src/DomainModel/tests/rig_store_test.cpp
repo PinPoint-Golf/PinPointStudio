@@ -24,13 +24,24 @@
 //   S1  a machine with no rig stored yet: an empty rig, a new RigId, rig.json written once (schema pinpoint.rig/1:
 //       the id, both parts empty, no groups taken), no event
 //   S2  the next launch reads the same RigId and writes nothing
-//   S3  the schema is checked on read: a file that is not a pinpoint.rig file, not JSON, or has no rigId is
-//       read-only to this build: an empty rig in memory, the file's bytes untouched, ppWarn
-//   S4  a newer pinpoint.rig/N is read for the fields this build knows and never saved over
+//   S3  the schema is checked on read: a file this build cannot read at all (not a pinpoint.rig file, not JSON, no
+//       rigId) is renamed rig.json.unreadable-<UTC time>, byte for byte, and the run starts as on a machine with
+//       nothing stored: a new RigId, a new rig.json, saving as normal, ppWarn (P3); two in one second keep both; when
+//       the rename fails, read-only as before: never saved over
+//   S4  a newer pinpoint.rig/N is read for the fields this build knows and never saved over, nor moved aside, even
+//       with a rigId this build cannot read (P3)
 //   S5  the write is atomic and whole: a save over an earlier file leaves one valid file and no temporary
 //   S6  a failed save keeps the state in memory, warns, and emits nothing
 //   S7  a member this build does not know is written back as it was read
 //   S8  both parts round-trip; a sensor's alignment is never written
+//   S11 entries this build cannot read (P2): a camera entry with no key, a calibration record of an unknown kind or
+//       method, and a sensor whose role this build does not know are kept out of the rig state and its digest, and
+//       written back exactly as read at every save; a camera that holds only such records stays out of the state
+//   S12 what this build cannot read, anywhere (the Solution Architect, 27 Nov 2026, widening P2; `[^rig-unknown]`): an
+//       entry of the other facts whose device it cannot read (a phone's alias and enabled flag, a prior with no
+//       face-on camera) is kept as read, and a field it does not know inside an entry it reads (a camera entry, a
+//       record, a sensor, an alias, an enabled flag, a prior) is written back as read, at every save; a field it knows
+//       and clears (the box) is not written back from the file; the digest ignores all of it
 //   S10 the cameras round-trip (C-5a.1): every versioned field, an unknown perspective code and a calibration record,
 //       read back to the same RigStateId; and through the Rig's commands, the same after a relaunch
 //   S9  the test override: defaultFolder() is PINPOINT_RIG_DIR, inside the temporary directory; without it, Qt's
@@ -50,6 +61,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTimeZone>
 
@@ -173,18 +185,61 @@ int main(int argc, char **argv)
         { "no rigId", R"({"schema":"pinpoint.rig/1","state":{"cameras":[]}})" },
         { "a schema of version 0", R"({"schema":"pinpoint.rig/0","rigId":"6f1c2b6e-0d1e-4c71-9a64-3e2b9d0c5a11"})" },
     };
+    // The files beside rig.json named rig.json.unreadable-<UTC time> (P3).
+    const auto asides = [](const QString &folder) {
+        return QDir(folder).entryList(QStringList{ QStringLiteral("rig.json.unreadable-*") }, QDir::Files, QDir::Name);
+    };
     for (const auto &b : bad) {
         const QString f = caseFolder(stores);
         writeAll(f + "/rig.json", b.bytes);
         warningsSince(seq);
         Launch l(f);
         const QString warned = warningsSince(seq);
-        check(l.store.isReadOnly() && !l.rig.id().isNull() && l.rig.parts().state.cameras.isEmpty()
-                  && readAll(f + "/rig.json") == b.bytes && warned.contains("never saves over"),
-              QStringLiteral("S3 %1: read-only, an empty rig in memory, the bytes untouched, a warning").arg(b.what));
-        check(!l.store.save(l.rig.id(), l.rig.parts()) && readAll(f + "/rig.json") == b.bytes,
-              QStringLiteral("S3 %1: a save is refused and writes nothing").arg(b.what));
+        const QStringList kept = asides(f);
+        static const QRegularExpression stamp(QStringLiteral(R"(^rig\.json\.unreadable-\d{8}T\d{6}Z(-\d+)?$)"));
+        check(kept.size() == 1 && stamp.match(kept.value(0)).hasMatch() && readAll(f + "/" + kept.value(0)) == b.bytes,
+              QStringLiteral("S3 %1: renamed rig.json.unreadable-<UTC time>, its bytes kept exactly").arg(b.what));
+        const QJsonObject j = readJson(f + "/rig.json");
+        check(!l.store.isReadOnly() && !l.rig.id().isNull() && l.rig.parts().state.cameras.isEmpty()
+                  && j.value("schema").toString() == "pinpoint.rig/1" && j.value("rigId").toString() == l.rig.id().toString(),
+              QStringLiteral("S3 %1: the run starts as on a machine with nothing stored: a new RigId in a new rig.json").arg(b.what));
+        check(warned.contains("cannot read") && warned.contains(kept.value(0)),
+              QStringLiteral("S3 %1: a warning names the file kept").arg(b.what));
+        check(l.store.save(l.rig.id(), l.rig.parts()) && l.events == 0,
+              QStringLiteral("S3 %1: it saves as normal; no event").arg(b.what));
     }
+    {   // Two unreadable files in one second: both kept, under two names.
+        const QString f = caseFolder(stores);
+        writeAll(f + "/rig.json", "first junk");
+        { Launch l(f); }
+        writeAll(f + "/rig.json", "second junk");
+        { Launch l(f); }
+        const QStringList kept = asides(f);
+        check(kept.size() == 2 && ((readAll(f + "/" + kept.value(0)) == "first junk" && readAll(f + "/" + kept.value(1)) == "second junk")
+                                   || (readAll(f + "/" + kept.value(1)) == "first junk" && readAll(f + "/" + kept.value(0)) == "second junk")),
+              "S3e two unreadable files in a row: both kept, neither overwritten");
+    }
+#ifdef Q_OS_WIN
+    std::printf("  [SKIP] S3f the rename fails: a read-only folder does not stop a rename on Windows; covered on the Mac and Linux\n");
+#else
+    {   // The rename fails (a folder that cannot be written): read-only as before, never saved over.
+        const QString f = caseFolder(stores);
+        const QByteArray junk = "not json, in a folder this run cannot write";
+        writeAll(f + "/rig.json", junk);
+        QFile::setPermissions(f, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+        warningsSince(seq);
+        bool readOnly = false, refused = false;
+        {
+            Launch l(f);
+            readOnly = l.store.isReadOnly();
+            refused  = !l.store.save(l.rig.id(), l.rig.parts());
+        }
+        const QString warned = warningsSince(seq);
+        QFile::setPermissions(f, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        check(readOnly && refused && readAll(f + "/rig.json") == junk && asides(f).isEmpty() && warned.contains("never saves over"),
+              "S3f the rename fails: read-only, as before; the file untouched, never saved over, and a warning");
+    }
+#endif
 
     std::printf("\nS4 a newer schema\n");
     {
@@ -207,6 +262,17 @@ int main(int argc, char **argv)
         check(!l.store.save(l.rig.id(), l.rig.parts()) && readAll(f + "/rig.json") == newer,
               "S4d a save is refused: the file is never saved over");
         check(l.events == 0, "S4e no event");
+        check(QDir(f).entryList(QStringList{ QStringLiteral("rig.json.unreadable-*") }, QDir::Files).isEmpty(),
+              "S4f a newer schema's file is never moved aside");
+    }
+    {
+        const QString f = caseFolder(stores);
+        const QByteArray newer = R"({"schema":"pinpoint.rig/4","rigId":"a rigId this build cannot read","state":{}})";
+        writeAll(f + "/rig.json", newer);
+        Launch l(f);
+        check(l.store.isReadOnly() && readAll(f + "/rig.json") == newer
+                  && QDir(f).entryList(QStringList{ QStringLiteral("rig.json.unreadable-*") }, QDir::Files).isEmpty(),
+              "S4g a newer schema with a rigId this build cannot read: read-only, kept where it is, not moved aside");
     }
 
     std::printf("\nS5 the write is atomic and whole\n");
@@ -303,6 +369,147 @@ int main(int argc, char **argv)
                   && back.parts.other.clubLengthPriors.first().first == parts.other.clubLengthPriors.first().first
                   && back.parts.other.clubLengthPriors.first().second.value("lengthM").toDouble() == 0.94,
               "S8d the other facts are read back, each device by its own spelling");
+    }
+
+    std::printf("\nS11 entries this build cannot read (P2)\n");
+    {
+        const QString f = caseFolder(stores);
+        const QByteArray file =
+            R"({"schema":"pinpoint.rig/1","rigId":"2b5e8d14-7c3a-4f6e-9a1d-0c4b7e2f9a63",)"
+            R"("state":{"sinceUtc":"2026-11-26T10:00:00.000Z","cameras":[)"
+            R"({"key":"Blackfly S|0123","perspective":2,"mirrored":false,"fixedInPlace":false,"calibrations":[)"
+            R"({"subject":{"camera":"Blackfly S|0123"},"kind":"thermalDrift","method":"solved","parameters":{"k":1},"uncertainty":null,"observedAtUtc":null}]},)"
+            R"({"key":"FaceTime HD Camera|0x14","perspective":0,"mirrored":false,"fixedInPlace":false,"calibrations":[)"
+            R"({"subject":{"camera":"FaceTime HD Camera|0x14"},"kind":"extrinsics","method":"laserTracker","parameters":{},"uncertainty":null,"observedAtUtc":null}]},)"
+            R"({"perspective":1,"note":"an entry with no key"}],)"
+            R"("sensors":[{"placement":"{dev-1}","role":"leftKnee"},{"placement":"{dev-2}","role":"pelvis"}]},)"
+            R"("other":{"aliases":[]}})";
+        writeAll(f + "/rig.json", file);
+        const QJsonObject original = readJson(f + "/rig.json");
+        const QJsonArray  origCams = original.value("state").toObject().value("cameras").toArray();
+        const QJsonArray  origSens = original.value("state").toObject().value("sensors").toArray();
+        const DeviceKey   blackfly = DeviceKey::fromPersistedCameraKey(u"Blackfly S|0123");
+        RigState expected;
+        CameraSetup b(blackfly);
+        b.setPerspectiveCode(2);
+        expected.cameras = { b };
+        SensorSetup pelvis;
+        pelvis.key  = PlacementKey::fromPersisted(u"{dev-2}");
+        pelvis.role = analysis::SegmentRole::Pelvis;
+        expected.sensors = { pelvis };
+        RigStateId idAtLoad;
+        {
+            Launch l(f);
+            idAtLoad = l.rig.stateId();
+            check(l.rig.parts().state.cameras.size() == 1 && l.rig.parts().state.cameras.first().key() == blackfly
+                      && l.rig.parts().state.cameras.first().calibrations.isEmpty()
+                      && l.rig.parts().state.sensors.size() == 1
+                      && l.rig.parts().state.sensors.first().role == analysis::SegmentRole::Pelvis,
+                  "S11a the rig state holds only what this build reads (one camera, one sensor; no unknown record)");
+            check(l.rig.stateId() == rigStateIdOf(expected),
+                  "S11b the entries it cannot read are outside the digest");
+            l.rig.setMirrored(blackfly, true);
+        }
+        const QJsonObject saved = readJson(f + "/rig.json");
+        const QJsonArray  cams  = saved.value("state").toObject().value("cameras").toArray();
+        const QJsonArray  sens  = saved.value("state").toObject().value("sensors").toArray();
+        QJsonObject bf, ft;
+        bool noKeyKept = false;
+        for (const QJsonValue &v : cams) {
+            const QJsonObject o = v.toObject();
+            if (o.value("key").toString() == "Blackfly S|0123") bf = o;
+            else if (o.value("key").toString() == "FaceTime HD Camera|0x14") ft = o;
+            else if (o == origCams.at(2).toObject()) noKeyKept = true;
+        }
+        check(bf.value("mirrored").toBool()
+                  && bf.value("calibrations").toArray().contains(origCams.at(0).toObject().value("calibrations").toArray().at(0)),
+              "S11c after a command's save: the record of an unknown kind is written back in its camera's entry, as read");
+        check(ft.value("calibrations").toArray() == origCams.at(1).toObject().value("calibrations").toArray(),
+              "S11d the record of an unknown method is written back, on its camera that holds nothing else");
+        check(noKeyKept, "S11e the camera entry with no key is written back as read");
+        check(sens.contains(origSens.at(0)) && sens.size() == 2, "S11f the sensor whose role this build does not know is written back as read");
+        {
+            Launch l(f);
+            RigState mirrored = expected;
+            mirrored.cameras.first().mirrored = true;
+            check(l.rig.stateId() == rigStateIdOf(mirrored) && l.rig.parts().state.cameras.size() == 1,
+                  "S11g a reload reads the same state: the kept entries still outside it");
+            l.rig.setMirrored(blackfly, false);
+        }
+        const QJsonObject again = readJson(f + "/rig.json");
+        check(again.value("state").toObject().value("cameras").toArray().size() == 3
+                  && again.value("state").toObject().value("sensors").toArray().contains(origSens.at(0)),
+              "S11h and a second save writes them back again");
+        check(idAtLoad == rigStateIdOf(expected), "S11i (the state id at the first load)");
+    }
+
+    std::printf("\nS12 what this build cannot read, anywhere\n");
+    {
+        const QString f = caseFolder(stores);
+        const QByteArray file =
+            R"({"schema":"pinpoint.rig/1","rigId":"4c2a9e71-5b3d-4e8f-a1c6-7d9e0b2f4a58",)"
+            R"("state":{"sinceUtc":"2026-11-26T10:00:00.000Z","cameras":[)"
+            R"({"key":"Blackfly S|0123","perspective":2,"mirrored":false,"fixedInPlace":true,)"
+            R"("hittingArea":{"x":0.25,"y":0.5,"w":0.125,"h":0.25},"laterField":{"lens":"8mm"},"calibrations":[)"
+            R"({"subject":{"camera":"Blackfly S|0123"},"kind":"extrinsics","method":"assumed","parameters":{"yawDeg":0},)"
+            R"("uncertainty":null,"observedAtUtc":null,"laterRecordField":1}]}],)"
+            R"("sensors":[{"placement":"{dev-2}","role":"pelvis","laterSensorField":true}]},)"
+            R"("other":{"aliases":[{"camera":"Blackfly S|0123","alias":"Face on","laterAliasField":7},)"
+            R"({"phone":"P-123","alias":"My phone"}],)"
+            R"("enabledOnThisMachine":[{"phone":"P-123","enabled":false},)"
+            R"({"camera":"FaceTime HD Camera|0x14","enabled":false,"laterEnabledField":"x"}],)"
+            R"("clubLengthPriors":[{"athlete":"11111111-2222-4333-8444-555555555555","club":"7i",)"
+            R"("faceOnCamera":"Blackfly S|0123","value":{"lengthM":0.94},"laterPriorField":2},)"
+            R"({"athlete":"11111111-2222-4333-8444-555555555555","club":"PW","faceOnCamera":"","value":{"lengthM":0.9}}]}})";
+        writeAll(f + "/rig.json", file);
+        const QJsonObject original = readJson(f + "/rig.json");
+        const DeviceKey   blackfly = DeviceKey::fromPersistedCameraKey(u"Blackfly S|0123");
+        RigStateId atLoad;
+        {
+            Launch l(f);
+            atLoad = l.rig.stateId();
+            check(l.rig.parts().other.aliases.size() == 1 && l.rig.parts().other.enabledOnThisMachine.size() == 1
+                      && l.rig.parts().other.clubLengthPriors.size() == 1,
+                  "S12a only what this build reads is in the Rig's other facts");
+            l.rig.setMirrored(blackfly, true);   // one command, one save
+        }
+        const QJsonObject saved = readJson(f + "/rig.json");
+        const QJsonObject st = saved.value("state").toObject(), ot = saved.value("other").toObject();
+        const QJsonObject cam = st.value("cameras").toArray().at(0).toObject();
+        const QJsonObject rec = cam.value("calibrations").toArray().at(0).toObject();
+        const QJsonObject sen = st.value("sensors").toArray().at(0).toObject();
+        const QJsonArray  aliases = ot.value("aliases").toArray(), enabled = ot.value("enabledOnThisMachine").toArray(),
+                          priors = ot.value("clubLengthPriors").toArray();
+        const QJsonArray  origOtherAliases = original.value("other").toObject().value("aliases").toArray();
+        const QJsonArray  origEnabled = original.value("other").toObject().value("enabledOnThisMachine").toArray();
+        const QJsonArray  origPriors = original.value("other").toObject().value("clubLengthPriors").toArray();
+        check(aliases.contains(origOtherAliases.at(1)) && enabled.contains(origEnabled.at(0)) && priors.contains(origPriors.at(1)),
+              "S12b an alias, an enabled flag and a prior whose device this build cannot read are kept as read (B1)");
+        check(cam.value("mirrored").toBool() && cam.value("laterField").toObject().value("lens").toString() == "8mm",
+              "S12c a field this build does not know inside a camera entry is written back, beside the command's change (B2)");
+        check(rec.value("laterRecordField").toInt() == 1, "S12d ... inside a calibration record");
+        check(sen.value("laterSensorField").toBool(), "S12e ... inside a sensor entry");
+        bool aliasField = false, enabledField = false, priorField = false;
+        for (const QJsonValue &v : aliases) aliasField = aliasField || v.toObject().value("laterAliasField").toInt() == 7;
+        for (const QJsonValue &v : enabled) enabledField = enabledField || v.toObject().value("laterEnabledField").toString() == "x";
+        for (const QJsonValue &v : priors) priorField = priorField || v.toObject().value("laterPriorField").toInt() == 2;
+        check(aliasField && enabledField && priorField, "S12f ... inside an alias, an enabled flag and a prior");
+        {
+            Launch l(f);
+            check(l.rig.parts().other.aliases.size() == 1, "S12g a reload reads the same facts");
+            l.rig.clearHittingArea(blackfly);
+            l.rig.setAlias(blackfly, "Renamed");
+            check(l.rig.stateId() != atLoad, "S12h (the state changed)");
+        }
+        const QJsonObject again = readJson(f + "/rig.json");
+        const QJsonObject cam2 = again.value("state").toObject().value("cameras").toArray().at(0).toObject();
+        bool renamedKeepsField = false;
+        for (const QJsonValue &v : again.value("other").toObject().value("aliases").toArray())
+            if (v.toObject().value("alias").toString() == "Renamed") renamedKeepsField = v.toObject().value("laterAliasField").toInt() == 7;
+        check(!cam2.contains("hittingArea") && cam2.value("laterField").isObject(),
+              "S12i a field this build knows and clears (the box) is not written back from the file; the unknown one is");
+        check(renamedKeepsField && again.value("other").toObject().value("aliases").toArray().contains(origOtherAliases.at(1)),
+              "S12j an alias renamed keeps its unknown field; the unreadable alias is still there");
     }
 
     std::printf("\nS10 the cameras round-trip\n");

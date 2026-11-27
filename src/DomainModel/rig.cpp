@@ -62,7 +62,8 @@ Rig::Rig(RigRepository &repository, QObject *parent) : QObject(parent), m_repo(r
 void Rig::load()
 {
     RigLoad loaded = m_repo.load();
-    m_parts = std::move(loaded.parts);
+    m_parts    = std::move(loaded.parts);
+    m_readOnly = loaded.source == RigLoad::Source::ReadOnly;
     const bool minted = loaded.id.isNull();
     m_id = minted ? RigId::create() : loaded.id;
     if (minted && !m_parts.state.sinceUtc.isValid()) m_parts.state.sinceUtc = QDateTime::currentDateTimeUtc();
@@ -76,7 +77,16 @@ void Rig::load()
 
 bool Rig::save()
 {
-    return m_repo.save(m_id, m_parts);   // the store logs a failure; the state in memory stands
+    const bool ok = m_repo.save(m_id, m_parts);   // the store logs a failure; the state in memory stands
+    m_unsaved = !ok && !m_readOnly;               // a read-only file's refusal is not a failure to retry (P4)
+    return ok;
+}
+
+void Rig::saveIfUnsaved()
+{
+    if (!m_unsaved) return;
+    ppInfo() << "[Rig] a change whose save failed is saved again at quit";
+    save();   // a second failure is logged by the store; nothing more can be done
 }
 
 template <typename Change> void Rig::changeState(Change change)

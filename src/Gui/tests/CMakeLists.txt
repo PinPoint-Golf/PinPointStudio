@@ -274,7 +274,8 @@ pp_add_test(camera_roi_test
 # ID-PLACEMENT-KEY): DeviceKey and PlacementKey spell every persisted key as today's code does, byte
 # for byte; parse then spell is the identity; the lanes equal hm_unit_id.h's. The fixture (two cameras,
 # one with no serial, a Witmotion, a HackMotion) is written by the REAL AppSettings, with keys spelled
-# by today's code, into a scratch store (IsolatedStores), and read back through the typed keys.
+# by today's code, into a scratch store (IsolatedStores), and read back through the typed keys; the six camera keys
+# the Rig took over (C-5b) are written and read raw, as the last build before the cut-over wrote them.
 pp_add_test(device_key_test
     SOURCES device_key_test.cpp
             ${SRC}/Vocabulary/Rig/device_key.h
@@ -287,6 +288,23 @@ pp_add_test(device_key_test
 # Its stored-key cases prove that a sensor's name and the learned club length, stored by today's build, are still
 # found after an update.
 pp_requirement(device_key_test REQ-INST-17)
+
+# The camera manager's link to the Rig (cameras/camera_rig_link.*; rig_design.md §4.1; rig_design_addendum.md decision
+# 8), the rules CameraManager follows since the Rig writes the cameras' set-up, without a camera: one camera's facts by
+# its key; what a new connection is given (the box only while fixed); what a change of the rig state does to the live
+# cameras (a perspective set, the Impact reconnect, mirrored and the box live, fixed in place nothing); the writers as
+# one Rig command each; the alias seeded at launch; Impact moved through the real Rig; and app.rig (RigPresenter), each
+# camera's facts read and each command forwarded. Hand-rolled main.
+pp_add_test(camera_rig_link_test
+    SOURCES camera_rig_link_test.cpp
+            ${GUI}/cameras/camera_rig_link.cpp ${GUI}/cameras/camera_rig_link.h
+            ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/Video
+    AUTOMOC)
+pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role and set-up held and applied as today; REQ-DEV-17 supports
 
 # The one battery rule (src/Vocabulary/Rig/battery_band.h; IM §6.1 NOTDOM-6): every band edge (100, 50, 49, 21, 20,
 # 0), charging at each level, no reading, the spelling the screens read, and the worst of several devices. The

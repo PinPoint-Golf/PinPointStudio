@@ -44,6 +44,7 @@ Item {
     // ── Fakes ────────────────────────────────────────────────────────────────
     Component { id: imuMgrComp;    FakeImuManager {} }
     Component { id: camMgrComp;    FakeCameraManager {} }
+    Component { id: rigComp;       FakeRig {} }
     Component { id: athleteComp;   FakeAthlete {} }
     Component { id: liveWristComp; FakeLiveWrist {} }
     Component { id: sessionComp;   FakeSessionController {} }
@@ -387,6 +388,7 @@ Item {
         fx.app.sessionController = fx.sessionController
         fx.app.navController     = fx.navController
         fx.app.shotProcessor     = fx.shotProcessor
+        fx.app.rig               = rigComp.createObject(drv)   // app.rig: the cameras' set-up (C-5b)
     }
     // setup: "witmotion2" | "witmotion3" | "hackmotion" | "none"
     // opts.hmMode: "autoScript" (default) | "strict" | "manual"

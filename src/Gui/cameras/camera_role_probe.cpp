@@ -145,15 +145,15 @@ void CameraRoleProbe::findCameras(int attempt)
         return;
     }
 
-    // The operator's state, restored at the end.
-    m_perspective  = m_settings->cameraPerspective();
+    // The operator's state, restored at the end. The roles are the Rig's, and the composition root runs this probe
+    // on a scratch copy of it (main.cpp, F29): nothing here writes the machine's rig.json, so the roles need no restore.
     m_targetFps    = m_settings->cameraTargetFps();
     m_exposureUs   = m_settings->cameraExposureUs();
     m_roi          = m_settings->cameraRoi();
     m_tuning       = m_settings->cameraTuning();
     m_wasRecording = m_cameras->isRecording();
     for (Target &t : targets)
-        t.originalRole = m_perspective.value(t.key).toInt();
+        t.originalRole = m_cameras->perspectiveOf(t.key);
 
     // Connect every target and capture, as Connect + the live view would.
     then(0, [this, targets]() {
@@ -360,16 +360,15 @@ void CameraRoleProbe::evaluate(const Target &t)
     check(m_settings->cameraTargetFps() == m_targetFps && m_settings->cameraExposureUs() == m_exposureUs
           && m_settings->cameraRoi() == m_roi && m_settings->cameraTuning() == m_tuning,
           QStringLiteral("the operator's camera settings are restored"));
-    check(m_settings->cameraPerspective().value(t.key).toInt() == t.originalRole,
+    check(m_cameras->perspectiveOf(t.key) == t.originalRole,
           QStringLiteral("the original role is restored (%1)").arg(roleName(t.originalRole)));
 }
 
 void CameraRoleProbe::finish()
 {
-    // Restore the other cameras' roles too (an Impact assignment strips it
-    // from every other camera), then connection and capture state.
-    if (m_settings && !m_perspective.isEmpty() && m_settings->cameraPerspective() != m_perspective)
-        m_settings->setCameraPerspective(m_perspective);
+    // The other cameras' roles (an Impact assignment strips it from every other
+    // camera) changed only in the scratch Rig this probe runs on (F29). Restore
+    // connection and capture state.
     if (m_cameras) {
         for (int i : m_deselect)
             m_cameras->setSelected(i, false);

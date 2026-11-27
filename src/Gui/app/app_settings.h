@@ -213,17 +213,11 @@ class AppSettings : public QObject
     Q_PROPERTY(QString dashboardScale              READ dashboardScale              WRITE setDashboardScale              NOTIFY dashboardScaleChanged)
     Q_PROPERTY(QString uiFrameRateCap              READ uiFrameRateCap              WRITE setUiFrameRateCap              NOTIFY uiFrameRateCapChanged)
     Q_PROPERTY(bool    hardwareAcceleration        READ hardwareAcceleration        WRITE setHardwareAcceleration        NOTIFY hardwareAccelerationChanged)
-    Q_PROPERTY(QStringList cameraExcluded  READ cameraExcluded  WRITE setCameraExcluded  NOTIFY cameraExcludedChanged)
     Q_PROPERTY(QVariantMap cameraTargetFps READ cameraTargetFps WRITE setCameraTargetFps NOTIFY cameraTargetFpsChanged)
     Q_PROPERTY(QVariantMap cameraTriggerMode READ cameraTriggerMode WRITE setCameraTriggerMode NOTIFY cameraTriggerModeChanged)
     Q_PROPERTY(QVariantMap cameraRoi         READ cameraRoi         WRITE setCameraRoi         NOTIFY cameraRoiChanged)
-    Q_PROPERTY(QVariantMap cameraPerspective READ cameraPerspective WRITE setCameraPerspective NOTIFY cameraPerspectiveChanged)
-    Q_PROPERTY(QVariantMap cameraIsMirrored  READ cameraIsMirrored  WRITE setCameraIsMirrored  NOTIFY cameraIsMirroredChanged)
-    Q_PROPERTY(QVariantMap cameraBallRoi     READ cameraBallRoi     WRITE setCameraBallRoi     NOTIFY cameraBallRoiChanged)
     Q_PROPERTY(double      cameraPreroll       READ cameraPreroll       WRITE setCameraPreroll       NOTIFY cameraPrerollChanged)
     Q_PROPERTY(bool        cameraSyncEnabled   READ cameraSyncEnabled   WRITE setCameraSyncEnabled   NOTIFY cameraSyncEnabledChanged)
-    Q_PROPERTY(QVariantMap cameraFixedInPlace  READ cameraFixedInPlace  WRITE setCameraFixedInPlace  NOTIFY cameraFixedInPlaceChanged)
-    Q_PROPERTY(QVariantMap cameraAlias         READ cameraAlias         WRITE setCameraAlias         NOTIFY cameraAliasChanged)
     // Locked exposure (microseconds) per cameraKey — the impact camera's
     // (impact_camera_design.md §10.2); other cameras keep auto-exposure.
     Q_PROPERTY(QVariantMap cameraExposureUs    READ cameraExposureUs    WRITE setCameraExposureUs    NOTIFY cameraExposureUsChanged)
@@ -510,17 +504,11 @@ public:
         m_uiFrameRateCap         = ppSettings().value(QStringLiteral("display/uiFrameRateCap"),         QStringLiteral("display")).toString();
         m_hardwareAcceleration   = ppSettings().value(QStringLiteral("display/hardwareAcceleration"),   true).toBool();
 
-        m_cameraExcluded    = ppSettings().value(QStringLiteral("camera/excluded"),    QStringList{}).toStringList();
         m_cameraTargetFps   = ppSettings().value(QStringLiteral("camera/targetFps"),   QVariantMap{}).toMap();
         m_cameraTriggerMode = ppSettings().value(QStringLiteral("camera/triggerMode"), QVariantMap{}).toMap();
         m_cameraRoi         = ppSettings().value(QStringLiteral("camera/roi"),         QVariantMap{}).toMap();
-        m_cameraPerspective = ppSettings().value(QStringLiteral("camera/perspective"), QVariantMap{}).toMap();
-        m_cameraIsMirrored  = ppSettings().value(QStringLiteral("camera/isMirrored"),  QVariantMap{}).toMap();
-        m_cameraBallRoi     = ppSettings().value(QStringLiteral("camera/ballRoi"),     QVariantMap{}).toMap();
         m_cameraPreroll     = ppSettings().value(QStringLiteral("camera/preroll"),     1.0).toDouble();
         m_cameraSyncEnabled  = ppSettings().value(QStringLiteral("camera/syncEnabled"),    true).toBool();
-        m_cameraFixedInPlace = ppSettings().value(QStringLiteral("camera/fixedInPlace"), QVariantMap{}).toMap();
-        m_cameraAlias        = ppSettings().value(QStringLiteral("camera/alias"),        QVariantMap{}).toMap();
         m_cameraExposureUs   = ppSettings().value(QStringLiteral("camera/exposureUs"),   QVariantMap{}).toMap();
         m_cameraTuning       = ppSettings().value(QStringLiteral("camera/tuning"),       QVariantMap{}).toMap();
         m_impactPipRect      = ppSettings().value(QStringLiteral("camera/impactPip"),    QVariantMap{}).toMap();
@@ -693,20 +681,14 @@ public:
     QString uiFrameRateCap()         const { return m_uiFrameRateCap; }
     bool    hardwareAcceleration()   const { return m_hardwareAcceleration; }
 
-    QStringList cameraExcluded()    const { return m_cameraExcluded; }
     QVariantMap cameraTargetFps()   const { return m_cameraTargetFps; }
     QVariantMap cameraTriggerMode() const { return m_cameraTriggerMode; }
     QVariantMap cameraRoi()         const { return m_cameraRoi; }
-    QVariantMap cameraPerspective() const { return m_cameraPerspective; }
-    QVariantMap cameraIsMirrored()  const { return m_cameraIsMirrored; }
-    QVariantMap cameraBallRoi()     const { return m_cameraBallRoi; }
     double      cameraPreroll()      const { return m_cameraPreroll; }
     bool        cameraSyncEnabled()  const { return m_cameraSyncEnabled; }
-    QVariantMap cameraFixedInPlace() const { return m_cameraFixedInPlace; }
     QVariantMap cameraExposureUs()   const { return m_cameraExposureUs; }
     QVariantMap cameraTuning()       const { return m_cameraTuning; }
     QVariantMap impactPipRect()      const { return m_impactPipRect; }
-    QVariantMap cameraAlias()        const { return m_cameraAlias; }
 
     QVariantMap viewLayoutByMode()      const { return m_viewLayoutByMode; }
     QVariantMap dataRegionByType()      const { return m_dataRegionByType; }
@@ -1231,14 +1213,6 @@ public:
         emit hardwareAccelerationChanged();
     }
 
-    void setCameraExcluded(const QStringList &v)
-    {
-        if (m_cameraExcluded == v) return;
-        m_cameraExcluded = v;
-        ppSettings().setValue(QStringLiteral("camera/excluded"), v);
-        emit cameraExcludedChanged();
-    }
-
     void setCameraTargetFps(const QVariantMap &v)
     {
         if (m_cameraTargetFps == v) return;
@@ -1287,30 +1261,6 @@ public:
         emit impactPipRectChanged();
     }
 
-    void setCameraPerspective(const QVariantMap &v)
-    {
-        if (m_cameraPerspective == v) return;
-        m_cameraPerspective = v;
-        ppSettings().setValue(QStringLiteral("camera/perspective"), v);
-        emit cameraPerspectiveChanged();
-    }
-
-    void setCameraIsMirrored(const QVariantMap &v)
-    {
-        if (m_cameraIsMirrored == v) return;
-        m_cameraIsMirrored = v;
-        ppSettings().setValue(QStringLiteral("camera/isMirrored"), v);
-        emit cameraIsMirroredChanged();
-    }
-
-    void setCameraBallRoi(const QVariantMap &v)
-    {
-        if (m_cameraBallRoi == v) return;
-        m_cameraBallRoi = v;
-        ppSettings().setValue(QStringLiteral("camera/ballRoi"), v);
-        emit cameraBallRoiChanged();
-    }
-
     void setCameraPreroll(double v)
     {
         if (qFuzzyCompare(m_cameraPreroll, v)) return;
@@ -1325,22 +1275,6 @@ public:
         m_cameraSyncEnabled = v;
         ppSettings().setValue(QStringLiteral("camera/syncEnabled"), v);
         emit cameraSyncEnabledChanged();
-    }
-
-    void setCameraFixedInPlace(const QVariantMap &v)
-    {
-        if (m_cameraFixedInPlace == v) return;
-        m_cameraFixedInPlace = v;
-        ppSettings().setValue(QStringLiteral("camera/fixedInPlace"), v);
-        emit cameraFixedInPlaceChanged();
-    }
-
-    void setCameraAlias(const QVariantMap &v)
-    {
-        if (m_cameraAlias == v) return;
-        m_cameraAlias = v;
-        ppSettings().setValue(QStringLiteral("camera/alias"), v);
-        emit cameraAliasChanged();
     }
 
     void setImuExcluded(const QStringList &v)
@@ -1751,17 +1685,11 @@ signals:
     void dashboardScaleChanged();
     void uiFrameRateCapChanged();
     void hardwareAccelerationChanged();
-    void cameraExcludedChanged();
     void cameraTargetFpsChanged();
     void cameraTriggerModeChanged();
     void cameraRoiChanged();
-    void cameraPerspectiveChanged();
-    void cameraIsMirroredChanged();
     void cameraPrerollChanged();
     void cameraSyncEnabledChanged();
-    void cameraFixedInPlaceChanged();
-    void cameraBallRoiChanged();
-    void cameraAliasChanged();
     void cameraExposureUsChanged();
     void cameraTuningChanged();
     void impactPipRectChanged();
@@ -1879,17 +1807,11 @@ private:
     QString m_uiFrameRateCap         = QStringLiteral("display");
     bool    m_hardwareAcceleration   = true;
 
-    QStringList m_cameraExcluded;
     QVariantMap m_cameraTargetFps;
     QVariantMap m_cameraTriggerMode;
     QVariantMap m_cameraRoi;
-    QVariantMap m_cameraPerspective;
-    QVariantMap m_cameraIsMirrored;
     double      m_cameraPreroll     = 1.0;
     bool        m_cameraSyncEnabled = true;
-    QVariantMap m_cameraFixedInPlace;
-    QVariantMap m_cameraBallRoi;
-    QVariantMap m_cameraAlias;
     QVariantMap m_cameraExposureUs;
     QVariantMap m_cameraTuning;
     QVariantMap m_impactPipRect;

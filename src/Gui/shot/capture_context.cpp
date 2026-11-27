@@ -217,13 +217,13 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
     const int64_t t0 = r.t0Us;
 
     // ── Each camera's facts, read ONCE, here: what the Recording carries and the export writes ──
-    const QVariantMap fixedInPlace = settings.cameraFixedInPlace();
+    // Fixed in place is the Rig's (C-5b): the camera manager keeps each live instance told of it.
     for (const CaptureCamera &c : cameras) {
         pinpoint::CaptureCameraFacts f;
         f.source       = c.source;
         f.perspective  = int(c.ctrl->perspective());
         f.mirrored     = c.ctrl->isMirrored();
-        f.fixedInPlace = fixedInPlace.value(c.ctrl->cameraKey()).toBool();
+        f.fixedInPlace = c.ctrl->isFixedInPlace();
         f.searchRoi    = c.ctrl->roi();
         // The baseline the live detector learned BEFORE the shot. It re-learns over the empty mat after
         // impact, during the analysis — so the export must write this copy, not read the camera again.
@@ -343,7 +343,7 @@ CaptureSnapshot snapshotAtFreeze(const pinpoint::SwingWindow &window, const std:
             if (c.ctrl && c.ctrl->perspective() == int(rec::Perspective::FaceOn)) { faceOnCtrl = c.ctrl; break; }
         const pinpoint::rig::DeviceKey faceOn = faceOnCtrl ? faceOnCtrl->deviceKey() : pinpoint::rig::DeviceKey();
         const QString faceOnKey = faceOn.persistedCameraKey();
-        if (!faceOnKey.isEmpty() && fixedInPlace.value(faceOnKey).toBool()) {
+        if (!faceOnKey.isEmpty() && faceOnCtrl->isFixedInPlace()) {
             // Stashed even on a cold/absent entry — the update after the analysis still needs the
             // key to seed a brand-new prior on the first confident fuse. The athlete's uuid is an
             // AthleteId's own spelling (AthleteController::currentUuid), so it reads back unchanged.

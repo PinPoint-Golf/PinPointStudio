@@ -125,7 +125,7 @@ Gui/launchmonitor/lm_club_art.h | A6 | 2 | anchors() and ballAnchors() hand QML 
 Gui/launchmonitor/lm_session_model.h | A6 | 1 | the board's `graphics` map: the one reduction's figures (lmBoardOf), which the report also prints, as a map in its payload, through the same 2,810-line body (PpLmAppendix → PpLmGraphicsBody); its bands, band counts and header are typed since 6.1b. Typing it is typing the body's reads and the report payload's shape together, with D-6, the board as a presenter over SessionSeries (6.1b NOTES; J-90, J-95)  # platform refactor (#224)
 Gui/app/app_info.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Stores/swing_zip_exporter.h | A6 | 2 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
-Gui/app/app_settings.h | A6 | 26 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
+Gui/app/app_settings.h | A6 | 21 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-8 types it  # unplanned
 Gui/cameras/buffer_controller.h | A6 | 1 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_manager.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned

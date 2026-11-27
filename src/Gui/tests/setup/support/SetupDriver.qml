@@ -43,6 +43,7 @@ Item {
     property var session:   null
     property var nav:       null
     property var lm:        null
+    property var rig:       null   // app.rig (FakeRig): the cameras' set-up since the Rig writes it (C-5b)
     property var appLogFake: null
     property var journal:   null
     property var ceremony:  null     // FakeTrunkCeremony, the "trunkCeremony" context property
@@ -87,6 +88,7 @@ Item {
 
     Component { id: imuMgrComp;    FakeImuManager {} }
     Component { id: camMgrComp;    FakeCameraManager {} }
+    Component { id: rigComp;       FakeRig {} }
     Component { id: athleteComp;   FakeAthlete {} }
     Component { id: liveWristComp; FakeLiveWrist {} }
     Component { id: sessionComp;   FakeSessionController {} }
@@ -128,17 +130,17 @@ Item {
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
     function setUp() {
-        // The REAL AppSettings (scratch QSettings) is shared by every test in the file.
+        // The REAL AppSettings (scratch QSettings) is shared by every test in the file. The cameras' set-up is the
+        // Rig's: a fresh FakeRig per test (rig, below), nothing enabled-off and nothing fixed.
         appSettings.imuRoles           = ({})
         appSettings.imuAlias           = ({})
-        appSettings.cameraExcluded     = []
         appSettings.imuExcluded        = []
-        appSettings.cameraFixedInPlace = ({})
         appSettings.experimentalSpokenInstructions = false
         tts = null
         workOns = null
         imu        = imuMgrComp.createObject(drv)
         cams       = camMgrComp.createObject(drv)
+        rig        = rigComp.createObject(drv)
         athlete    = athleteComp.createObject(drv)
         liveWrist  = liveWristComp.createObject(drv)
         session    = sessionComp.createObject(drv)
@@ -160,9 +162,9 @@ Item {
         trunkGolfer.routine = null
         if (wizard) harness.destroyNow(wizard)
         wizard = null
-        var objs = [imu, cams, athlete, liveWrist, session, nav, lm, appLogFake, journal, ceremony, _shotReplay, _shotProcessor]
+        var objs = [imu, cams, rig, athlete, liveWrist, session, nav, lm, appLogFake, journal, ceremony, _shotReplay, _shotProcessor]
         for (var i = 0; i < objs.length; ++i) if (objs[i]) objs[i].destroy()
-        imu = cams = athlete = liveWrist = session = nav = lm = appLogFake = journal = ceremony = _shotReplay = _shotProcessor = null
+        imu = cams = rig = athlete = liveWrist = session = nav = lm = appLogFake = journal = ceremony = _shotReplay = _shotProcessor = null
         trunkPace = null
         tts = null
         if (workOns) workOns.destroy()
@@ -196,7 +198,7 @@ Item {
             // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
             app: ({ state: { replay: _shotReplay, mode: 0, captureMode: 0, replayMode: 1, analyseMode: 2, autoReturnToCapture: false, selection: { valid: false, shotRef: "", swingDir: "" } },
                     athleteController: athlete, sessionController: session, navController: nav, shotProcessor: _shotProcessor,
-                    workOns: workOns }),
+                    workOns: workOns, rig: rig }),
             shotProcessor:     _shotProcessor,
             pageJournal:       journal,
             trunkCeremony:     ceremony

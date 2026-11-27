@@ -565,7 +565,6 @@
 4 qml_ui.tst_pp_variability_funnel
 4 qml_ui.tst_pp_variability_mark
 4 qml_ui.tst_pp_variability_typicality
-4 qml_ui.tst_ppcp_pair_dialog
 4 qml_ui.tst_rail_fold
 4 qml_ui.tst_ring_collar
 4 qml_ui.tst_session_diagnostics_chrome

@@ -62,6 +62,16 @@ class PpcpHostService;
 class FrameThrottle;
 #endif
 
+
+// What the Rig holds for a camera that CameraInstance's constructor needs before
+// the ring registration (platform refactor C-5b): its perspective code (the
+// role's crop, rate and tuning key) and its alias. Handed in by the camera
+// manager, which holds the Rig's state; a tool passes nothing (code 0, no alias).
+struct CameraRigFacts {
+    int     perspectiveCode = 0;
+    QString alias;
+};
+
 class CameraInstance : public QObject
 {
     Q_OBJECT
@@ -175,6 +185,7 @@ public:
     explicit CameraInstance(const Device &device,
                              pinpoint::EventBuffer *buffer = nullptr,
                              AppSettings *appSettings = nullptr,
+                             CameraRigFacts rig = {},
                              QObject *parent = nullptr);
     ~CameraInstance() override;
 
@@ -207,6 +218,11 @@ public:
     void    setDeviceAlias(const QString &alias);
     int     perspective() const;
     bool    isMirrored()  const;
+    // Whether the Rig holds this camera fixed in place, as the camera manager
+    // last told it: read by the freeze's snapshot (capture_context.cpp). It
+    // applies nothing to the camera.
+    bool    isFixedInPlace() const { return m_isFixedInPlace; }
+    void    setFixedInPlace(bool fixed) { m_isFixedInPlace = fixed; }
     QRectF  roi()          const;
     QRectF  cropRoi()      const;
     bool    ballDetected()        const;
@@ -541,6 +557,7 @@ private:
     bool               m_ballEnabled        = true;
     int                m_perspective        = 0;
     bool               m_isMirrored         = false;
+    bool               m_isFixedInPlace     = false;
     QRectF             m_roi;
     QRectF             m_cropRoi;
     int                m_frameWidth  = 0;

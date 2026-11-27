@@ -34,8 +34,11 @@
 //   D4  rig.json written by a newer build: read-only, no copy, never saved over
 //   M4  a kept entry is still there after a camera command's save and a reload
 //   M5  a value of the wrong shape, or one JSON has no form for, is kept verbatim too: dropped 0
-//   M6  a machine with neither keys nor a rig: an empty rig, the empty group taken
-//   M7  switched off: a store the Rig writes no group of copies nothing (the composition root's, until C-5b)
+//   M6  a machine with neither keys nor a rig: an empty rig; no group taken, since no camera key exists (P1)
+//   M7  switched off: a store the Rig writes no group of copies nothing (a test's store; the app's names the cameras)
+//   P1  the camera keys gone from settings after the group was taken (the settings reset or deleted): the Rig is left
+//       as it is, no copy and no wipe; a group with one key still copies again when its fingerprint differs
+//   P2  a group copied again keeps what the copy cannot type and what the file holds that this build cannot read
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -352,8 +355,8 @@ int main(int argc, char **argv)
         Launch l(f);
         const QJsonObject j = readJson(f + "/rig.json");
         check(!l.rig.id().isNull() && l.rig.parts().state.cameras.isEmpty() && l.rig.parts().other.aliases.isEmpty()
-                  && j.value("groupsTaken").toObject().contains("cameras") && j.value("keptFromSettings").toObject().isEmpty(),
-              "M6 an empty rig with a new RigId; the (empty) group taken; nothing kept");
+                  && !j.value("groupsTaken").toObject().contains("cameras") && j.value("keptFromSettings").toObject().isEmpty(),
+              "M6 an empty rig with a new RigId; no camera key, so no group taken (P1); nothing kept");
     }
 
     std::printf("\nM8 an emptied list, as the file holds it\n");
@@ -386,6 +389,110 @@ int main(int argc, char **argv)
         check(l.rig.parts().state.cameras.isEmpty() && j.value("groupsTaken").toObject().isEmpty()
                   && j.value("keptFromSettings").toObject().isEmpty(),
               "M7 a store that writes no group copies nothing, whatever the keys hold");
+    }
+
+    std::printf("\nP1 the camera keys gone from settings\n");
+    {
+        writeFixture();
+        reparse(ini);
+        const QString f = stores.path() + "/p1/rig";
+        RigStateId taken;
+        QJsonObject groupsAtCopy;
+        {
+            Launch l(f);
+            taken = l.rig.stateId();
+            groupsAtCopy = readJson(f + "/rig.json").value("groupsTaken").toObject();
+            check(cameraOf(l.rig, blackfly) && cameraOf(l.rig, facetime), "P1a the group taken: two cameras");
+        }
+        messagesSince(seq);
+        {
+            QSettings s = ppSettings();
+            for (const char *k : { "camera/perspective", "camera/isMirrored", "camera/fixedInPlace", "camera/ballRoi",
+                                   "camera/alias", "camera/excluded" })
+                s.remove(QLatin1String(k));
+            s.sync();
+        }
+        reparse(ini);
+        const QByteArray before = readAll(f + "/rig.json");
+        {
+            Launch l(f);
+            const QString log = messagesSince(seq);
+            check(l.rig.stateId() == taken && cameraOf(l.rig, blackfly) && cameraOf(l.rig, facetime)
+                      && l.rig.parts().other.aliases.size() == 1 && l.rig.parts().other.enabledOnThisMachine.size() == 1,
+                  "P1b no camera key in settings: the Rig is left as it is (every camera, alias and enabled flag)");
+            check(!log.contains("copied again") && !log.contains("no longer match") && readAll(f + "/rig.json") == before
+                      && l.events == 0,
+                  "P1c no copy, nothing written, nothing logged as an older build's edit, no event");
+        }
+        {
+            QSettings s = ppSettings();
+            s.setValue("camera/alias", QVariantMap{ { kBlackfly, "Renamed by an older build" } });
+            s.sync();
+        }
+        reparse(ini);
+        {
+            Launch l(f);
+            const QString log = messagesSince(seq);
+            check(log.contains("copied again") && l.rig.parts().other.aliases.size() == 1
+                      && l.rig.parts().other.aliases.first().second == "Renamed by an older build",
+                  "P1d one key present and its fingerprint different: the group is copied again, as before");
+        }
+        QSettings s = ppSettings();
+        s.remove("camera/alias");
+        s.sync();
+    }
+
+    std::printf("\nP2 a group copied again keeps what this build cannot read\n");
+    {
+        writeFixture();
+        reparse(ini);
+        const QString f = stores.path() + "/p2/rig";
+        { Launch l(f); }
+        // What a later build of the same schema could have added: a record of a kind this build does not know, on the
+        // first camera, and a camera entry with no key.
+        QJsonObject j = readJson(f + "/rig.json");
+        QJsonObject state = j.value("state").toObject();
+        QJsonArray cams = state.value("cameras").toArray();
+        const QJsonObject unknownRecord{ { "subject", QJsonObject{ { "camera", kBlackfly } } }, { "kind", "thermalDrift" },
+                                         { "method", "solved" }, { "parameters", QJsonObject{ { "k", 2 } } } };
+        const QJsonObject noKey{ { "perspective", 3 }, { "note", "no key" } };
+        for (int i = 0; i < cams.size(); ++i) {
+            QJsonObject c = cams.at(i).toObject();
+            if (c.value("key").toString() != kBlackfly) continue;
+            QJsonArray recs = c.value("calibrations").toArray();
+            recs.append(unknownRecord);
+            c.insert("calibrations", recs);
+            cams.replace(i, c);
+        }
+        cams.append(noKey);
+        state.insert("cameras", cams);
+        j.insert("state", state);
+        writeAll(f + "/rig.json", QJsonDocument(j).toJson());
+        {   // the older build changes a key: the group is copied again
+            QSettings s = ppSettings();
+            QVariantMap p = s.value("camera/perspective").toMap();
+            p[kBlackfly] = 1;
+            s.setValue("camera/perspective", p);
+            s.sync();
+        }
+        reparse(ini);
+        {
+            Launch l(f);
+            check(messagesSince(seq).contains("copied again") && cameraOf(l.rig, blackfly)
+                      && cameraOf(l.rig, blackfly)->perspective() == recording::Perspective::DownTheLine,
+                  "P2a the group is copied again");
+        }
+        const QJsonArray after = readJson(f + "/rig.json").value("state").toObject().value("cameras").toArray();
+        bool recordKept = false, entryKept = false;
+        for (const QJsonValue &v : after) {
+            const QJsonObject c = v.toObject();
+            if (c.value("key").toString() == kBlackfly) recordKept = c.value("calibrations").toArray().contains(unknownRecord);
+            if (c == noKey) entryKept = true;
+        }
+        check(recordKept && entryKept, "P2b the record of an unknown kind and the entry with no key are written back as read");
+        check(readJson(f + "/rig.json").value("keptFromSettings").toObject().value("camera/alias").toObject()
+                  .value("entries").toObject().value(kBare).toString() == "Old fixture camera",
+              "P2c and the bare key's entries are still kept from settings");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

@@ -289,6 +289,8 @@ Every W and C row has an entry in its last column, and the script checks it. Thr
 | TS13 | T | `recording_contract_test` Test 9, `testExportTakesFrozenInputs`; `swing_window_parity` Test 8 | `recording_contract_test.cpp:396–429`; `swing_window_parity_test.cpp:888–911` | the frozen perspective, mirrored and fixed reach the export. They start from `CaptureCameraFacts`, after FX12's read | unchanged; FX12's read itself has no test |
 | TS14 | T | `qml_ui.tst_ppcp_pair_dialog`, TestCase `SettingsCameras` (always on, the studio PC too) | `tst_ppcp_pair_dialog.qml:521–836` | the REAL Settings ▸ Cameras panel over an inline fake `cameraManager` whose writers copy camera_manager.cpp's, with the real AppSettings: the ball panel shows and keeps the saved box, and a click inside it re-saves the same box (BR3, BR3a); a click outside with no drag or a 2 px jitter keeps the box, and a drag draws one (BR4); the Mirrored chip hands the manager the clicked value (MI3, MI4); each case sets and resets `cameraBallRoi`, `cameraIsMirrored`, `cameraFixedInPlace` (F31-probe) | re-pointed: `app.rig` |
 
+**Added at C-5b's re-count (`fd2b8e25`):** DK1, `device_key_test` (`src/Gui/tests/device_key_test.cpp`, C-1a's key-spelling fixture: the six setters at 342–347 and their getters at 372–377, 392–399, 418, 615, 624), missed by the ledger; re-pointed to raw `ppSettings()` writes and reads, as the last build before the cut-over wrote them.
+
 **No test covers** (F32):
 - `assignPerspective`: the strip, the live None, the reconnect;
 - `setIsMirrored`;

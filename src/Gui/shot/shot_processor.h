@@ -441,7 +441,7 @@ private:
 
     // Persistent club-length prior (club_length_fusion.h / plan: robust club
     // length — starry-shimmying-wind). Stashed from the capture snapshot when the
-    // face-on camera is cameraFixedInPlace (else left null/cold — nothing to
+    // face-on camera is fixed in place (the Rig's flag; else left null/cold — nothing to
     // update); onAnalysisFinished() folds the recorded fuse's fusedInstant* into
     // m_lengthPriorState and persists it to AppSettings under m_lengthPriorKey.
     // Cleared at the start of every shot alongside m_analysisResult.

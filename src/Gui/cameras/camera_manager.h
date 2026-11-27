@@ -27,6 +27,7 @@
 #include "device_enumerator.h"
 #include "app_settings.h"
 #include "camera_roi.h"                         // pp_camroi::cameraDeviceKey
+#include "camera_rig_link.h"                    // the Rig's commands and its two parts, as values (C-5b)
 #include "../../Vocabulary/Rig/device_key.h"   // pinpoint::rig::DeviceKey
 #include "../Buffer/types.h"
 #include "../Video/camera_capabilities.h"
@@ -50,9 +51,9 @@ class CameraManager : public QObject
     // drives the aggregate Connect button's "connecting" animation.
     Q_PROPERTY(bool anyConnecting       READ anyConnecting NOTIFY anyConnectingChanged)
     Q_PROPERTY(QString bufferState      READ bufferState NOTIFY bufferStateChanged)
-    // Per-session camera enablement (cameraKey list). Seeded from
-    // AppSettings::cameraExcluded at startup but NEVER written back — global
-    // enablement is owned by Settings. Shared by every toolbar camera panel
+    // Per-session camera enablement (cameraKey list). Seeded from the Rig's
+    // "enabled on this machine" flags at startup but NEVER written back — global
+    // enablement is the Rig's, set from Settings. Shared by every toolbar camera panel
     // and the per-screen video tile rows (all screens stay alive in the
     // StackLayout, so this state cannot live in a panel instance).
     Q_PROPERTY(QStringList sessionCameraExcluded READ sessionCameraExcluded NOTIFY sessionCameraExcludedChanged)
@@ -68,6 +69,22 @@ public:
                            AppSettings *appSettings = nullptr,
                            QObject *parent = nullptr);
     ~CameraManager() override;
+
+    // ── THE RIG (platform refactor C-5b; camera_rig_link.h; rig_design_addendum.md decisions 1 and 8) ──
+    // The Rig is the one writer of each camera's perspective, mirrored and fixed-in-place flags, hitting-area box,
+    // alias and enabled flag. The composition root hands the manager the Rig's camera commands and its two parts once,
+    // right after construction (the machine-wide enabled flags seed the session's list, and each listed camera with no
+    // alias is given its default one), then tells it of every change: rigStateChanged after RigChanged, rigLabelChanged
+    // after a camera's RigDeviceLabelChanged. The manager applies only what changed (camera_rig_link.h's table). Its
+    // writers below ask the Rig and let the change come back. Without attachRig (a tool) it holds an empty rig and
+    // asks nothing.
+    void attachRig(pinpoint::RigCameraCommands *commands, const pinpoint::rig::RigParts &parts);
+    void rigStateChanged(const pinpoint::rig::RigParts &parts);
+    void rigLabelChanged(const pinpoint::rig::RigParts &parts, const pinpoint::rig::DeviceKey &device,
+                         pinpoint::RigDeviceLabel which);
+    // One camera's perspective code (0 = none) and alias, as the Rig holds them, by its camera key.
+    int     perspectiveOf(const QString &cameraKey) const;
+    QString aliasOf(const QString &cameraKey) const;
 
     QVariantList cameraList() const;
     QVariantList instances()  const;
@@ -144,15 +161,15 @@ public slots:
     // state the user didn't ask for.
     void applyCaptureIntent();
 
-    // Sets the perspective on one camera. Any number of cameras may share a
-    // perspective (e.g. two face-on cameras in one session).
-    Q_INVOKABLE void setPerspective(QObject *controller, int perspective);
-    // Assigns a perspective by camera key: persists it, pushes it to the live
-    // instance, and — for Impact only — clears Impact from every other camera.
-    // One impact camera is all the analysis can use and two would fight over
-    // the same crop-and-rate mode; face-on/DTL/Other stay shareable as above.
-    // A connected camera that moves into or out of Impact (either way, the
+    // Assigns a perspective by camera key, through the Rig, which keeps Impact
+    // exclusive: the camera that held it becomes None. One impact camera is all
+    // the analysis can use and two would fight over the same crop-and-rate
+    // mode; face-on/DTL/Other stay shareable (two face-on cameras in a session).
+    // When the Rig says so, each live camera takes its new role, and a
+    // connected camera that moves into or out of Impact (either way, the
     // stripped one too) is reconnected so its camera settings follow the role.
+    // PRECONDITION: a caller that moves a camera to or from Impact writes that
+    // role's device settings (exposure, rate, the #impact crop) first.
     Q_INVOKABLE void assignPerspective(const QString &cameraKey, int perspective);
     // Reconnects a connected camera so its instance re-reads the settings it
     // freezes at construction. Settings calls it when a locked exposure or
@@ -161,9 +178,9 @@ public slots:
     Q_INVOKABLE void reconnectCamera(const QString &cameraKey);
     Q_INVOKABLE void setIsMirrored(QObject *controller, bool mirrored);
 
-    // Sets the hitting-area ROI on one camera and persists it per cameraKey.
-    // Restored on connect when the camera is fixed in place (a moved camera
-    // invalidates the stored area). An empty rect clears both. Changing the
+    // Sets the hitting-area ROI on one camera's live instance and asks the Rig
+    // to keep it. Restored on connect when the camera is fixed in place (a moved
+    // camera invalidates the stored area). An empty rect clears both. Changing the
     // ROI drops any live calibration profile (hard invalidation, design §6).
     Q_INVOKABLE void setBallRoi(QObject *controller, QRectF roi);
     Q_INVOKABLE void clearBallRoi(QObject *controller);
@@ -248,4 +265,11 @@ private:
 #endif
 
     CameraInstance *createController(const Device &device);
+
+    // The Rig, as handed in (attachRig): its commands, and its two parts as last told.
+    QList<pp_camrig::ManagedCamera> managedCameras() const;
+    int                             indexOf(const pinpoint::rig::DeviceKey &camera) const;
+    CameraInstance                 *controllerOf(const pinpoint::rig::DeviceKey &camera) const;
+    pinpoint::RigCameraCommands    *m_rig = nullptr;
+    pinpoint::rig::RigParts         m_rigParts;
 };

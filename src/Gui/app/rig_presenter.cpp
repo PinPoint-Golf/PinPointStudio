@@ -18,9 +18,29 @@
 
 #include "rig_presenter.h"
 
+#include "../../Core/pp_debug.h"
 #include "../../DomainModel/rig.h"
 
 namespace pinpoint {
+
+namespace {
+
+// A camera key as QML hands it; a null key (with a warning) when it is not one.
+rig::DeviceKey cameraFrom(const QString &cameraKey, const char *command)
+{
+    const rig::DeviceKey k = rig::DeviceKey::fromPersistedCameraKey(cameraKey);
+    if (!k.isCamera()) ppWarn() << "[app.rig]" << command << ": not a camera key, nothing changed:" << cameraKey;
+    return k;
+}
+
+const rig::CameraSetup *cameraEntry(const Rig &r, const QString &cameraKey)
+{
+    for (const rig::CameraSetup &c : r.parts().state.cameras)
+        if (c.key().persistedCameraKey() == cameraKey) return &c;
+    return nullptr;
+}
+
+} // namespace
 
 void RigDeviceListModel::setKeys(const QStringList &keys)
 {
@@ -46,11 +66,17 @@ QHash<int, QByteArray> RigDeviceListModel::roleNames() const
     return { { KeyRole, QByteArrayLiteral("key") } };
 }
 
-RigPresenter::RigPresenter(const Rig &rig, QObject *parent)
+RigPresenter::RigPresenter(Rig &rig, QObject *parent)
     : QObject(parent), m_rig(rig), m_cameras(new RigDeviceListModel(this)), m_sensors(new RigDeviceListModel(this))
 {
     refresh();
-    connect(&m_rig, &Rig::rigChanged, this, &RigPresenter::refresh);
+    connect(&m_rig, &Rig::rigChanged, this, [this] {
+        refresh();
+        emit camerasChanged();
+    });
+    connect(&m_rig, &Rig::rigDeviceLabelChanged, this, [this](const rig::DeviceKey &device) {
+        if (device.isCamera()) emit camerasChanged();
+    });
 }
 
 QString RigPresenter::rigId() const { return m_rig.id().toString(); }
@@ -62,6 +88,84 @@ void RigPresenter::refresh()
     for (const auto &s : m_rig.parts().state.sensors) sensors << s.key.persisted();
     m_cameras->setKeys(cameras);
     m_sensors->setKeys(sensors);
+}
+
+QStringList RigPresenter::camerasMirrored() const
+{
+    QStringList out;
+    for (const auto &c : m_rig.parts().state.cameras)
+        if (c.mirrored) out << c.key().persistedCameraKey();
+    return out;
+}
+
+QStringList RigPresenter::camerasFixedInPlace() const
+{
+    QStringList out;
+    for (const auto &c : m_rig.parts().state.cameras)
+        if (c.fixedInPlace) out << c.key().persistedCameraKey();
+    return out;
+}
+
+QStringList RigPresenter::camerasDisabled() const
+{
+    QStringList out;
+    for (const auto &e : m_rig.parts().other.enabledOnThisMachine)
+        if (e.first.isCamera() && !e.second) out << e.first.persistedCameraKey();
+    return out;
+}
+
+int RigPresenter::perspectiveOf(const QString &cameraKey) const
+{
+    const rig::CameraSetup *c = cameraEntry(m_rig, cameraKey);
+    return c ? c->perspectiveCode() : 0;
+}
+
+QRectF RigPresenter::hittingAreaOf(const QString &cameraKey) const
+{
+    const rig::CameraSetup *c = cameraEntry(m_rig, cameraKey);
+    return c && c->hittingArea ? *c->hittingArea : QRectF();
+}
+
+QString RigPresenter::aliasOf(const QString &cameraKey) const
+{
+    for (const auto &a : m_rig.parts().other.aliases)
+        if (a.first.isCamera() && a.first.persistedCameraKey() == cameraKey) return a.second;
+    return {};
+}
+
+void RigPresenter::assignPerspective(const QString &cameraKey, int perspective)
+{
+    if (const auto k = cameraFrom(cameraKey, "assignPerspective"); k.isCamera()) m_rig.assignPerspective(k, perspective);
+}
+
+void RigPresenter::setMirrored(const QString &cameraKey, bool mirrored)
+{
+    if (const auto k = cameraFrom(cameraKey, "setMirrored"); k.isCamera()) m_rig.setMirrored(k, mirrored);
+}
+
+void RigPresenter::setFixedInPlace(const QString &cameraKey, bool fixedInPlace)
+{
+    if (const auto k = cameraFrom(cameraKey, "setFixedInPlace"); k.isCamera()) m_rig.setFixedInPlace(k, fixedInPlace);
+}
+
+void RigPresenter::setHittingArea(const QString &cameraKey, const QRectF &box)
+{
+    if (const auto k = cameraFrom(cameraKey, "setHittingArea"); k.isCamera()) m_rig.setHittingArea(k, box);
+}
+
+void RigPresenter::clearHittingArea(const QString &cameraKey)
+{
+    if (const auto k = cameraFrom(cameraKey, "clearHittingArea"); k.isCamera()) m_rig.clearHittingArea(k);
+}
+
+void RigPresenter::setAlias(const QString &cameraKey, const QString &alias)
+{
+    if (const auto k = cameraFrom(cameraKey, "setAlias"); k.isCamera()) m_rig.setAlias(k, alias);
+}
+
+void RigPresenter::setEnabledOnThisMachine(const QString &cameraKey, bool enabled)
+{
+    if (const auto k = cameraFrom(cameraKey, "setEnabledOnThisMachine"); k.isCamera()) m_rig.setEnabledOnThisMachine(k, enabled);
 }
 
 } // namespace pinpoint

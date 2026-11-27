@@ -25,7 +25,9 @@
 // tuningKey as they were before C-1b; imu_roles::aliasKey and capture_context.cpp's prior key as they
 // were before C-1c, which spell through the types now), and hm_unit_id::unitIdFor. It is
 // written through the REAL AppSettings into a scratch store, read back by a second AppSettings, and only
-// then looked up with the typed keys. A test that built the fixture with the types would prove nothing.
+// then looked up with the typed keys; the six camera keys the Rig took over (platform refactor C-5b), which
+// AppSettings no longer holds, are written and read raw, whole maps, as the last build before it wrote them.
+// A test that built the fixture with the types would prove nothing.
 //
 // Devices: two cameras (one with a serial, one without, whose device id is a Windows path full of '#'),
 // a Witmotion and a HackMotion wG3.
@@ -338,13 +340,18 @@ static void testSettingsFixture()
     const QString hmLower  = hmu::unitIdFor(kHm.id, hmu::kLowerArm), hmPalm = hmu::unitIdFor(kHm.id, hmu::kPalm);
     const QString prior    = todaysPriorKey(camA);   // camera A is the fixed face-on camera
     {
-        AppSettings s;   // today's writer
-        s.setCameraPerspective({ { camA, 2 }, { camB, 1 } });
-        s.setCameraIsMirrored({ { camA, false }, { camB, true } });
-        s.setCameraFixedInPlace({ { camA, true }, { camB, false } });
-        s.setCameraBallRoi({ { camA, box(0.4, 0.6, 0.1, 0.1) } });
-        s.setCameraAlias({ { camA, QStringLiteral("Face-on") }, { camB, QStringLiteral("Webcam") } });
-        s.setCameraExcluded({ camB });
+        // The six camera keys the Rig took over (C-5b) as the last build before it wrote them: whole maps, one
+        // setValue each, through the settings store. Nothing writes them now; they are kept for the copy (SET-09).
+        {
+            QSettings raw = ppSettings();
+            raw.setValue(QStringLiteral("camera/perspective"), QVariantMap{ { camA, 2 }, { camB, 1 } });
+            raw.setValue(QStringLiteral("camera/isMirrored"), QVariantMap{ { camA, false }, { camB, true } });
+            raw.setValue(QStringLiteral("camera/fixedInPlace"), QVariantMap{ { camA, true }, { camB, false } });
+            raw.setValue(QStringLiteral("camera/ballRoi"), QVariantMap{ { camA, box(0.4, 0.6, 0.1, 0.1) } });
+            raw.setValue(QStringLiteral("camera/alias"), QVariantMap{ { camA, QStringLiteral("Face-on") }, { camB, QStringLiteral("Webcam") } });
+            raw.setValue(QStringLiteral("camera/excluded"), QStringList{ camB });
+        }
+        AppSettings s;   // today's writer of the rest
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.0, 1.0, 1.0) },
                          { todaysRoiKey(camA, kImpact), box(0.25, 0.4, 0.5, 0.234375) },
                          { todaysRoiKey(camB, 1), box(0.2, 0.0, 0.6, 1.0) } });
@@ -362,6 +369,8 @@ static void testSettingsFixture()
     }
 
     AppSettings r;   // today's reader, a fresh load from the scratch store
+    const QSettings raw = ppSettings();   // the Rig's six camera keys, read as the copy reads them
+    const auto rawMap = [&raw](const char *k) { return raw.value(QLatin1String(k)).toMap(); };
     const DeviceKey a = camKey(kCamA), b = camKey(kCamB), w = imuKey(kWit), h = imuKey(kHm);
 
     // Each map holds exactly the keys the types spell: the same strings, not merely the same lookups.
@@ -369,12 +378,12 @@ static void testSettingsFixture()
         got.sort(); want.sort();
         check(label + QStringLiteral(": stored keys = typed spellings"), got == want);
     };
-    keysAre("camera/perspective", r.cameraPerspective().keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
-    keysAre("camera/isMirrored", r.cameraIsMirrored().keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
-    keysAre("camera/fixedInPlace", r.cameraFixedInPlace().keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
-    keysAre("camera/ballRoi", r.cameraBallRoi().keys(), { a.persistedCameraKey() });
-    keysAre("camera/alias", r.cameraAlias().keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
-    keysAre("camera/excluded", r.cameraExcluded(), { b.persistedCameraKey() });
+    keysAre("camera/perspective", rawMap("camera/perspective").keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
+    keysAre("camera/isMirrored", rawMap("camera/isMirrored").keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
+    keysAre("camera/fixedInPlace", rawMap("camera/fixedInPlace").keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
+    keysAre("camera/ballRoi", rawMap("camera/ballRoi").keys(), { a.persistedCameraKey() });
+    keysAre("camera/alias", rawMap("camera/alias").keys(), { a.persistedCameraKey(), b.persistedCameraKey() });
+    keysAre("camera/excluded", raw.value(QStringLiteral("camera/excluded")).toStringList(), { b.persistedCameraKey() });
     keysAre("camera/roi", r.cameraRoi().keys(), { a.persistedRoiKey(CropEntry::Shared), a.persistedRoiKey(CropEntry::ImpactStrip),
                                                   b.persistedRoiKey(CropEntry::Shared) });
     keysAre("camera/exposureUs", r.cameraExposureUs().keys(),
@@ -389,14 +398,15 @@ static void testSettingsFixture()
     keysAre("analysis/clubLenPrior", r.clubLenPrior().keys(), { todaysPriorKey(a.persistedCameraKey()) });
 
     // And each value resolves through the typed key.
-    check("perspective A", r.cameraPerspective().value(a.persistedCameraKey()).toInt() == 2);
-    check("perspective B", r.cameraPerspective().value(b.persistedCameraKey()).toInt() == 1);
-    check("mirrored B", r.cameraIsMirrored().value(b.persistedCameraKey()).toBool());
-    check("fixed A", r.cameraFixedInPlace().value(a.persistedCameraKey()).toBool());
-    check("ball box A", r.cameraBallRoi().value(a.persistedCameraKey()).toMap().value("x").toDouble() == 0.4);
-    check("alias A", r.cameraAlias().value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
-    check("alias B", r.cameraAlias().value(b.persistedCameraKey()).toString() == QStringLiteral("Webcam"));
-    check("excluded B", r.cameraExcluded().contains(b.persistedCameraKey()) && !r.cameraExcluded().contains(a.persistedCameraKey()));
+    check("perspective A", rawMap("camera/perspective").value(a.persistedCameraKey()).toInt() == 2);
+    check("perspective B", rawMap("camera/perspective").value(b.persistedCameraKey()).toInt() == 1);
+    check("mirrored B", rawMap("camera/isMirrored").value(b.persistedCameraKey()).toBool());
+    check("fixed A", rawMap("camera/fixedInPlace").value(a.persistedCameraKey()).toBool());
+    check("ball box A", rawMap("camera/ballRoi").value(a.persistedCameraKey()).toMap().value("x").toDouble() == 0.4);
+    check("alias A", rawMap("camera/alias").value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
+    check("alias B", rawMap("camera/alias").value(b.persistedCameraKey()).toString() == QStringLiteral("Webcam"));
+    const QStringList excluded = raw.value(QStringLiteral("camera/excluded")).toStringList();
+    check("excluded B", excluded.contains(b.persistedCameraKey()) && !excluded.contains(a.persistedCameraKey()));
     check("impact strip A", pp_camroi::cropFor(r.cameraRoi(), a, kImpact)
                                 == QRectF(0.25, 0.4, 0.5, 0.234375));
     check("impact strip A, typed", r.cameraRoi().value(a.persistedRoiKey(CropEntry::ImpactStrip)).toMap().value("h").toDouble() == 0.234375);
@@ -415,7 +425,7 @@ static void testSettingsFixture()
     check("prior", r.clubLenPrior().value(todaysPriorKey(a.persistedCameraKey())).toMap().value("lenM").toDouble() == 0.94);
 
     // Read back the other way: every stored key parses, and spells itself again.
-    for (const QString &k : r.cameraPerspective().keys())
+    for (const QString &k : rawMap("camera/perspective").keys())
         same("stored camera key parses", DeviceKey::fromPersistedCameraKey(k).persistedCameraKey(), k);
     for (const QString &k : r.cameraRoi().keys()) {
         CropEntry e = CropEntry::Shared;
@@ -612,7 +622,8 @@ static void testFixtureCrops()
         s.setCameraRoi({ { todaysRoiKey(camA, 2), box(0.0, 0.1, 1.0, 0.8) },
                          { todaysRoiKey(camA, kImpact), box(0.25, 0.4, 0.5, 0.234375) },
                          { todaysRoiKey(camB, 1), box(0.2, 0.0, 0.6, 1.0) } });
-        s.setCameraAlias({ { camA, QStringLiteral("Face-on") } });
+        QSettings raw = ppSettings();   // the alias key, as the last build before the Rig's cut-over wrote it
+        raw.setValue(QStringLiteral("camera/alias"), QVariantMap{ { camA, QStringLiteral("Face-on") } });
     }
     AppSettings r;
     const DeviceKey a = pp_camroi::cameraDeviceKey(deviceFields(kCamA)), b = pp_camroi::cameraDeviceKey(deviceFields(kCamB));
@@ -621,7 +632,8 @@ static void testFixtureCrops()
         check(QStringLiteral("crop A, role %1: the shared crop").arg(p), pp_camroi::cropFor(r.cameraRoi(), a, p) == QRectF(0.0, 0.1, 1.0, 0.8));
     check("crop B, a role: its shared crop", pp_camroi::cropFor(r.cameraRoi(), b, 1) == QRectF(0.2, 0.0, 0.6, 1.0));
     check("crop B, impact role, no strip stored: none", pp_camroi::cropFor(r.cameraRoi(), b, kImpact).isEmpty());
-    check("alias A through the site's key", r.cameraAlias().value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
+    check("alias A through the site's key",
+          ppSettings().value(QStringLiteral("camera/alias")).toMap().value(a.persistedCameraKey()).toString() == QStringLiteral("Face-on"));
 }
 
 int main(int argc, char **argv)

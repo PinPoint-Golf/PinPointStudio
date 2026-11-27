@@ -105,7 +105,7 @@ CameraInstance::CameraInstance(QObject *parent)
 }
 
 CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buffer,
-                                 AppSettings *appSettings, QObject *parent)
+                                 AppSettings *appSettings, CameraRigFacts rig, QObject *parent)
     : QObject(parent)
     , m_captureThread(new QThread(this))
     , m_deviceId(device.id)
@@ -114,12 +114,14 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
     , m_videoInput(VideoInputFactory::create(device.backend))
     , m_eventBuffer(buffer)
 {
-    // Read the saved alias from the shared AppSettings instance owned by main().
-    // When no pointer is supplied (tests/tools) the alias is simply left empty.
+    // The alias and the role are the Rig's, handed in by the camera manager
+    // (RigFacts). When no settings are supplied (tests/tools) the alias is left
+    // empty, as before.
     if (appSettings) {
         const pinpoint::rig::DeviceKey camKey = pp_camroi::cameraDeviceKey(device);
         const QString key = camKey.persistedCameraKey();
-        m_deviceAlias = appSettings->cameraAlias().value(key).toString();
+        const int     role = rig.perspectiveCode;
+        m_deviceAlias = rig.alias;
 
         // Persisted crop must be known BEFORE the EventBuffer registration
         // below so the ring slots are sized for the cropped frame. Loaded for
@@ -129,7 +131,6 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // (the recommended mode when none is stored), the normal crop for
         // every other role.
         {
-            const int role = appSettings->cameraPerspective().value(key).toInt();
             const QRectF roi = pp_camroi::cropFor(appSettings->cameraRoi(), camKey, role,
                                                   &device.capabilities);
             if (pp_crop::cropIsActive(roi))
@@ -141,7 +142,7 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
         // sizes the ring. Buffer-backed instances only: a settings preview
         // shows the full sensor at the camera's own exposure so the crop box
         // can be placed on a bright picture.
-        if (buffer && appSettings->cameraPerspective().value(key).toInt() == int(pinpoint::recording::Perspective::Impact)) {
+        if (buffer && role == int(pinpoint::recording::Perspective::Impact)) {
             m_captureFps = appSettings->cameraTargetFps().value(key).toDouble();
             m_captureExposureUs =
                 appSettings->cameraExposureUs().value(key, kImpactDefaultExposureUs).toDouble();
@@ -155,7 +156,7 @@ CameraInstance::CameraInstance(const Device &device, pinpoint::EventBuffer *buff
             // Every other role: camera auto unless the operator locked the
             // exposure or the gain for this role (absent = auto). The rate
             // stays at the crop's maximum.
-            const QString tk = pp_camroi::tuningKey(camKey, appSettings->cameraPerspective().value(key).toInt());
+            const QString tk = pp_camroi::tuningKey(camKey, role);
             m_captureExposureUs = appSettings->cameraExposureUs().value(tk, 0.0).toDouble();
             m_captureGainDb = appSettings->cameraTuning().value(tk).toMap()
                                   .value(QStringLiteral("gainDb"), -1.0).toDouble();

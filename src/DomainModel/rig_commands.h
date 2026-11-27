@@ -24,8 +24,9 @@
 // declares only interfaces and value types, and no owner class or service. It includes only the Vocabulary's Rig
 // area, Identity and Platform (Qt value types), never rig.h, Gui, Buffer or app_settings.h.
 //
-// Today: the camera commands. The sensor commands and learnClubLength join in C-6a.2 and C-7; CameraManager and
-// CameraInstance are handed RigCameraCommands in C-5b. Nothing calls them in the running app yet.
+// Today: the camera commands, which the app calls since the cameras' cut-over (C-5b): CameraManager is handed
+// RigCameraCommands by the composition root (src/Gui/cameras/camera_rig_link.h), and app.rig forwards QML's. The sensor
+// commands and learnClubLength join in C-6a.2 and C-7.
 //
 // WHAT EACH COMMAND DOES (rig_design.md §4.1, §4.2):
 //   - The versioned ones (the perspective, mirrored, fixed in place, the hitting-area box) make a new rig state, save
@@ -34,8 +35,9 @@
 //   - The unversioned ones (an alias, enabled on this machine) save, then emit RigDeviceLabelChanged once, carrying
 //     the device's key and which of the two changed (decision 8). They make no new rig state and no RigChanged. One
 //     that changes nothing saves nothing and emits nothing.
-//   - A save that fails is logged by the store; the change stands in memory, its event is emitted, and the next
-//     command saves the whole rig again. No command is refused because the disk failed.
+//   - A save that fails is logged by the store; the change stands in memory, its event is emitted, and the Rig
+//     remembers it is unsaved: the next command, or the quit, saves the whole rig again (P4). No command is refused
+//     because the disk failed.
 //   - A camera entry whose versioned facts are all their defaults (perspective None, not mirrored, not fixed, no box,
 //     no calibration record) is the same as no entry: it is not kept in the rig state. So putting a camera back as it
 //     was gives back the earlier RigStateId, whether or not the camera was known before.

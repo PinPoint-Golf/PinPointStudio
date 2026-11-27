@@ -51,6 +51,8 @@ QtObject {
     property var cameraMgr: cameraManager
     property var imuMgr:    imuManager
     property var settings:  appSettings
+    // The Rig (`app.rig`, rig_presenter.h): each camera's fixed flag, saved box and machine-wide enabled flag.
+    property var rig:       app.rig
     property var athlete:   app.athleteController
     property var launchMon: launchMonitor
     // The visit's draft, for setupFacts (calibration outcomes). The host wires it.
@@ -210,10 +212,10 @@ QtObject {
     // One of the triangulation pair's cameras is fixed in place: stereo calibration and
     // triangulation become optional (l.408–414).
     readonly property bool anyFixedCamera: {
-        var fixed = settings.cameraFixedInPlace
+        var fixed = rig.camerasFixedInPlace
         var cams  = ctx.faceOn.concat(ctx.dtl)
         for (var i = 0; i < cams.length; ++i)
-            if (fixed[cams[i].cameraKey]) return true
+            if (fixed.indexOf(cams[i].cameraKey) >= 0) return true
         return false
     }
     // ⚠ STUBS, kept as today (D7): nothing on the camera manager reports these yet, so every
@@ -288,9 +290,9 @@ QtObject {
         var inst = ballInstance
         if (!inst || inst.roi.width > 0)
             return
-        var r = settings.cameraBallRoi[inst.cameraKey]
-        if (r && r.w > 0 && r.h > 0)
-            cameraMgr.setBallRoi(inst, Qt.rect(r.x, r.y, r.w, r.h))
+        var r = rig.hittingAreaOf(inst.cameraKey)
+        if (r.width > 0 && r.height > 0)
+            cameraMgr.setBallRoi(inst, r)
         else
             cameraMgr.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
     }
@@ -613,7 +615,7 @@ QtObject {
         var camList = cameraMgr.cameraList
         for (var i = 0; i < camList.length; ++i)
             cameraMgr.setSessionCameraEnabled(camList[i].cameraKey,
-                settings.cameraExcluded.indexOf(camList[i].cameraKey) < 0)
+                rig.camerasDisabled.indexOf(camList[i].cameraKey) < 0)
         var devList = imuMgr.imuDeviceList
         for (var j = 0; j < devList.length; ++j)
             imuMgr.setSessionImuEnabled(devList[j].id, settings.imuExcluded.indexOf(devList[j].id) < 0)

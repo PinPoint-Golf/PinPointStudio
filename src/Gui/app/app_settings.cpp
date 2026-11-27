@@ -34,8 +34,12 @@ void AppSettings::migrateImpactRoi()
     QSettings s = ppSettings();
     if (s.value(QStringLiteral("camera/impactRoiMigrated"), false).toBool())
         return;
+    // The perspective map is the Rig's since the cameras' cut-over (C-5b), which never writes this key again: read raw,
+    // as the last build before it left the map, which is what an old-format crop needs (rig_design.md §4.7). Retired
+    // with camera/impactRoiMigrated in Stage E.
+    const QVariantMap perspective = s.value(QStringLiteral("camera/perspective"), QVariantMap{}).toMap();
     bool changed = false;
-    for (auto it = m_cameraPerspective.cbegin(); it != m_cameraPerspective.cend(); ++it) {
+    for (auto it = perspective.cbegin(); it != perspective.cend(); ++it) {
         const QString key = it.key();
         const QString strip = key + QStringLiteral("#impact");
         if (it.value().toInt() != int(pinpoint::recording::Perspective::Impact) || m_cameraRoi.contains(strip)

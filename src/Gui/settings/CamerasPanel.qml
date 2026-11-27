@@ -513,16 +513,16 @@ SettingsPanelBase {
                         model: viewOptions.map(function(o) { return o.label })
 
                         Component.onCompleted: {
-                            var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
+                            var p = app.rig.perspectiveOf(camRow.camData.cameraKey)
                             for (var i = 0; i < viewOptions.length; i++) {
                                 if (viewOptions[i].perspective === p) { currentIndex = i; break }
                             }
                         }
 
                         Connections {
-                            target: appSettings
-                            function onCameraPerspectiveChanged() {
-                                var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
+                            target: app.rig
+                            function onCamerasChanged() {
+                                var p = app.rig.perspectiveOf(camRow.camData.cameraKey)
                                 for (var i = 0; i < viewCombo.viewOptions.length; i++) {
                                     if (viewCombo.viewOptions[i].perspective === p) {
                                         viewCombo.currentIndex = i; break
@@ -574,22 +574,17 @@ SettingsPanelBase {
 
                     PpChoiceChip {
                         id: mirrorChip
-                        readonly property bool isMirrored: (appSettings.cameraIsMirrored[camRow.camData.cameraKey] === true)
+                        readonly property bool isMirrored: app.rig.camerasMirrored.indexOf(camRow.camData.cameraKey) >= 0
 
                         style:    "solid"
                         label:    qsTr("Mirrored")
                         selected: isMirrored
                         onClicked: {
-                            // The clicked value, read ONCE: the map write below re-evaluates
+                            // The clicked value, read ONCE: the Rig's change re-evaluates
                             // isMirrored at once, so reading it after would hand the manager the
                             // old value, which it saves back (F31c).
                             var mirrored = !mirrorChip.isMirrored
-                            var map = appSettings.cameraIsMirrored
-                            if (mirrored)
-                                map[camRow.camData.cameraKey] = true
-                            else
-                                delete map[camRow.camData.cameraKey]
-                            appSettings.cameraIsMirrored = map
+                            app.rig.setMirrored(camRow.camData.cameraKey, mirrored)
                             if (camRow.realInstance)
                                 cameraManager.setIsMirrored(camRow.realInstance, mirrored)
                         }
@@ -696,23 +691,13 @@ SettingsPanelBase {
                         spacing: Theme.gap(6)
 
                         PpSwitch {
-                            readonly property bool fixedVal: {
-                                var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
-                                return v !== undefined ? !!v : false
-                            }
+                            readonly property bool fixedVal: app.rig.camerasFixedInPlace.indexOf(camRow.camData.cameraKey) >= 0
                             checked: fixedVal
-                            onToggled: (v) => {
-                                var map = appSettings.cameraFixedInPlace
-                                map[camRow.camData.cameraKey] = v
-                                appSettings.cameraFixedInPlace = map
-                            }
+                            onToggled: (v) => app.rig.setFixedInPlace(camRow.camData.cameraKey, v)
                         }
 
                         Text {
-                            text: {
-                                var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
-                                return (v !== undefined && !!v) ? qsTr("Yes") : qsTr("No")
-                            }
+                            text: app.rig.camerasFixedInPlace.indexOf(camRow.camData.cameraKey) >= 0 ? qsTr("Yes") : qsTr("No")
                             font.family:    Theme.fontData
                             font.pixelSize: Theme.fontSzMicro
                             color:          Theme.colorText2
@@ -2284,7 +2269,7 @@ SettingsPanelBase {
             Behavior on height { NumberAnimation { duration: Theme.durationFast } }
 
             readonly property bool fixedInPlace:
-                appSettings.cameraFixedInPlace[camRow.camData.cameraKey] === true
+                app.rig.camerasFixedInPlace.indexOf(camRow.camData.cameraKey) >= 0
 
             ColumnLayout {
                 id: ballPanelContent
@@ -2335,7 +2320,7 @@ SettingsPanelBase {
                         // A camera not fixed in place has no box restored at
                         // connect (rig_design_addendum.md:423) but may have
                         // one saved: the editor shows that box, set on the
-                        // live instance only (the store already holds it), as
+                        // live instance only (the Rig already holds it), as
                         // the Ball step does (SetupContext.ensureBallRoi).
                         // Then a click or a move re-saves the golfer's own box,
                         // never the default (F31a). With nothing saved, the
@@ -2344,9 +2329,9 @@ SettingsPanelBase {
                             var inst = camRow.realInstance
                             if (!inst || inst.roi.width > 0)
                                 return
-                            var r = appSettings.cameraBallRoi[camRow.camData.cameraKey]
-                            if (r && r.w > 0 && r.h > 0)
-                                inst.setRoi(Qt.rect(r.x, r.y, r.w, r.h))
+                            var r = app.rig.hittingAreaOf(camRow.camData.cameraKey)
+                            if (r.width > 0 && r.height > 0)
+                                inst.setRoi(r)
                             else
                                 cameraManager.setBallRoi(inst, Qt.rect(0.40, 0.55, 0.20, 0.30))
                         }

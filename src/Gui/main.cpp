@@ -380,7 +380,39 @@ int main(int argc, char *argv[])
     TranscriptionController controller(&appSettings);
     TtsController           ttsController(&appSettings);
     LlmController           llmController(&appSettings);
+    // THE RIG (information_model.md OBJ-RIG, LC-RIG; docs/design/rig_design.md §4.1, §4.4): one per machine, made here
+    // on the GUI thread with its store, which takes its folder from here (RigStore::defaultFolder(): <AppData>/rig,
+    // or PINPOINT_RIG_DIR for a test or a probe), and loaded once: a machine with nothing stored gets an empty rig and
+    // a new RigId, written once. Since the cameras' cut-over (C-5b) it is the one writer of the camera keys' facts
+    // (SET-09), so their group is copied from settings at this load, before the camera manager reads them; the sensor
+    // keys and the club-length prior follow (C-6b.1, C-7). Made before the camera manager, so it outlives it.
+    // THE CAMERA ROLE PROBE (PINPOINT_PROBE_CAMERA_ROLES, below) moves real cameras through every role: it runs on a
+    // scratch copy of the rig folder, so the machine's rig.json is never written by it (F29).
+    QString rigFolder = RigStore::defaultFolder();
+    bool    roleProbeOnScratchRig = false;
+    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_CAMERA_ROLES")) {
+        const QString scratch = RigStore::scratchCopyForProbe(rigFolder);
+        roleProbeOnScratchRig = !scratch.isEmpty();
+        if (roleProbeOnScratchRig) rigFolder = scratch;
+    }
+    RigStore               rigStore(rigFolder, { RigStore::Group::Cameras });
+    pinpoint::Rig          rig(rigStore);
+    rig.load();
+    // `app.rig`: the cameras' set-up, read and written. Made here, before the camera manager's connections, so a view
+    // hears a camera change before the manager rebuilds its camera list, as it heard AppSettings' change before.
+    pinpoint::RigPresenter rigPresenter(rig);
+    QQmlEngine::setObjectOwnership(&rigPresenter, QQmlEngine::CppOwnership);   // on main()'s stack
     CameraManager           cameraManager(&eventBuffer, &appSettings);
+    // The camera manager is handed the Rig's camera commands and its two parts, and told of every change; it applies
+    // only what changed (cameras/camera_rig_link.h; rig_design_addendum.md decisions 1 and 8). Connected before the
+    // hand-over, whose alias seeding is itself a change.
+    QObject::connect(&rig, &pinpoint::Rig::rigChanged, &cameraManager,
+                     [&rig, &cameraManager] { cameraManager.rigStateChanged(rig.parts()); });
+    QObject::connect(&rig, &pinpoint::Rig::rigDeviceLabelChanged, &cameraManager,
+                     [&rig, &cameraManager](const pinpoint::rig::DeviceKey &device, pinpoint::RigDeviceLabel which) {
+                         cameraManager.rigLabelChanged(rig.parts(), device, which);
+                     });
+    cameraManager.attachRig(&rig, rig.parts());
     BufferController        bufferController(&eventBuffer);
     // EVERY LOADED SESSION'S DIAGNOSTICS RUN (refactor step 3.7-a; DEC-02; 04 step 3 item 4: "always fire"): every session
     // an Athlete loads — the live one at its Start, one a view opens — gets its one diagnostics owner, SessionDiagnostics,
@@ -798,16 +830,6 @@ int main(int argc, char *argv[])
     StudioProfileStore     studioProfileStore;      // its keys and its folder; outlives the profile (made first)
     StudioProfile          studioProfile(studioProfileStore);
 
-    // THE RIG (information_model.md OBJ-RIG, LC-RIG; docs/design/rig_design.md §4.1, §4.4): one per machine, made here
-    // on the GUI thread with its store, which takes its folder from here (RigStore::defaultFolder(): <AppData>/rig,
-    // or PINPOINT_RIG_DIR for a test or a probe), and loaded once: a machine with nothing stored gets an empty rig and
-    // a new RigId, written once. No group of settings keys is copied into it yet (C-5b, C-6b.1, C-7): AppSettings
-    // stays each group's one writer. `app.rig` reads it.
-    RigStore               rigStore(RigStore::defaultFolder());
-    pinpoint::Rig          rig(rigStore);
-    rig.load();
-    pinpoint::RigPresenter rigPresenter(rig);
-    QQmlEngine::setObjectOwnership(&rigPresenter, QQmlEngine::CppOwnership);   // on main()'s stack, as the four below
     SessionReportModel     sessionReport;
     SessionReportListModel sessionReportList;
     ReportMailer           reportMailer;
@@ -2068,7 +2090,7 @@ int main(int argc, char *argv[])
         m.profiler                = &profilerController;
         m.resourceMonitor         = &resourceMonitor;
         m.cudaRuntime             = &cudaRuntime;
-        m.rig                     = &rigPresenter;   // app.rig (C-4: read-only)
+        m.rig                     = &rigPresenter;   // app.rig: the cameras' set-up, read and written (C-5b)
         appObject.setMembers(m);
     }
 
@@ -2134,7 +2156,9 @@ int main(int argc, char *argv[])
     // back what each camera holds after every move, write the report and quit
     // (camera_role_probe.h, flir_camera_settings.md §7). PINPOINT_PROBE_CAMERA_SERIAL limits it
     // to one camera. The operator's camera settings are restored.
-    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_CAMERA_ROLES")) {
+    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_CAMERA_ROLES") && !roleProbeOnScratchRig)
+        ppWarn() << "[Probe] the camera role probe is not started: it runs only on a scratch copy of the rig (F29)";
+    if (qEnvironmentVariableIsSet("PINPOINT_PROBE_CAMERA_ROLES") && roleProbeOnScratchRig) {
         auto *roleProbe = new CameraRoleProbe(&cameraManager, &appSettings,
                                               qEnvironmentVariable("PINPOINT_PROBE_CAMERA_ROLES"),
                                               qEnvironmentVariable("PINPOINT_PROBE_CAMERA_SERIAL"), &app);
@@ -2175,6 +2199,10 @@ int main(int argc, char *argv[])
         });
 
     exitCode = QCoreApplication::exec();
+    // A change to the Rig whose save failed, with no later command to save it again, is saved once more here, at quit,
+    // whatever route the quit took (lifecycle model RIG-T4; the Solution Architect's ruling P4, 27 Nov 2026). Nothing
+    // unsaved: nothing written.
+    rig.saveIfUnsaved();
     archiveController.stopJobs();         // its housekeeping pass reaches the Athletes: stopped before they go (step 3.8)
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
     SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)

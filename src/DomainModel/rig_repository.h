@@ -40,7 +40,8 @@ struct RigLoad {
         Nothing,    // no rig.json: a machine with nothing stored, or the file was deleted
         File,       // rig.json read, schema pinpoint.rig/1
         ReadOnly,   // a rig.json this build must not write: a newer pinpoint.rig/N (the fields it knows are read),
-                    // or one it cannot read at all (nothing is read). The store never saves over it (ppWarn says so)
+                    // or one it cannot read at all and could not move aside (nothing is read; P3). The store never
+                    // saves over it (ppWarn says so)
     };
     Source        source = Source::Nothing;
     RigId         id;                  // null when the file held none: the Rig mints one
@@ -58,8 +59,9 @@ public:
     virtual RigLoad load() = 0;
 
     // The whole file, written atomically: the id, both parts (a sensor's alignment is never written) and what the
-    // store keeps. False when nothing was written (a read-only file, a failed write): the store says why with ppWarn,
-    // and the caller keeps its state in memory.
+    // store keeps (the groups taken, the settings entries kept, and the file's entries this build cannot read, P2).
+    // False when nothing was written (a read-only file, a failed write): the store says why with ppWarn, and the
+    // caller keeps its state in memory and tries again (P4).
     virtual bool save(const RigId &id, const rig::RigParts &parts) = 0;
 };
 

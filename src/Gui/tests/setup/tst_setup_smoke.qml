@@ -32,6 +32,7 @@ Item {
 
         Component { id: imuMgrComp;    FakeImuManager {} }
         Component { id: camMgrComp;    FakeCameraManager {} }
+        Component { id: rigComp;       FakeRig {} }
         Component { id: athleteComp;   FakeAthlete {} }
         Component { id: liveWristComp; FakeLiveWrist {} }
         Component { id: sessionComp;   FakeSessionController {} }
@@ -80,6 +81,7 @@ Item {
             props.app.sessionController = fx.sessionController
             props.app.navController     = fx.navController
             props.app.shotProcessor     = props.shotProcessor
+            props.app.rig               = createTemporaryObject(rigComp, tc)   // app.rig: the cameras' set-up (C-5b)
             wiz = harness.createWithContext("ScreenSessionSetup", props, host,
                                             { width: host.width, height: host.height, visible: false })
             verify(wiz !== null, "ScreenSessionSetup failed to instantiate over the fakes")
@@ -130,7 +132,7 @@ Item {
             }
             // the app-wide objects the setup QML reads through `app` (refactor 5.8b; R-QML-1), the same fakes
             fx.app = { athleteController: fx.athleteController, sessionController: fx.sessionController,
-                       navController: fx.navController }
+                       navController: fx.navController, rig: createTemporaryObject(rigComp, tc) }
             return fx
         }
 

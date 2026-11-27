@@ -42,7 +42,8 @@
 //   launchMonitor true when a launch monitor is configured
 //   lmName        its short name, "" for none
 //   draft         wizard: the visit's draft (outcome(group), state(step)), or null
-//   cameraExcluded, imuExcluded   home: the global exclusion lists (appSettings), by key / id
+//   cameraExcluded, imuExcluded   home: the global exclusion lists (app.rig's camerasDisabled; appSettings'
+//                                 imuExcluded), by key / id
 
 function _anyConnected(cams, enabled) {
     for (var i = 0; i < (cams || []).length; ++i)

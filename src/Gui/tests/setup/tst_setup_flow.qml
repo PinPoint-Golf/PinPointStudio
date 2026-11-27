@@ -26,6 +26,7 @@ Item {
 
     Component { id: imuComp;     FakeImuManager {} }
     Component { id: camComp;     FakeCameraManager {} }
+    Component { id: rigComp;     FakeRig {} }
     Component { id: athleteComp; FakeAthlete {} }
     Component { id: lmComp;      FakeLaunchMonitor {} }
     Component { id: logComp;     FakeAppLog {} }
@@ -41,6 +42,7 @@ Item {
 
         property var imu: null
         property var cams: null
+        property var rig: null
         property var athlete: null
         property var lm: null
         property var log: null
@@ -52,14 +54,13 @@ Item {
             // Offscreen-QPA font notice, not a QML warning — see tst_setup_smoke.qml.
             if (Qt.platform.pluginName === "offscreen")
                 testLog.expect("^Populating font family aliases took \\d+ ms\\. Replace uses of missing font family \"Sans Serif\"")
-            // The REAL AppSettings (scratch QSettings) is shared by every case in this file.
+            // The REAL AppSettings (scratch QSettings) is shared by every case in this file. The cameras' set-up is
+            // the Rig's: a fresh FakeRig per case (app.rig), nothing enabled-off, fixed or boxed.
             appSettings.imuRoles           = ({})
-            appSettings.cameraExcluded     = []
             appSettings.imuExcluded        = []
-            appSettings.cameraFixedInPlace = ({})
-            appSettings.cameraBallRoi      = ({})
             imu     = imuComp.createObject(tc)
             cams    = camComp.createObject(tc)
+            rig     = rigComp.createObject(tc)
             athlete = athleteComp.createObject(tc)
             lm      = lmComp.createObject(tc)
             log     = logComp.createObject(tc)
@@ -69,9 +70,9 @@ Item {
         function cleanup() {
             if (shell) harness.destroyNow(shell)
             shell = null
-            var objs = [imu, cams, athlete, lm, log, journal]
+            var objs = [imu, cams, rig, athlete, lm, log, journal]
             for (var i = 0; i < objs.length; ++i) if (objs[i]) objs[i].destroy()
-            imu = cams = athlete = lm = log = journal = null
+            imu = cams = rig = athlete = lm = log = journal = null
             wait(0)
             var w = testLog.takeWarnings()
             compare(w.length, 0, "unexpected warnings (" + w.length + "):\n" + w.join("\n"))
@@ -83,7 +84,7 @@ Item {
                 cameraManager:     cams,
                 imuManager:        imu,
                 athleteController: athlete,
-                app:               { athleteController: athlete },   // read through `app` (refactor 5.8b; R-QML-1)
+                app:               { athleteController: athlete, rig: rig },   // read through `app` (refactor 5.8b; R-QML-1)
                 launchMonitor:     lm,
                 appLog:            log,
                 pageJournal:       journal
@@ -785,8 +786,8 @@ Item {
                 c.ensureBallRoi()
                 compare(cams.countCalls("setBallRoi"), 1)
                 fuzzyCompare(inst.roi.x, 0.40, 1e-9)
-                // A saved box is the start, fixed in place or not (FO is not fixed here).
-                appSettings.cameraBallRoi = ({ FO: { x: 0.31, y: 0.62, w: 0.12, h: 0.18 } })
+                // A saved box is the start, fixed in place or not (FO is not fixed here): the Rig's.
+                rig.setHittingArea("FO", Qt.rect(0.31, 0.62, 0.12, 0.18))
                 inst.roi = Qt.rect(0, 0, 0, 0)
                 c.ensureBallRoi()
                 compare(cams.countCalls("setBallRoi"), 2)
@@ -806,7 +807,7 @@ Item {
                 verify(c.camsAllConnected)
                 verify(c.setupFacts.faceOn); verify(c.setupFacts.dtl)
                 verify(!c.anyFixedCamera)
-                appSettings.cameraFixedInPlace = ({ DTL: true })
+                rig.setFixedInPlace("DTL", true)
                 verify(c.anyFixedCamera)
             }
         }

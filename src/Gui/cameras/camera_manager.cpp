@@ -65,33 +65,17 @@ CameraManager::CameraManager(pinpoint::EventBuffer *buffer, AppSettings *appSett
     AppSettings  fallback;
     AppSettings *s = m_appSettings ? m_appSettings : &fallback;
 
-    const QStringList excluded    = s->cameraExcluded();
     const QVariantMap targetFps   = s->cameraTargetFps();
     const QVariantMap triggerMode = s->cameraTriggerMode();
 
-    // Per-session enablement starts as a copy of the global exclusion list;
-    // session edits never flow back to settings.
-    m_sessionExcluded = excluded;
-
-    // Seed alias for any newly-seen device so it always has a value.
-    QVariantMap aliasMap   = s->cameraAlias();
-    bool        aliasDirty = false;
-
+    // The enabled flags, the session's list and the aliases are the Rig's: attachRig.
     for (auto &cam : m_cameras) {
-        const pinpoint::rig::DeviceKey camKey = deviceKey(cam);
-        const QString key = camKey.persistedCameraKey();
+        const QString key = cameraKey(cam);
         if (!key.isEmpty()) {
-            if (excluded.contains(key))    cam.excluded    = true;
             if (targetFps.contains(key))   cam.targetFps   = targetFps.value(key).toDouble();
             if (triggerMode.contains(key)) cam.triggerMode = triggerMode.value(key).toString();
-            if (!aliasMap.contains(key)) {
-                aliasMap[key] = pp_camroi::seededAlias(camKey);   // every '|' a space (C6)
-                aliasDirty = true;
-            }
         }
     }
-    if (aliasDirty)
-        s->setCameraAlias(aliasMap);
 
     // ⛔ A CROP EDIT NO LONGER REFRESHES THE CAMERA LIST, AND THAT CONNECTION
     // WAS EXPENSIVE OUT OF ALL PROPORTION TO WHAT IT BOUGHT.
@@ -146,6 +130,145 @@ CameraManager::~CameraManager()
 }
 
 // ---------------------------------------------------------------------------
+// The Rig (platform refactor C-5b; camera_rig_link.h)
+// ---------------------------------------------------------------------------
+
+void CameraManager::attachRig(pinpoint::RigCameraCommands *commands, const pinpoint::rig::RigParts &parts)
+{
+    m_rig      = commands;
+    m_rigParts = parts;
+
+    // Per-session enablement starts as a copy of the machine-wide flags (every
+    // camera key the Rig holds disabled, listed or not); session edits never
+    // flow back.
+    m_sessionExcluded.clear();
+    for (const auto &e : m_rigParts.other.enabledOnThisMachine)
+        if (e.first.isCamera() && !e.second) m_sessionExcluded.append(e.first.persistedCameraKey());
+    for (auto &cam : m_cameras)
+        cam.excluded = !pp_camrig::factsOf(m_rigParts, deviceKey(cam)).enabledOnThisMachine;
+
+    // Seed the alias of any listed camera that has none, so it always has a
+    // value: a Rig command each (C-5b What 3), at construction as before.
+    if (m_rig) {
+        QList<pinpoint::rig::DeviceKey> keys;
+        for (const auto &cam : m_cameras) keys << deviceKey(cam);
+        const pinpoint::rig::RigParts asHanded = m_rigParts;   // the commands' events update m_rigParts as they come
+        pp_camrig::requestAliasSeeds(*m_rig, asHanded, keys);
+    }
+    emit sessionCameraExcludedChanged();
+    emit cameraListChanged();
+}
+
+void CameraManager::rigStateChanged(const pinpoint::rig::RigParts &parts)
+{
+    const pinpoint::rig::RigState before = m_rigParts.state;
+    m_rigParts = parts;
+    const pp_camrig::StateReaction r = pp_camrig::reactionTo(before, m_rigParts.state, managedCameras());
+
+    // A camera that loses Impact to another is set to None with the new one's
+    // role, before anything is rebuilt; the Rig saved the state first.
+    for (const auto &p : r.perspectives)
+        if (CameraInstance *c = controllerOf(p.camera)) c->setPerspective(p.code);
+    for (const auto &m : r.mirrored)
+        if (CameraInstance *c = controllerOf(m.camera)) c->setIsMirrored(m.on);
+    for (const auto &f : r.fixedInPlace)   // held for the freeze only: never applies or withholds the box
+        if (CameraInstance *c = controllerOf(f.camera)) c->setFixedInPlace(f.on);
+    for (const auto &b : r.boxes) {
+        if (CameraInstance *c = controllerOf(b.camera)) {
+            if (b.box && !b.box->isEmpty()) c->setRoi(*b.box);
+            else                            c->clearRoi();
+        }
+    }
+
+    // A move into or out of Impact changes what the camera must be set to —
+    // crop, rate, locked exposure and gain, black level, strobe — and the
+    // ring's slot size, all of which a CameraInstance freezes when it is
+    // built. So a CONNECTED camera whose Impact-ness changed is reconnected
+    // here: the new instance reads the new role's settings and the backend
+    // writes them from the factory set up (flir_camera_settings.md §3.2, §5).
+    // Without this the camera kept the old role's settings until the next
+    // Disconnect/Connect — the dark ex-impact DTL of October 2026. Moves
+    // between the other roles change nothing on the camera and reconnect
+    // nothing. The Rig has saved the state, and the caller the role's device
+    // settings, before the rebuild reads them.
+    for (const auto &k : r.reconnect) {
+        const int i = indexOf(k);
+        if (i < 0) continue;
+        ppInfo() << "[CameraManager]" << m_cameras[i].device.description
+                 << (pp_camrig::factsOf(m_rigParts, k).perspectiveCode == int(rec::Perspective::Impact) ? "becomes" : "leaves")
+                 << "the impact role: reconnecting so its settings follow";
+        setSelected(i, false);
+        setSelected(i, true);
+    }
+    if (r.listChanged)
+        emit cameraListChanged();
+}
+
+void CameraManager::rigLabelChanged(const pinpoint::rig::RigParts &parts, const pinpoint::rig::DeviceKey &device,
+                                    pinpoint::RigDeviceLabel which)
+{
+    m_rigParts = parts;
+    if (!device.isCamera()) return;
+    const pp_camrig::CameraFacts f = pp_camrig::factsOf(m_rigParts, device);
+    if (which == pinpoint::RigDeviceLabel::Alias) {
+        // Push the new alias to the live controller so PpCameraFrame.qml updates immediately.
+        if (CameraInstance *c = controllerOf(device)) c->setDeviceAlias(f.alias);
+        emit cameraListChanged();
+        return;
+    }
+    // The enabled flag (decision 8's row, camera_rig_link.h: enabledReaction): the camera's own flag, the session's
+    // list (a global change made mid-session reaches this session too, either way) and the selection.
+    const int     index      = indexOf(device);
+    const QString sessionKey = device.persistedCameraKey();
+    pp_camrig::EnabledCamera cam;
+    if (index >= 0) cam = { true, m_cameras[index].excluded, m_cameras[index].selected };
+    const pp_camrig::EnabledReaction r =
+        pp_camrig::enabledReaction(cam, m_sessionExcluded.contains(sessionKey), f.enabledOnThisMachine);
+    if (r.nothing) return;
+    if (index >= 0) m_cameras[index].excluded = r.excluded;
+    if (r.sessionAdd) {
+        m_sessionExcluded.append(sessionKey);
+        emit sessionCameraExcludedChanged();
+    } else if (r.sessionRemove) {
+        m_sessionExcluded.removeAll(sessionKey);
+        emit sessionCameraExcludedChanged();
+    }
+    if (r.deselect) setSelected(index, false);
+    else if (r.select) setSelected(index, true);
+    emit cameraListChanged();
+}
+
+int CameraManager::perspectiveOf(const QString &cameraKey) const
+{
+    return pp_camrig::factsOf(m_rigParts, pinpoint::rig::DeviceKey::fromPersistedCameraKey(cameraKey)).perspectiveCode;
+}
+
+QString CameraManager::aliasOf(const QString &cameraKey) const
+{
+    return pp_camrig::factsOf(m_rigParts, pinpoint::rig::DeviceKey::fromPersistedCameraKey(cameraKey)).alias;
+}
+
+QList<pp_camrig::ManagedCamera> CameraManager::managedCameras() const
+{
+    QList<pp_camrig::ManagedCamera> out;
+    for (const auto &cam : m_cameras) out.append({ deviceKey(cam), cam.selected, cam.controller != nullptr });
+    return out;
+}
+
+int CameraManager::indexOf(const pinpoint::rig::DeviceKey &camera) const
+{
+    for (int i = 0; i < m_cameras.size(); ++i)
+        if (deviceKey(m_cameras[i]) == camera) return i;
+    return -1;
+}
+
+CameraInstance *CameraManager::controllerOf(const pinpoint::rig::DeviceKey &camera) const
+{
+    const int i = indexOf(camera);
+    return i >= 0 ? m_cameras[i].controller : nullptr;
+}
+
+// ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------
 
@@ -153,8 +276,6 @@ QVariantList CameraManager::cameraList() const
 {
     AppSettings  fallback;
     AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    const QVariantMap perspMap  = s->cameraPerspective();
-    const QVariantMap aliasMap  = s->cameraAlias();
     const QVariantMap roiMap    = s->cameraRoi();
 
     QVariantList list;
@@ -163,10 +284,11 @@ QVariantList CameraManager::cameraList() const
         const CameraCapabilities &cap = cam.device.capabilities;
         const pinpoint::rig::DeviceKey camKey = deviceKey(cam);
         const QString key = camKey.persistedCameraKey();
+        const pp_camrig::CameraFacts rigFacts = pp_camrig::factsOf(m_rigParts, camKey);
         QVariantMap entry;
         entry[QStringLiteral("index")]       = i;
         entry[QStringLiteral("description")] = cam.device.description;
-        entry[QStringLiteral("alias")]       = aliasMap.value(key).toString();
+        entry[QStringLiteral("alias")]       = rigFacts.alias;
         entry[QStringLiteral("selected")]    = cam.selected;
         entry[QStringLiteral("vendorName")]  = cap.vendorName;
         entry[QStringLiteral("modelName")]   = cap.modelName;
@@ -201,7 +323,7 @@ QVariantList CameraManager::cameraList() const
         int initW = sensorW, initH = sensorH;
         if (sensorW > 0 && sensorH > 0) {
             // The ROLE's crop (camera_roi.h), as the instance will apply it.
-            const QRectF roi = pp_camroi::cropFor(roiMap, camKey, perspMap.value(key, 0).toInt(), &cap);
+            const QRectF roi = pp_camroi::cropFor(roiMap, camKey, rigFacts.perspectiveCode, &cap);
             if (pp_crop::cropIsActive(roi)) {
                 const QRect c = pp_crop::snapCropRect(
                     roi.intersected(QRectF(0.0, 0.0, 1.0, 1.0)), sensorW, sensorH);
@@ -217,7 +339,7 @@ QVariantList CameraManager::cameraList() const
         entry[QStringLiteral("hwTrigger")]   = cap.trigger.hasHardwareInput;
         entry[QStringLiteral("enabled")]     = !cam.excluded;
         entry[QStringLiteral("sessionEnabled")] = !m_sessionExcluded.contains(key);
-        entry[QStringLiteral("perspective")] = perspMap.value(key, 0).toInt();
+        entry[QStringLiteral("perspective")] = rigFacts.perspectiveCode;
 
         // Impact-camera modes: the crops the backend probed at enumeration
         // (video_input_factory.cpp) that reach the 420 fps the impact camera
@@ -546,7 +668,7 @@ void CameraManager::enumerate()
             AppSettings  efallback;
             AppSettings *es = m_appSettings ? m_appSettings : &efallback;
             const QString key = cameraKey(entry);
-            if (es->cameraExcluded().contains(key))    entry.excluded    = true;
+            if (!pp_camrig::factsOf(m_rigParts, deviceKey(entry)).enabledOnThisMachine) entry.excluded = true;
             if (es->cameraTargetFps().contains(key))   entry.targetFps   = es->cameraTargetFps().value(key).toDouble();
             if (es->cameraTriggerMode().contains(key)) entry.triggerMode = es->cameraTriggerMode().value(key).toString();
             m_cameras.append(entry);
@@ -564,42 +686,9 @@ void CameraManager::setExcluded(int index, bool excluded)
 {
     if (index < 0 || index >= m_cameras.size()) return;
     if (m_cameras[index].excluded == excluded) return;
-
-    m_cameras[index].excluded = excluded;
-
-    // Keep the session list consistent with a global change made mid-session:
-    // globally disabling a camera disables it for this session too, and vice versa.
-    const QString sessionKey = cameraKey(m_cameras[index]);
-    if (!sessionKey.isEmpty()) {
-        if (excluded && !m_sessionExcluded.contains(sessionKey)) {
-            m_sessionExcluded.append(sessionKey);
-            emit sessionCameraExcludedChanged();
-        } else if (!excluded && m_sessionExcluded.contains(sessionKey)) {
-            m_sessionExcluded.removeAll(sessionKey);
-            emit sessionCameraExcludedChanged();
-        }
-    }
-
-    if (excluded && m_cameras[index].selected) {
-        setSelected(index, false);
-    } else if (!excluded && !m_cameras[index].selected) {
-        setSelected(index, true);
-    }
-
-    // Persist to AppSettings keyed by serial number.
-    const QString key = cameraKey(m_cameras[index]);
-    if (!key.isEmpty()) {
-        AppSettings  xfallback;
-        AppSettings *xs = m_appSettings ? m_appSettings : &xfallback;
-        QStringList excList = xs->cameraExcluded();
-        if (excluded)
-            excList.append(key);
-        else
-            excList.removeAll(key);
-        xs->setCameraExcluded(excList);
-    }
-
-    emit cameraListChanged();
+    // The machine-wide flag is the Rig's. When it says so (rigLabelChanged) the
+    // camera's flag, the session's list and the selection follow.
+    if (m_rig) pp_camrig::requestExcluded(*m_rig, deviceKey(m_cameras[index]), excluded);
 }
 
 QStringList CameraManager::sessionCameraExcluded() const
@@ -721,81 +810,18 @@ void CameraManager::setTriggerMode(int index, const QString &mode)
     m_cameras[index].triggerMode = mode;
 }
 
-void CameraManager::setPerspective(QObject *rawController, int perspective)
-{
-    auto *target = qobject_cast<CameraInstance *>(rawController);
-    if (!target)
-        return;
-
-    // Any number of cameras may share a perspective (e.g. two face-on cameras
-    // in one session) — assignment is per-camera, nothing is cleared.
-    target->setPerspective(perspective);
-    emit cameraListChanged();
-}
-
 void CameraManager::assignPerspective(const QString &key, int perspective)
 {
     if (key.isEmpty()) return;
-
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = s->cameraPerspective();
-    const QVariantMap before = map;
-
-    // Impact is exclusive: strip it from every other camera, persisted and live.
-    if (perspective == int(rec::Perspective::Impact)) {
-        for (auto it = map.begin(); it != map.end();) {
-            if (it.key() != key && it.value().toInt() == int(rec::Perspective::Impact))
-                it = map.erase(it);
-            else
-                ++it;
-        }
-        for (const auto &cam : m_cameras) {
-            if (cam.controller && cameraKey(cam) != key
-                && cam.controller->perspective() == int(rec::Perspective::Impact))
-                cam.controller->setPerspective(int(rec::Perspective::None));
-        }
+    const pinpoint::rig::DeviceKey camera = pinpoint::rig::DeviceKey::fromPersistedCameraKey(key);
+    if (!camera.isCamera()) {
+        ppWarn() << "[CameraManager] assignPerspective: not a camera key, nothing changed:" << key;
+        return;
     }
-
-    if (perspective != int(rec::Perspective::None))
-        map[key] = perspective;
-    else
-        map.remove(key);
-    s->setCameraPerspective(map);
-
-    for (const auto &cam : m_cameras) {
-        if (cam.controller && cameraKey(cam) == key)
-            cam.controller->setPerspective(perspective);
-    }
-
-    // A move into or out of Impact changes what the camera must be set to —
-    // crop, rate, locked exposure and gain, black level, strobe — and the
-    // ring's slot size, all of which a CameraInstance freezes when it is
-    // built. So a CONNECTED camera whose Impact-ness changed is reconnected
-    // here: the new instance reads the new role's settings and the backend
-    // writes them from the factory set up (flir_camera_settings.md §3.2, §5).
-    // Without this the camera kept the old role's settings until the next
-    // Disconnect/Connect — the dark ex-impact DTL of October 2026. Moves
-    // between the other roles change nothing on the camera and reconnect
-    // nothing. Settings are saved above, before the rebuild reads them.
-    const auto isImpact = [](const QVariantMap &m, const QString &k) {
-        return m.value(k).toInt() == int(rec::Perspective::Impact);
-    };
-    QList<int> reconnect;
-    for (int i = 0; i < m_cameras.size(); ++i) {
-        const QString k = cameraKey(m_cameras[i]);
-        if (m_cameras[i].selected && m_cameras[i].controller && !k.isEmpty()
-            && isImpact(before, k) != isImpact(map, k))
-            reconnect << i;
-    }
-    for (int i : reconnect) {
-        ppInfo() << "[CameraManager]" << m_cameras[i].device.description
-                 << (isImpact(map, cameraKey(m_cameras[i])) ? "becomes" : "leaves")
-                 << "the impact role: reconnecting so its settings follow";
-        setSelected(i, false);
-        setSelected(i, true);
-    }
-    emit cameraListChanged();
+    // The Rig keeps Impact exclusive and saves; its RigChanged comes back as
+    // rigStateChanged, which sets the live cameras and reconnects any whose
+    // Impact-ness changed.
+    if (m_rig) pp_camrig::requestPerspective(*m_rig, camera, perspective);
 }
 
 void CameraManager::reconnectCamera(const QString &key)
@@ -817,20 +843,12 @@ void CameraManager::setIsMirrored(QObject *rawController, bool mirrored)
         return;
 
     target->setIsMirrored(mirrored);
-
-    AppSettings  fallback;
-    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = ps->cameraIsMirrored();
     for (const auto &cam : m_cameras) {
         if (cam.controller == target) {
-            if (mirrored)
-                map[cameraKey(cam)] = true;
-            else
-                map.remove(cameraKey(cam));
+            if (m_rig) pp_camrig::requestMirrored(*m_rig, deviceKey(cam), mirrored);
             break;
         }
     }
-    ps->setCameraIsMirrored(map);
 }
 
 void CameraManager::relearnBallBaseline(QObject *rawController)
@@ -853,24 +871,16 @@ void CameraManager::setBallRoi(QObject *rawController, QRectF roi)
 
     // Profile invalidation on ROI change lives in CameraInstance::setRoi —
     // the live drag-resize path updates the instance directly, so the
-    // manager cannot be the only gate.
+    // manager cannot be the only gate. Set live first, ALWAYS: the Ball step
+    // hands back the box the Rig already holds, which changes nothing there
+    // and so comes back as no event.
     target->setRoi(roi);
-
-    AppSettings  fallback;
-    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = ps->cameraBallRoi();
     for (const auto &cam : m_cameras) {
         if (cam.controller == target) {
-            map[cameraKey(cam)] = QVariantMap{
-                {QStringLiteral("x"), roi.x()},
-                {QStringLiteral("y"), roi.y()},
-                {QStringLiteral("w"), roi.width()},
-                {QStringLiteral("h"), roi.height()},
-            };
+            if (m_rig) pp_camrig::requestBox(*m_rig, deviceKey(cam), roi);
             break;
         }
     }
-    ps->setCameraBallRoi(map);
 }
 
 void CameraManager::clearBallRoi(QObject *rawController)
@@ -880,17 +890,12 @@ void CameraManager::clearBallRoi(QObject *rawController)
         return;
 
     target->clearRoi();
-
-    AppSettings  fallback;
-    AppSettings *ps = m_appSettings ? m_appSettings : &fallback;
-    QVariantMap map = ps->cameraBallRoi();
     for (const auto &cam : m_cameras) {
         if (cam.controller == target) {
-            map.remove(cameraKey(cam));
+            if (m_rig) pp_camrig::requestClearBox(*m_rig, deviceKey(cam));
             break;
         }
     }
-    ps->setCameraBallRoi(map);
 }
 
 // ---------------------------------------------------------------------------
@@ -902,20 +907,21 @@ QObject *CameraManager::createPreviewInstance(int index)
     if (index < 0 || index >= m_cameras.size()) return nullptr;
 
     // nullptr buffer → no ring-buffer registration, no pose/throttle pipeline
-    auto *ctrl = new CameraInstance(m_cameras[index].device, nullptr, m_appSettings, this);
+    const pinpoint::rig::DeviceKey camKey = deviceKey(m_cameras[index]);
+    const pp_camrig::CameraFacts   facts  = pp_camrig::factsOf(m_rigParts, camKey);
+    auto *ctrl = new CameraInstance(m_cameras[index].device, nullptr, m_appSettings,
+                                    CameraRigFacts{ facts.perspectiveCode, facts.alias }, this);
 #ifdef HAVE_PPCP_TRANSPORT
     ctrl->setPpcpHostService(m_ppcpHostService);
 #endif
 
-    const pinpoint::rig::DeviceKey camKey = deviceKey(m_cameras[index]);
-    const QString key = camKey.persistedCameraKey();
     AppSettings  rfallback;
     AppSettings *rs = m_appSettings ? m_appSettings : &rfallback;
 
     // The crop of the camera's role (camera_roi.h) — the crop editor edits
     // the role the camera is in.
     {
-        const QRectF roi = pp_camroi::cropFor(rs->cameraRoi(), camKey, rs->cameraPerspective().value(key).toInt(),
+        const QRectF roi = pp_camroi::cropFor(rs->cameraRoi(), camKey, facts.perspectiveCode,
                                               &m_cameras[index].device.capabilities);
         if (roi.width() > 0 && roi.height() > 0)
             ctrl->setCropRoi(roi);
@@ -941,7 +947,12 @@ void CameraManager::destroyPreviewInstance(QObject *ctrl)
 
 CameraInstance *CameraManager::createController(const Device &device)
 {
-    auto *ctrl = new CameraInstance(device, m_eventBuffer, m_appSettings, this);
+    // What the Rig holds for this camera (camera_rig_link.h: restoreAtConnect).
+    const pinpoint::rig::DeviceKey camKey  = pp_camroi::cameraDeviceKey(device);
+    const pp_camrig::CameraFacts   facts   = pp_camrig::factsOf(m_rigParts, camKey);
+    const pp_camrig::ConnectRestore restore = pp_camrig::restoreAtConnect(m_rigParts, camKey);
+    auto *ctrl = new CameraInstance(device, m_eventBuffer, m_appSettings,
+                                    CameraRigFacts{ facts.perspectiveCode, facts.alias }, this);
 #ifdef HAVE_PPCP_TRANSPORT
     // ⛔ **THE SESSION'S TILES BIND TO THESE, NOT TO A PREVIEW INSTANCE.**  Until
     // 28 Aug 2026 only `createPreviewInstance()` was given the host service, so
@@ -970,56 +981,34 @@ CameraInstance *CameraManager::createController(const Device &device)
     ctrl->setPoseEnabled(m_livePoseEnabled);
     ctrl->setBallCueEnabled(m_ballCueEnabled);
 
-    // Restore persisted ROI and perspective for this device.
-    const pinpoint::rig::DeviceKey camKey = pp_camroi::cameraDeviceKey(device);
-    const QString key = camKey.persistedCameraKey();
-
+    // Restore the crop, the perspective, the mirror flag and the box for this device.
     AppSettings  cfallback;
     AppSettings *cs = m_appSettings ? m_appSettings : &cfallback;
 
     // The crop of the camera's role (camera_roi.h).
     {
-        const QRectF roi = pp_camroi::cropFor(cs->cameraRoi(), camKey, cs->cameraPerspective().value(key).toInt(),
-                                              &device.capabilities);
+        const QRectF roi = pp_camroi::cropFor(cs->cameraRoi(), camKey, facts.perspectiveCode, &device.capabilities);
         if (roi.width() > 0 && roi.height() > 0)
             ctrl->setCropRoi(roi);
     }
 
-    const QVariantMap perspMap = cs->cameraPerspective();
-    if (perspMap.contains(key)) {
-        int p = perspMap.value(key).toInt();
-        if (p > 0)
-            ctrl->setPerspective(p);
-        // The impact camera sees a 240-row strip of club and ball at ~600 fps:
-        // there is no body in it to estimate a pose on, and the pose pipeline
-        // would only burn a core. Off for good (setLivePoseEnabled skips it).
-        if (p == int(rec::Perspective::Impact))
-            ctrl->setPoseEnabled(false);
-    }
-
-    const QVariantMap mirrorMap = cs->cameraIsMirrored();
-    if (mirrorMap.contains(key))
-        ctrl->setIsMirrored(mirrorMap.value(key).toBool());
+    if (restore.perspectiveCode)
+        ctrl->setPerspective(*restore.perspectiveCode);
+    // The impact camera sees a 240-row strip of club and ball at ~600 fps:
+    // there is no body in it to estimate a pose on, and the pose pipeline
+    // would only burn a core. Off for good (setLivePoseEnabled skips it).
+    if (restore.poseOff)
+        ctrl->setPoseEnabled(false);
+    ctrl->setIsMirrored(restore.mirrored);
+    ctrl->setFixedInPlace(restore.fixedInPlace);   // for the freeze's snapshot; applies nothing
 
     // Hitting-area ROI — only restored for a fixed-in-place camera (a moved
-    // camera makes the stored area meaningless; the map entry is kept so
-    // re-fixing the camera brings it back).
-    if (cs->cameraFixedInPlace().value(key).toBool()) {
-        const QVariantMap ballRoiMap = cs->cameraBallRoi();
-        if (ballRoiMap.contains(key)) {
-            const QVariantMap r = ballRoiMap.value(key).toMap();
-            const QRectF roi(r.value(QStringLiteral("x")).toDouble(),
-                             r.value(QStringLiteral("y")).toDouble(),
-                             r.value(QStringLiteral("w")).toDouble(),
-                             r.value(QStringLiteral("h")).toDouble());
-            if (!roi.isEmpty()) {
-                // Restore the saved hitting area; the v2 temporal detector
-                // self-calibrates its baseline from the empty mat at runtime
-                // (no saved profile to apply).
-                ctrl->setRoi(roi);
-            }
-        }
-    }
+    // camera makes the stored area meaningless; the Rig keeps the box so
+    // re-fixing the camera brings it back). The v2 temporal detector
+    // self-calibrates its baseline from the empty mat at runtime (no saved
+    // profile to apply).
+    if (restore.box)
+        ctrl->setRoi(*restore.box);
 
     return ctrl;
 }
@@ -1036,28 +1025,13 @@ std::vector<CameraInstance *> CameraManager::liveCameraInstances() const
 
 void CameraManager::setCameraAlias(const QString &key, const QString &alias)
 {
-    AppSettings  fallback;
-    AppSettings *s = m_appSettings ? m_appSettings : &fallback;
-
-    QVariantMap map = s->cameraAlias();
-    const QString trimmed = alias.trimmed();
-    const QString current = map.value(key).toString();
-
-    // No-op if the alias hasn't actually changed.
-    const bool changed = trimmed.isEmpty() ? map.contains(key) : (current != trimmed);
-    if (!changed) return;
-
-    if (trimmed.isEmpty())
-        map.remove(key);
-    else
-        map[key] = trimmed;
-    s->setCameraAlias(map);
-
-    // Push the new alias to any live controller so PpCameraFrame.qml updates immediately.
-    for (const auto &cam : m_cameras) {
-        if (cameraKey(cam) == key && cam.controller)
-            cam.controller->setDeviceAlias(trimmed);
+    // Trimmed; an empty alias removes it, so the next launch seeds the default
+    // again. A change comes back as rigLabelChanged, which pushes it to the live
+    // controller and rebuilds the list; no change, nothing.
+    const pinpoint::rig::DeviceKey camera = pinpoint::rig::DeviceKey::fromPersistedCameraKey(key);
+    if (!camera.isCamera()) {
+        ppWarn() << "[CameraManager] setCameraAlias: not a camera key, nothing changed:" << key;
+        return;
     }
-
-    emit cameraListChanged();
+    if (m_rig) pp_camrig::requestAlias(*m_rig, camera, alias);
 }

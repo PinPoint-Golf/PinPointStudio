@@ -87,9 +87,9 @@ void ResourceMonitorController::refresh()
     m_snapshot = m_buffer->diagnostics();
     const bool capturing = (m_snapshot.state == pinpoint::BufferState::Capturing);
 
-    // Alias maps — read once per refresh so devices and sources share the same snapshot.
+    // Alias maps — read once per refresh so devices and sources share the same snapshot. A camera's alias and role are
+    // the Rig's (C-5b), read through the camera manager, which holds its state.
     AppSettings appSettings;
-    const QVariantMap camAliasMap = appSettings.cameraAlias();
     const QVariantMap imuAliasMap = appSettings.imuAlias();
 
     // sourceId → alias, populated while building the devices section below.
@@ -201,10 +201,11 @@ void ResourceMonitorController::refresh()
             // rename the user has already made.  Only the DEFAULT changes.
             const bool serialTellsThemApart =
                 !sn.isEmpty() && descriptionCount.value(camDev.description) > 1;
-            const QString camAlias = camAliasMap.value(camKey,
-                serialTellsThemApart
+            const QString savedAlias = m_cameras ? m_cameras->aliasOf(camKey) : QString();
+            const QString camAlias = !savedAlias.isEmpty() ? savedAlias
+                : serialTellsThemApart
                     ? camDev.description + QStringLiteral(" (") + sn + QStringLiteral(")")
-                    : camDev.description).toString();
+                    : camDev.description;
 
             if (sid != pinpoint::kInvalidSourceId)
                 sourceAliases[sid] = camAlias;
@@ -285,7 +286,7 @@ void ResourceMonitorController::refresh()
                             + QString::number(fh);
                 } else {
                     const QVariantMap roiMap = appSettings.cameraRoi();
-                    const QString roiKey = pp_camroi::key(camDevKey, appSettings.cameraPerspective().value(camKey).toInt());
+                    const QString roiKey = pp_camroi::key(camDevKey, m_cameras ? m_cameras->perspectiveOf(camKey) : 0);
                     if (roiMap.contains(roiKey)) {
                         const QVariantMap r = roiMap.value(roiKey).toMap();
                         double w = r.value(QStringLiteral("w")).toDouble();

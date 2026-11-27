@@ -31,6 +31,8 @@
 //   K8  a perspective code this build does not know survives a save and a load
 //   K9  a failed save still changes the state in memory (and its event is emitted); the next command saves again
 //   K10 a key of the wrong kind changes nothing
+//   K11 the Rig remembers a change whose save failed and saves it again at quit (P4), the launch's own save too;
+//       nothing is saved at quit when nothing is unsaved, nor over a file this build must not write
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -62,7 +64,7 @@ void check(bool c, const QString &label)
 class MemoryRepository final : public RigRepository
 {
 public:
-    RigLoad load() override { return {}; }
+    RigLoad load() override { return loaded; }
     bool    save(const RigId &id, const RigParts &parts) override
     {
         ++saves;
@@ -73,6 +75,7 @@ public:
     }
     int      saves = 0;
     bool     fail  = false;
+    RigLoad  loaded;   // what load() hands the Rig: nothing stored, unless a case says otherwise
     RigId    savedId;
     RigParts savedParts;
 };
@@ -368,6 +371,55 @@ int main(int argc, char **argv)
         rig.setEnabledOnThisMachine(DeviceKey(), false);
         check(ev.changed.isEmpty() && ev.labels.isEmpty() && repo.saves == saves && rig.parts().state.cameras.isEmpty(),
               "K10 a sensor's key given a camera command, or a null key: nothing");
+    }
+
+    std::printf("\nK11 a change whose save failed, saved again at quit (P4)\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        check(!rig.hasUnsavedChange(), "K11a after a launch that saved: nothing unsaved");
+        int saves = repo.saves;
+        rig.saveIfUnsaved();
+        check(repo.saves == saves, "K11b nothing unsaved: the quit saves nothing");
+        repo.fail = true;
+        rig.assignPerspective(camA, kDtl);
+        check(rig.hasUnsavedChange(), "K11c a failed save is remembered");
+        repo.fail = false;
+        saves = repo.saves;
+        rig.saveIfUnsaved();
+        check(repo.saves == saves + 1 && repo.savedParts.state.cameras.size() == 1
+                  && repo.savedParts.state.cameras.first().perspectiveCode() == kDtl && !rig.hasUnsavedChange(),
+              "K11d at quit the change is saved again, whole");
+        repo.fail = true;
+        rig.setAlias(camA, "Down the line");
+        repo.fail = false;
+        rig.setMirrored(camA, true);
+        check(!rig.hasUnsavedChange() && repo.savedParts.other.aliases.size() == 1,
+              "K11e the next command's save also clears it, as before");
+    }
+    {
+        MemoryRepository repo;
+        repo.fail = true;
+        Rig rig(repo);
+        rig.load();   // a new RigId, whose save fails
+        check(rig.hasUnsavedChange(), "K11f the launch's own save failed: remembered");
+        repo.fail = false;
+        rig.saveIfUnsaved();
+        check(repo.savedId == rig.id() && !rig.hasUnsavedChange(), "K11g and saved at quit, with the RigId");
+    }
+    {
+        MemoryRepository repo;
+        repo.loaded.source = RigLoad::Source::ReadOnly;
+        repo.loaded.id     = RigId::create();
+        repo.fail          = true;   // as the store refuses every save over a file this build must not write
+        Rig rig(repo);
+        rig.load();
+        rig.setMirrored(camA, true);
+        const int saves = repo.saves;
+        rig.saveIfUnsaved();
+        check(!rig.hasUnsavedChange() && repo.saves == saves,
+              "K11h a read-only file: a refused save is not an unsaved change, and the quit tries nothing");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

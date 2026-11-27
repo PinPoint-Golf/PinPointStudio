@@ -22,15 +22,16 @@
 // model LC-RIG; docs/design/rig_design.md §4.1). It holds the machine's capture set-up in two parts side by side
 // (rig::RigParts): the rig state, versioned, whose digest is its RigStateId; and the Rig's other facts, not versioned.
 // It is their one writer, and the one writer of rig.json, through RigRepository (rig_repository.h). It changes them only
-// by its commands (rig_commands.h, the contract its callers are handed; the camera commands so far, C-5a.1).
+// by its commands (rig_commands.h, the contract its callers are handed; the camera commands so far, C-5a.1, which the
+// camera manager and app.rig call since C-5b).
 //
 // LIFECYCLE. The composition root makes it, with its store, on the GUI thread, and calls load() once. It has no
 // states and lives for the application's lifetime. On a machine with nothing stored it starts empty, with a new
 // RigId, and saves that once. The state loaded at launch is the state in force, and no event is emitted for it.
 //
 // THREAD AND FAILURE. The owner thread only (the GUI thread in the app). A save that fails is logged with ppWarn by
-// the store; the state in memory stands, and the next save writes it again. Nothing is refused because the disk
-// failed.
+// the store; the state in memory stands, the Rig remembers it is unsaved, and the next command, or the quit
+// (saveIfUnsaved), writes it again. Nothing is refused because the disk failed.
 //
 // WHO INCLUDES THIS HEADER: only the composition root (src/Gui/main.cpp, src/App), app.rig (src/Gui/app/rig_presenter)
 // and the Rig's store (lint A10; rig_design.md §6 rule 8). It includes only the Vocabulary's Rig and Identity areas,
@@ -59,6 +60,13 @@ public:
     RigRef               ref() const { return RigRef(m_id, m_stateId); }
     const rig::RigParts &parts() const { return m_parts; }
 
+    // A change whose save failed is remembered (the launch's own save too): the next command saves the whole rig again,
+    // and so does saveIfUnsaved(), which the composition root calls at quit (lifecycle model RIG-T4; the Solution
+    // Architect's ruling P4, 27 Nov 2026). A file this build must not write (RigLoad::ReadOnly) is never "unsaved": its
+    // refusal is not a failure to retry. No notice is shown: that would be a design-system change.
+    bool hasUnsavedChange() const { return m_unsaved; }
+    void saveIfUnsaved();
+
     // ── The camera commands (RigCameraCommands; rig_commands.h says what each does) ──
     void assignPerspective(const rig::DeviceKey &camera, int perspectiveCode) override;
     void setMirrored(const rig::DeviceKey &camera, bool mirrored) override;
@@ -81,6 +89,8 @@ private:
     template <typename Change> void changeState(Change change);
 
     RigRepository &m_repo;
+    bool           m_readOnly = false;   // the file loaded is one this build must not write
+    bool           m_unsaved  = false;   // the last save failed, and nothing has saved since
     RigId          m_id;
     RigStateId     m_stateId;
     rig::RigParts  m_parts;

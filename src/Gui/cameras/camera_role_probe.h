@@ -31,8 +31,10 @@
 // to settle and reads back what the DEVICE holds (CameraInstance::
 // readBackSettings) and what it delivers (cameraFps, frame size), and checks
 // it against the role. The operator's camera settings, connection and capture
-// state are snapshotted first and restored after. Writes a text report, logs
-// one line per check, and quits the app.
+// state are snapshotted first and restored after; the roles are the Rig's, and
+// main.cpp runs the probe on a scratch copy of the Rig, so the machine's
+// rig.json is never written (F29). Writes a text report, logs one line per
+// check, and quits the app.
 
 #include "../../Vocabulary/Rig/device_key.h"
 
@@ -104,5 +106,5 @@ private:
     bool                    m_wasRecording = false;
     QList<int>              m_deselect;   // cameras the probe connected, disconnected at the end
     // The operator's camera settings, restored at the end.
-    QVariantMap m_perspective, m_targetFps, m_exposureUs, m_roi, m_tuning;
+    QVariantMap m_targetFps, m_exposureUs, m_roi, m_tuning;
 };

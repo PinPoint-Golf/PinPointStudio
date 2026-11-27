@@ -63,7 +63,7 @@ Item {
     // True when a connected camera is not "fixed in place" — i.e. it still needs
     // (stereo) calibration this session. The same rule as PpCameraPanel.needsCalibration
     // (camera_health.js); stays lit until the camera is calibrated/fixed.
-    readonly property bool camNeedsAttention: CameraHealth.anyNeedsCalibration(cameraManager, appSettings)
+    readonly property bool camNeedsAttention: CameraHealth.anyNeedsCalibration(cameraManager, app.rig)
 
     readonly property int  imuTotal:     imuManager.imuDeviceList.length
     readonly property int  imuConnected: imuManager.imuCount   // connected instance count

@@ -785,6 +785,9 @@ QVector<ContextObject> contextObjects()
         // the Intent step's focus choices (phase 2 C5).
         { QStringLiteral("workOnsSource"), QStringLiteral("diagnostics/work_ons_controller.h"),
           QStringLiteral("WorkOnsController") },
+        // The Rig (`app.rig`), held by SetupContext as `rig` since the cameras' cut-over (platform refactor C-5b):
+        // each camera's fixed flag, saved box and enabled flag.
+        { QStringLiteral("rig"),           QStringLiteral("app/rig_presenter.h"),      QStringLiteral("RigPresenter") },
     };
 }
 

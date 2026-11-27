@@ -863,7 +863,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         } else {   // no snapshot (cannot happen once a window exists): today's reads
             cam.perspective   = track.ctrl->perspective();
             cam.mirrored      = track.ctrl->isMirrored();
-            cam.fixedInPlace  = s->cameraFixedInPlace().value(track.ctrl->cameraKey()).toBool();
+            cam.fixedInPlace  = track.ctrl->isFixedInPlace();   // the Rig's, as the camera manager told the instance
             cam.ballSearchRoi = track.ctrl->roi();
         }
         // Timestamp provenance, for EVERY camera (event_buffer_design.md §9): which clock stamped these

@@ -22,7 +22,7 @@
 | every kind it needs present | 0 |
 | withdrawn ids | 8 |
 
-891 gaps: 2 accepted, 889 in the baseline, 0 new (a new gap fails the check); 72 warnings. "The flags" says what each kind of gap means; every gap is listed last.
+890 gaps: 2 accepted, 888 in the baseline, 0 new (a new gap fails the check); 72 warnings. "The flags" says what each kind of gap means; every gap is listed last.
 
 ## Requirements, area by area
 
@@ -172,7 +172,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DEV-1**: The app shall work with machine-vision cameras (FLIR and any GigE or USB3 Vision camera), the computer's own cameras and phones, each in a face-on, down-the-line or impact role.
   - Status: built, not verified; release v1; Must; use cases UC-4.
   - Evidence: an automated test of the logic (E1), a run over real swings (E3), and seen at the rig or in a corpus swing (E6); no automated screen test yet (E4).
-  - Tests: `perspective_test`, `rig_commands_test`.
+  - Tests: `camera_rig_link_test`, `perspective_test`, `rig_commands_test`.
   - 130 corpus swings in 2026: 3 Jul (10), 4 Jul (15), 5 Jul (10), 8 Jul (11), 9 Jul (6), 10 Jul (11), 18 Aug (11), 9 Sep (7), 20 Oct (49).
 - **REQ-DEV-2**: Every camera shall give a usable picture in the studio's light, every session.
   - Status: partial · open bug #183 (Cameras: the face-on and down-the-line cameras pick their own brightness target (−3 to −4 EV) — dark images, club tracks refused); release v1; Must; use cases UC-4.
@@ -235,8 +235,8 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
   - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-17**: The app shall keep the calibration and set-up of each studio bay and load it, so a fixed studio calibrates once.
   - Status: planned (#74 (Camera calibration programme)); release v2; Must; use cases UC-8 ; UC-18.
-  - Evidence: an automated test of the logic (E1); no automated screen test yet (E4), and never seen at the rig or in a corpus swing (E6).
-  - Tests: `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
+  - Evidence: an automated test of the logic (E1), and an automated screen test (E4); never seen at the rig or in a corpus swing (E6).
+  - Tests: `camera_rig_link_test`, `qml_ui.tst_ppcp_pair_dialog`, `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
   - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-18**: The app shall show when a camera's focus lock has failed, and restore the camera's focus.
   - Status: planned (#74 (Camera calibration programme)); release v2; Should; use cases UC-4.
@@ -1103,7 +1103,7 @@ Each flag is a kind of gap. A gap fails `rtm_check` unless it is an accepted gap
 | 1. rtm.md is stale | The page differs from what the inputs make now. It clears when python3 tools/method/make_rtm.py is run and rtm.md committed. | checked by `--check` | | | |
 | 2. An id cited anywhere does not exist, or is withdrawn | A test, an issue, uc-map.csv, an observation or a gap file names a requirement or control that does not exist, or was withdrawn. It clears when the citation is corrected. | 0 | 0 | 0 | 0 |
 | 3. A delivered, built or partial row without evidence of every kind it needs | A row requirements.md calls delivered, built or partial lacks a kind of evidence it needs. It clears when that evidence exists: a labelled test, or a passing observation in rtm_observations.csv. | 299 | 0 | 299 | 0 |
-| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 425 | 2 | 423 | 0 |
+| 4. A test with no requirement or control label | A test does not say what it proves. It clears with pp_requirement(&lt;test&gt; &lt;id&gt;...) beside its registration, or a // REQ: line in a tst_&#42;.qml file; a mechanical rename is make_rtm.py --rename &lt;old&gt; &lt;new&gt;; a test that proves neither is an accepted gap, approved by the Solution Architect. | 424 | 2 | 422 | 0 |
 | 5. An open enhancement with no Requirement: line, or one naming an unknown id | An open enhancement does not say which requirement it serves. It clears with a Requirement: line in the issue (an id, or "none"). | 12 | 0 | 12 | 0 |
 | 6. An open bug naming a delivered row: the row is failing | An open bug names a row requirements.md calls delivered, so the row is failing. It clears when the bug is closed, or no longer names the row. | 0 | 0 | 0 | 0 |
 | 7. A planned row whose issues are all closed | A planned row's issues are all closed. It clears when requirements.md's owner updates the status, or an issue is opened for what is left. | 0 | 0 | 0 | 0 |
@@ -1203,14 +1203,16 @@ Printed by every mode; they never fail the check.
 
 ## Labelled tests
 
-442 tests are registered in the source; 17 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+443 tests are registered in the source; 19 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
 | `architecture_lint_test` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `camera_rig_link_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `diagnostics_dir_order_check` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `perspective_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …) | macos | `src/Analysis/tests/CMakeLists.txt` |
+| `qml_ui.tst_ppcp_pair_dialog` | an automated screen test (E4) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Gui/CMakeLists.txt` |
 | `quit_pins_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `quit_pins_synthetic_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `rig_commands_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
@@ -1797,7 +1799,6 @@ None.
 - qml_ui.tst_pp_variability_funnel names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_funnel` baseline</sub>
 - qml_ui.tst_pp_variability_mark names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_mark` baseline</sub>
 - qml_ui.tst_pp_variability_typicality names no requirement or control it proves <sub>`4 qml_ui.tst_pp_variability_typicality` baseline</sub>
-- qml_ui.tst_ppcp_pair_dialog names no requirement or control it proves <sub>`4 qml_ui.tst_ppcp_pair_dialog` baseline</sub>
 - qml_ui.tst_rail_fold names no requirement or control it proves <sub>`4 qml_ui.tst_rail_fold` baseline</sub>
 - qml_ui.tst_ring_collar names no requirement or control it proves <sub>`4 qml_ui.tst_ring_collar` baseline</sub>
 - qml_ui.tst_session_diagnostics_chrome names no requirement or control it proves <sub>`4 qml_ui.tst_session_diagnostics_chrome` baseline</sub>
