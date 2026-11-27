@@ -33,7 +33,9 @@
 //       degraded path: the frames hold no golfer, so the analysis fails and the shot is announced as failed);
 //   R4  two saved runs record the same things;
 //   R5  a processed shot: a skip-analysis capture, exported and written, announced as processed;
-//   D1  a stand-in deferred source is reserved, polled and collected (the gather is reachable).
+//   D1  a stand-in deferred source is reserved, polled and collected (the gather is reachable);
+//   T1  the post-roll per source; T2 the window's bounds frozen at the pause, and the resume guard during the gather;
+//   T3  reserve at detection, collect at the gather; T4 the gather's own deadline, and its order against the library's.
 // The stand-ins (step 81): the camera, VideoInputStandIn, registered with the device enumerator and created only in
 // this build; the deferred source, StandInDeferredSource below, handed to the processor beside the sensor manager's.
 //
@@ -85,6 +87,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <thread>
 
@@ -275,6 +278,8 @@ struct Rig {
         });
         // Each state the processor passes through, with the buffer's state as it enters it.
         QObject::connect(processor.get(), &ShotProcessor::stateChanged, [this] {
+            stateAtUs << pinpoint::EventBuffer::nowMicros();
+            stateAtWallMs << QDateTime::currentMSecsSinceEpoch();
             states << processor->stateName();
             bufferAtState << (eventBuffer.state() == pinpoint::BufferState::Paused ? QStringLiteral("paused")
                                                                                      : QStringLiteral("capturing"));
@@ -323,6 +328,8 @@ struct Rig {
     bool swing(ShotController::Source source = ShotController::Source::Manual, int backMs = 300, int timeoutMs = 60000)
     {
         const qint64 impact = pinpoint::EventBuffer::nowMicros() - qint64(backMs) * 1000;
+        lastImpactUs  = impact;
+        lastTriggerUs = pinpoint::EventBuffer::nowMicros();
         processor->onShotDetected(source, impact, /*sessionType=*/0);
         if (!processor->busy()) return false;
         return waitFor([this] { return !processor->busy(); }, timeoutMs);
@@ -346,12 +353,27 @@ struct Rig {
     ShotListModel                            shotModel;
     std::unique_ptr<ShotProcessor>           processor;
     QVector<StandInDeferredSource *>         standInSources;   // the test's, handed to the processor (not owned)
+    qint64                                   lastImpactUs = -1, lastTriggerUs = -1;   // the last swing()'s
 
     int     processed = 0, failed = 0, outcomes = 0, announced = 0;
     int     lastShotId = -1;
     bool    lastExportOk = false, lastAnalysisOk = false;
     QString lastSwingDir, lastError;
     QStringList states, bufferAtState;
+    QVector<qint64> stateAtUs, stateAtWallMs;   // when each state was entered: the buffer's clock, the wall clock
+
+    // When the state `name` was first entered (the buffer's clock), or -1.
+    qint64 enteredUs(const QString &name) const
+    {
+        const int i = states.indexOf(name);
+        return i < 0 ? -1 : stateAtUs.value(i, -1);
+    }
+    qint64 enteredWallMs(const QString &name) const
+    {
+        const int i = states.indexOf(name);
+        return i < 0 ? -1 : stateAtWallMs.value(i, -1);
+    }
+    void clearStates() { states.clear(); bufferAtState.clear(); stateAtUs.clear(); stateAtWallMs.clear(); }
 };
 
 // Every swing document under `root` (a run's library), relative to it, sorted.
@@ -550,6 +572,120 @@ void caseDeferredReachable(const pinpoint::test::IsolatedStores &iso)
     r.processor->endSessionFolder();
 }
 
+// ── Timing pins (#394, step 83; DUTIES-shot_processor.md rows 1-4, 8-12) ──────────────────────────────────────
+
+// T1: the post-roll per source. The freeze (the pause, as the processor leaves its post-roll) lands the source's
+// post-roll after the trigger, within the timer's 5 %: Manual and Ppcp 500 ms, the four detectors 1250 ms.
+// Camera-less, one session.
+void caseTimingPostRoll(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("T1 the post-roll per source\n");
+    using S = ShotController::Source;
+    Rig r(iso, QStringLiteral("t1"));
+    r.start();
+    const struct { S source; const char *name; int ms; } rows[] = {
+        { S::Manual, "Manual", 500 }, { S::Imu, "Imu", 1250 }, { S::Pose, "Pose", 1250 },
+        { S::Ball, "Ball", 1250 },    { S::Acoustic, "Acoustic", 1250 }, { S::Ppcp, "Ppcp", 500 },
+    };
+    for (const auto &row : rows) {
+        r.clearStates();
+        const bool idle = r.swing(row.source, /*backMs=*/0);
+        const qint64 frozeUs = r.enteredUs(QStringLiteral("processing"));
+        const qint64 tookMs  = frozeUs < 0 ? -1 : (frozeUs - r.lastTriggerUs) / 1000;
+        // ⚠ ABOUT the post-roll, not at least it: the post-roll is a default (coarse) QTimer, which Qt fires within 5 %
+        // of its interval, early or late. Measured on the Mac: 1229-1233 ms for 1250, 476-514 ms for 500.
+        check(idle && tookMs >= row.ms * 95 / 100 && tookMs < row.ms + 300,
+              QStringLiteral("%1: the window is frozen %2 ms after the trigger (post-roll %3 ms)")
+                  .arg(QLatin1String(row.name)).arg(tookMs).arg(row.ms));
+    }
+    r.processor->endSessionFolder();
+}
+
+// T2 and T3: a late sensor holding the gather open for about 1.75 s (3 s from its reservation), on a skip-analysis capture with the stand-in camera (a
+// document to read the window back from). The window's bounds are frozen at the pause, not after the gather: the
+// document's clock (its window's start on the wall clock) is the pause less the 4 s window. A resume asked for during
+// the gather is refused (the guard is up from the pause). The source is reserved at the trigger with the swing's impact
+// and impact + 7 s, and collected once the gather ends, before the window is processed.
+void caseTimingGather(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("T2 the window's bounds frozen at the pause; T3 reserve at detection, collect at the gather\n");
+    Rig r(iso, QStringLiteral("t2"));
+    StandInDeferredSource late(3000);
+    r.standInSources << &late;
+    r.appSettings.setAutoReplayAfterCapture(false);
+    r.appSettings.setSaveRawFrames(true);
+    r.appSettings.setSkipAnalysisForRawCapture(true);
+    r.start();
+    check(r.connectStandInCamera(), "the stand-in camera is connected");
+    bool resumeRefused = false, resumeTried = false;
+    QObject::connect(r.processor.get(), &ShotProcessor::stateChanged, r.processor.get(), [&] {
+        if (r.processor->stateName() != QStringLiteral("gathering") || resumeTried) return;
+        resumeTried = true;
+        r.cameraManager->resumeBuffer();   // as any resume path does: QML, a capture intent
+        resumeRefused = r.eventBuffer.state() == pinpoint::BufferState::Paused;
+    });
+    const bool idle = r.swing(ShotController::Source::Imu, /*backMs=*/0);
+    const qint64 gatherUs = r.enteredUs(QStringLiteral("gathering")), processUs = r.enteredUs(QStringLiteral("processing"));
+    const qint64 pauseWallMs = r.enteredWallMs(QStringLiteral("gathering"));
+    check(idle && r.states == QStringList({ "postroll", "gathering", "processing", "idle" }),
+          "post-roll, gathering, processing, idle: " + r.states.join(QLatin1Char(' ')));
+    check(processUs - gatherUs >= 1'400'000, QStringLiteral("the gather is held open: %1 ms").arg((processUs - gatherUs) / 1000));
+    check(resumeTried && resumeRefused, "a resume asked for during the gather is refused: the buffer stays paused");
+
+    const QString dir = r.processor->lastSwingDir();
+    const pinpoint::PersistedShot shot = pinpoint::SwingDocReader::readSwingJson(dir);
+    const qint64 windowEndWallMs = shot.wallclockMs + 4000;   // clock.wallclock is the window's start; it spans 4 s
+    check(shot.ok && std::llabs(windowEndWallMs - pauseWallMs) < 150,
+          QStringLiteral("the window ends at the pause, not after the gather: %1 ms from the pause, %2 ms before the "
+                         "gather ended").arg(windowEndWallMs - pauseWallMs).arg((processUs - gatherUs) / 1000));
+
+    check(late.reserves == 1 && late.reservedImpactUs == r.lastImpactUs
+              && late.reservedDeadlineUs == r.lastImpactUs + 7'000'000,
+          "T3 reserved once, with the swing's impact and impact + 7 s");
+    check(late.reservedAtUs >= r.lastTriggerUs && late.reservedAtUs - r.lastTriggerUs < 50'000 && late.reservedAtUs < gatherUs,
+          QStringLiteral("T3 reserved at the trigger (%1 ms after it), before the pause").arg((late.reservedAtUs - r.lastTriggerUs) / 1000));
+    check(late.takes == 1 && late.takenAtUs >= gatherUs + 1'400'000 && late.takenAtUs <= processUs,
+          "T3 collected once, as the gather ends, before the window is processed");
+    r.processor->endSessionFolder();
+}
+
+// T4: the gather's own deadline. A late sensor that never reports: the gather gives up 6 s after the pause and the
+// shot goes on to its end (not an error, not a cancel). For a detector source (post-roll 1250 ms) the gather's deadline
+// lies past the library's (the reservation's impact + 7 s), as the two are ordered on purpose.
+// ⚠ AND FOR A MANUAL TRIGGER: its impact is the press itself (ShotController::commitShot: -1 is now), not back-dated, so
+// the gather gives up at about impact + 6.5 s, before the library's deadline. Measured and printed here; not pinned
+// either way, and reported.
+void caseTimingDeadline(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("T4 the gather's deadline, 6 s past the pause\n");
+    for (const auto source : { ShotController::Source::Imu, ShotController::Source::Manual }) {
+        const bool detector = source == ShotController::Source::Imu;
+        Rig r(iso, detector ? QStringLiteral("t4imu") : QStringLiteral("t4manual"));
+        StandInDeferredSource never(-1);
+        r.standInSources << &never;
+        r.start();
+        const bool idle = r.swing(source, /*backMs=*/0);
+        const qint64 gatherUs = r.enteredUs(QStringLiteral("gathering")), processUs = r.enteredUs(QStringLiteral("processing"));
+        const qint64 waitedMs = (processUs - gatherUs) / 1000;
+        const qint64 oursPastImpactMs   = (processUs - never.reservedImpactUs) / 1000;
+        const qint64 libraryPastImpactMs = (never.reservedDeadlineUs - never.reservedImpactUs) / 1000;
+        if (detector) {
+            check(idle && r.outcomes == 1, "Imu: the shot goes on to its end, with one terminal statement");
+            check(waitedMs >= 6000 && waitedMs < 6300, QStringLiteral("Imu: the gather gives up %1 ms after the pause").arg(waitedMs));
+            check(oursPastImpactMs > libraryPastImpactMs,
+                  QStringLiteral("Imu: our deadline (%1 ms past impact) lies past the library's (%2 ms)")
+                      .arg(oursPastImpactMs).arg(libraryPastImpactMs));
+        } else {
+            check(idle && waitedMs >= 6000 && waitedMs < 6300,
+                  QStringLiteral("Manual: the gather gives up %1 ms after the pause").arg(waitedMs));
+            std::printf("    NOTE Manual: our deadline lies %lld ms past impact, the library's %lld ms: %s\n",
+                        (long long)oursPastImpactMs, (long long)libraryPastImpactMs,
+                        oursPastImpactMs > libraryPastImpactMs ? "ordered" : "NOT ordered (ours first)");
+        }
+        r.processor->endSessionFolder();
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -576,6 +712,9 @@ int main(int argc, char **argv)
     caseTwoSavedRunsEqual(iso);
     caseProcessedSwing(iso);
     caseDeferredReachable(iso);
+    caseTimingPostRoll(iso);
+    caseTimingGather(iso);
+    caseTimingDeadline(iso);
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
