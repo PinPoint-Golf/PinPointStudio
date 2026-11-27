@@ -23,7 +23,17 @@
 // (rig::RigParts): the rig state, versioned, whose digest is its RigStateId; and the Rig's other facts, not versioned.
 // It is their one writer, and the one writer of rig.json, through RigRepository (rig_repository.h). It changes them only
 // by its commands (rig_commands.h, the contract its callers are handed: the camera commands, C-5a.1, which the camera
-// manager and app.rig call since C-5b; learnClubLength, which the capture service calls since C-7).
+// manager and app.rig call since C-5b; learnClubLength, which the capture service calls since C-7; the sensor commands,
+// claimRole and releaseRole, C-6a.2, which nothing in the app calls until the sensors' cut-over, C-6b.1).
+//
+// THE SENSORS' ROLES (invariant 2, one claim per role; rig_design.md §4.1, §4.3). The rig state holds each sensor
+// placement's role. A claim is decided by today's rule, imu_roles::claimRole, over the roles as today's imu/roles map
+// (rolesMapOf: the state's sensors that hold a role, each under its placement key's own spelling), with the hardware
+// facts the caller hands in; the map it answers becomes the state again, each placement keeping its alignment record.
+// Entries the Rig's store keeps outside the state (P2: a sensor entry this build cannot read; the settings entries the
+// copy could not type) are not in that map, so a claim neither displaces nor replaces them; they are written back as
+// read. The placement view (placementViewOf: today's imuPlacement) is derived from the roles by
+// imu_roles::placementFromRoles, never stored.
 //
 // THE ASSUMED RECORDS (RP-8; rig_design.md §4.3, §4.8; information_model.md §2.3, "Calibration"). The two set-up
 // assumptions the analysis makes are held as `extrinsics` records with method `assumed`, which the Rig derives from
@@ -45,7 +55,9 @@
 //
 // WHO INCLUDES THIS HEADER: only the composition root (src/Gui/main.cpp, src/App), app.rig (src/Gui/app/rig_presenter)
 // and the Rig's store (lint A10; rig_design.md §6 rule 8). It includes only the Vocabulary's Rig and Identity areas,
-// Platform, its repository and its commands' contract (§6 rule 4), never Gui, Buffer or app_settings.h (§6 rule 5).
+// Platform, its repository and its commands' contract, and (rig.cpp only) the pure role rule src/IMU/imu_role_map.h, of
+// the Rules ring (§6 rule 4, ruled by the Solution Architect, 27 Nov 2026); never Gui, Buffer, any other file of src/IMU
+// or app_settings.h (§6 rule 5).
 
 #include "rig_commands.h"
 #include "rig_repository.h"
@@ -53,10 +65,11 @@
 #include "../Vocabulary/Rig/rig_state.h"
 
 #include <QObject>
+#include <QVariantMap>
 
 namespace pinpoint {
 
-class Rig : public QObject, public RigCameraCommands, public RigLearningCommands
+class Rig : public QObject, public RigCameraCommands, public RigSensorCommands, public RigLearningCommands
 {
     Q_OBJECT
 public:
@@ -87,6 +100,19 @@ public:
     void setAlias(const rig::DeviceKey &device, const QString &alias) override;
     void setEnabledOnThisMachine(const rig::DeviceKey &device, bool enabled) override;
 
+    // ── The sensor commands (RigSensorCommands; rig_commands.h says what each does) ──
+    rig::RoleClaim claimRole(const rig::DeviceKey &sensor, analysis::SegmentRole role,
+                             const rig::SensorFactsTable &facts) override;
+    rig::RoleClaim releaseRole(const rig::DeviceKey &sensor) override;
+
+    // The sensors' roles as today's imu/roles map: each placement that holds a role, under PlacementKey::persisted(),
+    // its value the role's settings name. What claimRole decides over.
+    static QVariantMap rolesMapOf(const rig::RigState &state);
+    // The derived placement view, today's imuPlacement (the arm roles as the legacy slot letters A, B, C under the same
+    // keys; the trunk roles left out): imu_roles::placementFromRoles over rolesMapOf. Read-only, never stored.
+    static QVariantMap placementViewOf(const rig::RigState &state);
+    QVariantMap        placementView() const { return placementViewOf(m_parts.state); }
+
     // ── The learned prior (RigLearningCommands; rig_commands.h): saved, no event ──
     void learnClubLength(const rig::ClubLengthPriorKey &key, const QVariantMap &learned) override;
 
@@ -101,6 +127,8 @@ private:
     bool save();
     // A versioned command: `change` edits a copy of the state; a new digest makes it the state in force.
     template <typename Change> void changeState(Change change);
+    // One claim through today's rule: `roleName` is the role's settings name, "" to release.
+    rig::RoleClaim claim(const rig::DeviceKey &sensor, const QString &roleName, const rig::SensorFactsTable &facts);
 
     RigRepository &m_repo;
     bool           m_readOnly = false;   // the file loaded is one this build must not write

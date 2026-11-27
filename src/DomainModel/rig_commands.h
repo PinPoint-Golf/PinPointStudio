@@ -22,12 +22,14 @@
 // 2026). The Rig (rig.h) implements them; the composition root hands each caller the interface it may call, so a
 // caller never includes rig.h (lint A10). One of the Domain model's contract headers (lint A9's hubContracts()): it
 // declares only interfaces and value types, and no owner class or service. It includes only the Vocabulary's Rig
-// area, Identity and Platform (Qt value types), never rig.h, Gui, Buffer or app_settings.h.
+// area, Vocabulary/Common's segment_role.h (the role type the sensor commands take, analysis::SegmentRole), Identity
+// and Platform (Qt value types), never rig.h, Gui, Buffer, src/IMU or app_settings.h.
 //
 // Today: the camera commands, which the app calls since the cameras' cut-over (C-5b): CameraManager is handed
 // RigCameraCommands by the composition root (src/Gui/cameras/camera_rig_link.h), and app.rig forwards QML's. The
 // learned club-length prior's command (RigLearningCommands), which the capture service calls since C-7: ShotProcessor
-// is handed it by the composition root. The sensor commands join in C-6a.2.
+// is handed it by the composition root. The sensor commands (RigSensorCommands), since C-6a.2: built and tested, and
+// called by nothing in the app until the sensors' cut-over (C-6b.1), which hands them to ImuManager.
 //
 // WHAT EACH COMMAND DOES (rig_design.md §4.1, §4.2):
 //   - The versioned ones (the perspective, mirrored, fixed in place, the hitting-area box) make a new rig state, save
@@ -49,9 +51,17 @@
 //     was gives back the earlier RigStateId, whether or not the camera was known before.
 //   - A camera command given a key that is not a camera's (a sensor's, or a null key) changes nothing, and so does
 //     setAlias or setEnabledOnThisMachine given a null key.
+//   - claimRole and releaseRole (the sensors' roles, versioned) follow the versioned rule above: a claim that changes
+//     the roles makes one new state, one save and one RigChanged; one that changes nothing, is refused or is a caller
+//     error saves nothing and emits nothing. A sensor's alias and enabled flag are setAlias and setEnabledOnThisMachine
+//     with the sensor's DeviceKey (unversioned, RigDeviceLabelChanged only).
+//   - A sensor placement with no role and no alignment record is the same as no entry: it is not kept in the rig
+//     state. So claiming a role and releasing it gives back the earlier RigStateId.
 
 #include "../Vocabulary/Rig/club_length_prior_key.h"
 #include "../Vocabulary/Rig/device_key.h"
+#include "../Vocabulary/Rig/sensor_facts.h"   // SensorFactsTable, RoleClaim
+#include "../Vocabulary/Common/segment_role.h"
 
 #include <QRectF>
 #include <QString>
@@ -88,6 +98,32 @@ public:
     // Whether the device is enabled on this machine: a machine-wide preference that seeds each session. Enabled is
     // the default and is not stored.
     virtual void setEnabledOnThisMachine(const rig::DeviceKey &device, bool enabled) = 0;
+};
+
+// The sensors' roles (rig_design.md §4.1, §4.3; invariant 2, "one claim per role"). A sensor's role is held per
+// placement (PlacementKey): a Witmotion is one placement, a HackMotion two (its lower-arm and palm lanes), so the claim
+// is BY DEVICE, as today's rule is: a HackMotion claims the lead forearm and takes both lanes (lead forearm and lead
+// hand), fixed by its cable. Whether a second claim of a role is refused or displaces is decided by today's rule,
+// imu_roles::claimRole (src/IMU/imu_role_map.h), which the Rig calls and does not restate; it needs the hardware facts
+// (which device is present, switched on this session, a HackMotion), handed in as a table: the Rig never asks a device.
+//   - held by another device that is present and switched on this session: REFUSED (refusedRole, holder);
+//   - held by a device that is not present: that claim is displaced (both lanes of an absent HackMotion);
+//   - held by a device present but switched off this session: both claims stand (a parked set-up).
+// One arm instrument per wearing is this rule, not a defect: never "fixed" here.
+class RigSensorCommands
+{
+public:
+    virtual ~RigSensorCommands() = default;
+
+    // `sensor` (a sensor DeviceKey; its description is not part of the claim) takes `role`, one of the five placement
+    // roles. The device's own earlier claims go first. A key that is not a sensor's, a role that is not a placement role
+    // (SegmentRole::Unknown included), or a HackMotion asked for anything but LeadForearm is a caller error: `error` says
+    // which, and nothing changes.
+    virtual rig::RoleClaim claimRole(const rig::DeviceKey &sensor, analysis::SegmentRole role,
+                                     const rig::SensorFactsTable &facts) = 0;
+    // Every claim the device holds is removed (a Witmotion's one; both lanes of a HackMotion; a bare pin on one): today's
+    // claim of no role.
+    virtual rig::RoleClaim releaseRole(const rig::DeviceKey &sensor) = 0;
 };
 
 // The Rig's learned state (SET-05; information_model.md OBJ-RIG, CLS-RIG): the club-length prior, one entry per

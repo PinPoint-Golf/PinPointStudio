@@ -21,6 +21,7 @@
 #include "../Core/atomic_write.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_settings.h"
+#include "../IMU/imu_role_map.h"   // loadRoles, for the sensor group's copy (its inline half only)
 
 #include <QBuffer>
 #include <QCoreApplication>
@@ -595,6 +596,151 @@ void applyCameraGroup(const CameraGroup &g, RigParts &parts)
     for (const DeviceKey &k : g.excluded) flags.append({ k, false });
 }
 
+// ── The sensor group (imu/roles, imu/alias, imu/excluded; C-6a.2) ─────────────────────────────────────
+//
+// The roles are read as AppSettings reads them today (AppSettings::loadImuRoles): through imu_roles::loadRoles, with
+// the imu/rolesMigrated marker, so a machine on which the earlier imu/placement → imu/roles move never ran copies the
+// roles that move gives (rig_design.md §4.4). The copy writes nothing: not the roles, not the marker. L4 (PR-53): every
+// entry of the roles is copied verbatim, those the typed keys cannot hold included: an entry is typed when its key is a
+// placement key's spelling (any non-empty text: PlacementKey::fromPersisted spells every one again) and its value is one
+// of the five role names, as a string; any other entry (an empty key, a slot letter, "other", "", a newer build's role,
+// a value that is not a string) is kept verbatim in keptFromSettings, as the camera group keeps its, and covered by the
+// fingerprint. imu/calibration and imu/mountOrientation are not copied: nothing reads them (§4.3).
+
+const char *const kSensorRoles     = "imu/roles";
+const char *const kSensorPlacement = "imu/placement";     // read only for a machine not yet migrated (loadRoles)
+const char *const kSensorMarker    = "imu/rolesMigrated";
+const char *const kSensorAlias     = "imu/alias";
+const char *const kSensorList      = "imu/excluded";
+
+struct SensorGroup {
+    QList<SensorSetup>               sensors;   // one per typed entry of the roles
+    QList<QPair<DeviceKey, QString>> aliases;   // by description|deviceId
+    QList<DeviceKey>                 excluded;  // by bare device id
+    QJsonObject                      kept;      // settings key -> {"entries": {key: value}} | {"list": [...]} | {"whole": v}
+    QStringList                      log;       // loadRoles' lines, for a machine not yet migrated
+};
+
+bool sensorsMigrated(const QSettings &settings) { return settings.value(QLatin1String(kSensorMarker), false).toBool(); }
+
+SensorGroup readSensorGroup()
+{
+    const QSettings settings = ppSettings();   // read only: the copy never writes a key
+    SensorGroup     g;
+    // The roles, as AppSettings::loadImuRoles reads them. A key whose whole value is not a map is kept whole.
+    const bool migrated = sensorsMigrated(settings);
+    auto mapOf = [&](const char *name) -> QVariantMap {
+        const QString  key   = QLatin1String(name);
+        const QVariant whole = settings.value(key);
+        if (!whole.isValid()) return {};   // absent, or INI's "@Invalid()"
+        if (whole.typeId() != QMetaType::QVariantMap) {
+            g.kept.insert(key, QJsonObject{ { QStringLiteral("whole"), settingsValueToJson(whole) } });
+            return {};
+        }
+        return whole.toMap();
+    };
+    const QVariantMap stored = migrated ? mapOf(kSensorRoles) : QVariantMap();
+    const QVariantMap legacy = migrated ? QVariantMap() : mapOf(kSensorPlacement);
+    const imu_roles::RolesLoad load = imu_roles::loadRoles(migrated, stored, legacy);
+    g.log = load.log;
+    QJsonObject keptRoles;
+    for (auto it = load.roles.cbegin(); it != load.roles.cend(); ++it) {
+        const PlacementKey          k    = PlacementKey::fromPersisted(it.key());
+        const analysis::SegmentRole role = it.value().typeId() == QMetaType::QString
+                                               ? analysis::segmentRoleForPlacementRole(it.value().toString())
+                                               : analysis::SegmentRole::Unknown;
+        if (!k.isNull() && k.persisted() == it.key() && role != analysis::SegmentRole::Unknown) {
+            SensorSetup x;
+            x.key  = k;
+            x.role = role;
+            g.sensors.append(x);
+        } else {
+            keptRoles.insert(it.key(), settingsValueToJson(it.value()));   // never dropped (L4; decision 10)
+        }
+    }
+    if (!keptRoles.isEmpty()) g.kept.insert(QLatin1String(kSensorRoles), QJsonObject{ { QStringLiteral("entries"), keptRoles } });
+
+    // The aliases, by description|deviceId (imu_roles::aliasKey).
+    const QVariantMap aliases = mapOf(kSensorAlias);
+    QJsonObject keptAliases;
+    for (auto it = aliases.cbegin(); it != aliases.cend(); ++it) {
+        const DeviceKey k = DeviceKey::fromPersistedWithDescription(it.key());
+        if (k.isSensor() && it.value().typeId() == QMetaType::QString) {
+            if (!it.value().toString().isEmpty()) g.aliases.append({ k, it.value().toString() });
+        } else {
+            keptAliases.insert(it.key(), settingsValueToJson(it.value()));
+        }
+    }
+    if (!keptAliases.isEmpty()) g.kept.insert(QLatin1String(kSensorAlias), QJsonObject{ { QStringLiteral("entries"), keptAliases } });
+
+    // The sensors switched off on this machine, by bare device id.
+    const QVariant list = settings.value(QLatin1String(kSensorList));
+    if (!list.isValid()) {   // absent, or an emptied list as the INI file holds it
+    } else if (list.typeId() != QMetaType::QStringList && list.typeId() != QMetaType::QString
+               && list.typeId() != QMetaType::QVariantList) {
+        g.kept.insert(QLatin1String(kSensorList), QJsonObject{ { QStringLiteral("whole"), settingsValueToJson(list) } });
+    } else {
+        // A one-entry list reads back from an INI file as a plain string; an empty one as an empty string.
+        QVariantList entries;
+        if (list.typeId() == QMetaType::QString) {
+            if (!list.toString().isEmpty()) entries << list;
+        } else {
+            entries = list.toList();
+        }
+        QJsonArray keptList;
+        for (const QVariant &e : entries) {
+            const DeviceKey k = e.typeId() == QMetaType::QString ? DeviceKey::fromPersistedId(e.toString()) : DeviceKey();
+            if (k.isSensor()) {
+                if (!g.excluded.contains(k)) g.excluded.append(k);
+            } else {
+                keptList.append(settingsValueToJson(e));
+            }
+        }
+        if (!keptList.isEmpty()) g.kept.insert(QLatin1String(kSensorList), QJsonObject{ { QStringLiteral("list"), keptList } });
+    }
+    return g;
+}
+
+QString fingerprintOf(const SensorGroup &g)
+{
+    using namespace canonical_detail;
+    RigState state;
+    state.sensors = g.sensors;
+    QByteArray bytes = "pinpoint.rigGroup/sensors/1\n" + canonicalBytes(state);
+    QByteArrayList aliases, excluded;
+    for (const auto &a : g.aliases) aliases << str(a.first.persistedWithDescription()) + ' ' + str(a.second);
+    for (const DeviceKey &k : g.excluded) excluded << str(k.persistedId());
+    bytes += "aliases " + num(aliases.size()) + '\n' + sorted(aliases) + "\nexcluded " + num(excluded.size()) + '\n'
+             + sorted(excluded) + "\nkept " + QJsonDocument(g.kept).toJson(QJsonDocument::Compact) + '\n';
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+// The group into the Rig's two parts: the sensors' entries replaced (each one's alignment record carried over: it is
+// not in settings), and the sensors' aliases and enabled flags replaced. Cameras and priors are untouched, and so are
+// the entries the file holds that this build cannot read (P2: the store keeps them, outside the parts).
+void applySensorGroup(const SensorGroup &g, RigParts &parts)
+{
+    QList<SensorSetup> next = g.sensors;
+    for (const SensorSetup &old : parts.state.sensors) {
+        if (!old.calibration) continue;
+        auto it = std::find_if(next.begin(), next.end(), [&](const SensorSetup &x) { return x.key == old.key; });
+        if (it == next.end()) {
+            SensorSetup kept;
+            kept.key = old.key;
+            next.append(kept);
+            it = next.end() - 1;
+        }
+        it->calibration = old.calibration;
+    }
+    parts.state.sensors = next;
+    auto &aliases = parts.other.aliases;
+    aliases.removeIf([](const auto &a) { return a.first.isSensor(); });
+    aliases.append(g.aliases);
+    auto &flags = parts.other.enabledOnThisMachine;
+    flags.removeIf([](const auto &f) { return f.first.isSensor(); });
+    for (const DeviceKey &k : g.excluded) flags.append({ k, false });
+}
+
 // ── The club-length prior group (SET-05; C-7) ─────────────────────────────────────────────────────
 
 const char *const kPriorMap = "analysis/clubLenPrior";
@@ -681,6 +827,7 @@ struct DecodedGroup {
     QString                         fingerprint;
     QJsonObject                     kept;
     QStringList                     keys;
+    QStringList                     log;   // what the decode would tell the log at a copy (the sensors' legacy move)
     std::function<void(RigParts &)> apply;
 };
 
@@ -695,6 +842,16 @@ DecodedGroup decodeGroup(RigStore::Group g)
         for (const char *k : kCameraMaps) d.keys << QLatin1String(k);
         d.keys << QLatin1String(kCameraList);
         d.apply = [c](RigParts &parts) { applyCameraGroup(c, parts); };
+        break;
+    }
+    case RigStore::Group::Sensors: {
+        const SensorGroup x = readSensorGroup();
+        d.fingerprint = fingerprintOf(x);
+        d.kept        = x.kept;
+        d.keys << QLatin1String(kSensorRoles) << QLatin1String(kSensorPlacement) << QLatin1String(kSensorAlias)
+               << QLatin1String(kSensorList);
+        d.log   = x.log;
+        d.apply = [x](RigParts &parts) { applySensorGroup(x, parts); };
         break;
     }
     case RigStore::Group::ClubLengthPrior: {
@@ -718,6 +875,7 @@ QString RigStore::groupName(Group g)
 {
     switch (g) {
     case Group::Cameras: return QStringLiteral("cameras");
+    case Group::Sensors: return QStringLiteral("sensors");
     case Group::ClubLengthPrior: return QStringLiteral("clubLengthPrior");
     }
     return {};
@@ -777,6 +935,13 @@ bool RigStore::settingsHoldAnyKeyOf(Group g)
         for (const char *k : kCameraMaps)
             if (settings.contains(QLatin1String(k))) return true;
         return settings.contains(QLatin1String(kCameraList));
+    case Group::Sensors:
+        // The facts the copy reads: the aliases, the excluded list, and the roles where loadRoles reads them (imu/roles
+        // once the marker is set; imu/placement on a machine not yet migrated, since nothing else holds its roles).
+        // The marker alone holds no fact, and neither does imu/placement once migrated (it is never written or
+        // deleted, so it outlives the roles): either alone is no key, and leaves the Rig as it is (P1).
+        return settings.contains(QLatin1String(kSensorAlias)) || settings.contains(QLatin1String(kSensorList))
+               || settings.contains(QLatin1String(sensorsMigrated(settings) ? kSensorRoles : kSensorPlacement));
     case Group::ClubLengthPrior:
         // A key with no value at all (INI's "@Invalid()") holds no prior: the same as absent, so it never wipes one
         // (a blank or invalid club-length setting counts as absent under P1: the Solution Architect, 27 Nov 2026).
@@ -889,6 +1054,8 @@ void RigStore::copyGroups(RigLoad &out)
         else
             ppWarn() << "[RigStore] the" << name << "keys in settings no longer match rig.json's copy: an older build"
                      << "changed them, so the whole group is copied again (the last writer wins for the group)";
+        for (const QString &line : decoded.log)
+            ppInfo() << "[RigStore] the" << name << "copy reads imu/placement as the move to imu/roles would:" << line;
         decoded.apply(out.parts);
         // The group's kept entries replace its earlier ones; another group's stay.
         for (const QString &k : decoded.keys) m_kept.remove(k);

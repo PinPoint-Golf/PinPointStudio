@@ -301,6 +301,7 @@ pp_add_test(camera_rig_link_test
             ${GUI}/cameras/camera_rig_link.cpp ${GUI}/cameras/camera_rig_link.h
             ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Video

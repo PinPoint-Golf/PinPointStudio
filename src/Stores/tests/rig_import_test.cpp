@@ -57,6 +57,24 @@
 //   A1  the first copy gives the fixed face-on and the down-the-line camera their records, with no event; a group
 //       copied again after an older build's edit moves them with the set-up (a camera put on Impact loses its record);
 //       a camera gone from the group, holding only its carried-over record, is no entry, in the Rig or in rig.json
+//
+// The sensor group (imu/roles, imu/alias, imu/excluded; C-6a.2), written as AppSettings writes it:
+//   S1  an un-migrated machine (imu/placement only, no marker): the roles the earlier move would give, by today's
+//       loadRoles; the copy writes neither the roles nor the marker; the group taken; no event
+//   S2  that machine's AppSettings then makes the move (imu/roles and the marker), after a claim through the Rig: the
+//       same fingerprint, so no copy again, and the claim stands
+//   S3  the aliases by description|deviceId and the excluded list by bare id, each resolving under both sensor
+//       spellings (in the Rig, in rig.json, and through the Rig's commands); an alias key with no '|' and a value that is
+//       not a string kept verbatim
+//   S4  L4: every imu/roles entry copied verbatim, those the typed keys cannot hold (a slot letter, "other", "", a
+//       number, a newer build's role, an empty key) kept in rig.json and saved again verbatim after a command and a
+//       reload; a kept entry changed is a change (the fingerprint covers it); all six survive each re-copy (S4e, S6c)
+//   S5  P1 for the sensor group: no sensor key, the marker alone, or imu/placement alone on a migrated machine leave the
+//       Rig as it is; a group with one key copies again when its fingerprint differs
+//   S6  P2: a re-copy keeps a sensor entry in rig.json this build cannot read
+//   S7  the groups apart: the sensors copied again leave the cameras' aliases, enabled flags and kept entries
+//   S8  imu/calibration and imu/mountOrientation are not copied
+//   S9  settings writes by the copy: 0, over every sensor copy above
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -64,6 +82,7 @@
 #include "../../Core/PpMessageLog.h"
 #include "../../Core/pp_settings.h"
 #include "../../DomainModel/rig.h"
+#include "../../IMU/imu_role_map.h"   // today's loadRoles and aliasKey, which S1 and S3 compare with
 
 #include <QCoreApplication>
 #include <QDir>
@@ -75,6 +94,7 @@
 #include <QRectF>
 
 #include <cstdio>
+#include <memory>
 
 using namespace pinpoint;
 using namespace pinpoint::rig;
@@ -736,6 +756,322 @@ int main(int argc, char **argv)
             written = written || v.toObject().value("key").toString() == kBlackfly;
         check(!written, "A1d ... and is not written to rig.json");
     }
+
+
+    // ── The sensor group (C-6a.2) ─────────────────────────────────────────────────────────────────────────────────
+    const QList<RigStore::Group> sensorsOnly{ RigStore::Group::Sensors };
+    const QString kHm = QStringLiteral("{0d7a1c2e-0000-4000-8000-0000000000a1}");
+    // The rig state's roles as imu/roles holds them, by the test's own code.
+    auto rolesOf = [](const Rig &rig) {
+        QVariantMap out;
+        for (const SensorSetup &x : rig.parts().state.sensors)
+            if (x.role != analysis::SegmentRole::Unknown) out.insert(x.key.persisted(), analysis::placementRoleName(x.role));
+        return out;
+    };
+    auto aliasOf = [](const Rig &rig, const QString &spelling) {
+        for (const auto &a : rig.parts().other.aliases)
+            if (a.first.isSensor() && a.first.persistedWithDescription() == spelling) return a.second;
+        return QString();
+    };
+    auto enabledOf = [](const Rig &rig, const DeviceKey &k) {
+        for (const auto &f : rig.parts().other.enabledOnThisMachine)
+            if (f.first == k) return f.second;
+        return true;
+    };
+    auto keptSensorEntries = [](const QString &folder, const char *key) {
+        return readJson(folder + "/rig.json").value("keptFromSettings").toObject().value(QLatin1String(key)).toObject()
+            .value("entries").toObject();
+    };
+    // The six imu/roles entries S4 writes that the typed keys cannot hold, as kept in rig.json (W5's value as given).
+    auto allSixKept = [](const QJsonObject &k, const QString &w5) {
+        return k.size() == 6 && k.value("W5").toString() == w5 && k.value("W6").toString() == "other" && k.value("W7").isString()
+               && k.value("W7").toString().isEmpty() && k.value("W8").toInt() == 5 && k.value("W9").toString() == "trailForearm"
+               && k.value("").toString() == "thorax";
+    };
+    // S9: every sensor copy below is checked against the settings file's bytes before it.
+    int sensorCopies = 0, settingsWrites = 0;
+    auto copyWith = [&](const QString &folder, const QList<RigStore::Group> &groups) {
+        const QByteArray before = readAll(ini);
+        auto l = std::make_unique<Launch>(folder, groups);
+        ++sensorCopies;
+        if (readAll(ini) != before) ++settingsWrites;
+        return l;
+    };
+
+    std::printf("\nS1 an un-migrated machine: imu/placement only, no marker\n");
+    const QString s1 = stores.path() + "/s1/rig";
+    QVariantMap migratedRoles;
+    {
+        {
+            QSettings s = ppSettings();
+            s.clear();
+            s.setValue("imu/placement", QVariantMap{ { "W1", "A" }, { "W2", "B" }, { "W3", "C" }, { "W4", "D" }, { "W5", "other" },
+                                                     { kHm, "A" } });
+            s.sync();
+        }
+        reparse(ini);
+        const QByteArray before = readAll(ini);
+        // What AppSettings reads on this machine today: loadRoles with no marker, over imu/placement.
+        const imu_roles::RolesLoad today = imu_roles::loadRoles(false, {}, ppSettings().value("imu/placement").toMap());
+        migratedRoles = today.roles;
+        messagesSince(seq);
+        const auto l = copyWith(s1, sensorsOnly);
+        const QString log = messagesSince(seq);
+        check(rolesOf(l->rig) == today.roles
+                  && today.roles == QVariantMap{ { "W1", "leadForearm" }, { "W2", "leadHand" }, { "W3", "leadUpperArm" },
+                                                 { kHm, "leadForearm" } },
+              "S1a the roles the move from imu/placement gives (A, B, C; a HackMotion's bare pin as it stands), as today's "
+              "loadRoles reads them");
+        check(readAll(ini) == before && !ppSettings().contains("imu/roles") && !ppSettings().contains("imu/rolesMigrated"),
+              "S1b the copy wrote neither imu/roles nor the marker: the settings file unchanged, byte for byte");
+        check(l->events == 0 && !readJson(s1 + "/rig.json").value("groupsTaken").toObject().value("sensors").toObject().isEmpty()
+                  && log.contains("keys are copied from settings") && log.contains("slot D has no role"),
+              "S1c one load, no event; the group taken; the copy and the move's lines logged");
+        check(keptSensorEntries(s1, "imu/roles").isEmpty(),
+              "S1d the slots with no role (D, other) are dropped as the move drops them; imu/placement still holds them");
+    }
+
+    std::printf("\nS2 that machine's settings then make the move, after a claim through the Rig\n");
+    {
+        {
+            const auto l = copyWith(s1, sensorsOnly);
+            SensorFactsTable t;
+            t.set(DeviceKey::fromPersistedId(u"W4"), SensorFacts{ true, true, false });
+            check(l->rig.claimRole(DeviceKey::sensor("WT901BLE68", "W4"), analysis::SegmentRole::Pelvis, t).ok,
+                  "S2a a claim through the Rig (W4 to the pelvis)");
+        }
+        {   // AppSettings::loadImuRoles' move, as it writes it on this machine
+            QSettings s = ppSettings();
+            s.setValue("imu/roles", migratedRoles);
+            s.setValue("imu/rolesMigrated", true);
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        const auto l = copyWith(s1, sensorsOnly);
+        const QString log = messagesSince(seq);
+        check(!log.contains("no longer match") && !log.contains("copied") && rolesOf(l->rig).value("W4") == "pelvis"
+                  && rolesOf(l->rig).size() == 5,
+              "S2b the moved keys decode to the same fingerprint: no copy again, and the Rig's claim stands");
+    }
+
+    std::printf("\nS3 aliases and the excluded list, under both sensor spellings\n");
+    const QString s3 = stores.path() + "/s3/rig";
+    {
+        {
+            QSettings s = ppSettings();
+            s.clear();
+            s.setValue("imu/rolesMigrated", true);
+            s.setValue("imu/roles", QVariantMap{ { "W1", "pelvis" } });
+            s.setValue("imu/alias", QVariantMap{ { imu_roles::aliasKey("WT901BLE68", "W1"), "Pelvis" },
+                                                 { imu_roles::aliasKey("HackMotion wG3", kHm), "Wrist" },
+                                                 { "NOPIPE", "no device" }, { "WT901BLE67|W2", 5 } });
+            s.setValue("imu/excluded", QStringList{ "W2", kHm });
+            s.sync();
+        }
+        reparse(ini);
+        const auto l = copyWith(s3, sensorsOnly);
+        check(aliasOf(l->rig, "WT901BLE68|W1") == "Pelvis" && aliasOf(l->rig, "HackMotion wG3|" + kHm) == "Wrist"
+                  && l->rig.parts().other.aliases.size() == 2,
+              "S3a the aliases, by description|deviceId (imu_roles::aliasKey's spelling)");
+        const DeviceKey w2 = DeviceKey::sensor("WT901BLE67", "W2");   // the enumerator's key, with its description
+        check(!enabledOf(l->rig, w2) && !enabledOf(l->rig, DeviceKey::sensor("HackMotion wG3", kHm))
+                  && enabledOf(l->rig, DeviceKey::sensor("WT901BLE68", "W1")) && l->rig.parts().other.enabledOnThisMachine.size() == 2,
+              "S3b the excluded list by bare id: a key with a description finds it (a sensor's identity is its id)");
+        const QJsonObject other = readJson(s3 + "/rig.json").value("other").toObject();
+        check(other.value("aliases").toArray().contains(QJsonObject{ { "sensor", "WT901BLE68|W1" }, { "alias", "Pelvis" } })
+                  && other.value("enabledOnThisMachine").toArray().contains(QJsonObject{ { "sensor", "|W2" }, { "enabled", false } }),
+              "S3c in rig.json: the alias under description|deviceId, the switched-off sensor under its bare id");
+        const QJsonObject kept = keptSensorEntries(s3, "imu/alias");
+        check(kept.value("NOPIPE").toString() == "no device" && kept.value("WT901BLE67|W2").toInt() == 5 && kept.size() == 2,
+              "S3d an alias key with no '|' and an alias that is not a string: kept verbatim, matched to no sensor");
+        l->rig.setEnabledOnThisMachine(w2, true);
+        l->rig.setAlias(DeviceKey::sensor("WT901BLE68", "W1"), "Hips");
+        check(enabledOf(l->rig, DeviceKey::fromPersistedId(u"W2")) && aliasOf(l->rig, "WT901BLE68|W1") == "Hips"
+                  && l->rig.parts().other.aliases.size() == 2,
+              "S3e through the Rig's commands: the copied flag switched back on by the enumerator's key, the alias renamed in place");
+    }
+
+    std::printf("\nS4 L4: every imu/roles entry copied verbatim\n");
+    const QString s4 = stores.path() + "/s4/rig";
+    {
+        {
+            QSettings s = ppSettings();
+            s.clear();
+            s.setValue("imu/rolesMigrated", true);
+            s.setValue("imu/roles", QVariantMap{ { "W1", "pelvis" }, { kHm + "#lowerArm", "leadForearm" }, { kHm + "#palm", "leadHand" },
+                                                 { "W5", "D" }, { "W6", "other" }, { "W7", "" }, { "W8", 5 },
+                                                 { "W9", "trailForearm" }, { "", "thorax" } });
+            s.sync();
+        }
+        reparse(ini);
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            check(rolesOf(l->rig) == QVariantMap{ { "W1", "pelvis" }, { kHm + "#lowerArm", "leadForearm" }, { kHm + "#palm", "leadHand" } }
+                      && l->rig.parts().state.sensors.size() == 3,
+                  "S4a the three typed entries in the rig state (a Witmotion; a HackMotion's two lanes)");
+        }
+        auto allKept = [&](const QJsonObject &k) {
+            return k.size() == 6 && k.value("W5").toString() == "D" && k.value("W6").toString() == "other" && k.value("W7").isString()
+                   && k.value("W7").toString().isEmpty() && k.value("W8").toInt() == 5 && k.value("W9").toString() == "trailForearm"
+                   && k.value("").toString() == "thorax";
+        };
+        check(allKept(keptSensorEntries(s4, "imu/roles")),
+              "S4b the six it cannot hold (a slot letter, \"other\", \"\", a number, a newer build's role, an empty key) kept "
+              "verbatim in rig.json");
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            SensorFactsTable t;
+            l->rig.claimRole(DeviceKey::fromPersistedId(u"W5"), analysis::SegmentRole::Thorax, t);
+        }
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            check(allKept(keptSensorEntries(s4, "imu/roles")) && rolesOf(l->rig).value("W5") == "thorax",
+                  "S4c saved again verbatim after a command and a reload (W5's claim beside its kept \"D\")");
+        }
+        {
+            QSettings s = ppSettings();
+            QVariantMap r = s.value("imu/roles").toMap();
+            r["W5"] = "E";
+            s.setValue("imu/roles", r);
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            check(messagesSince(seq).contains("copied again") && keptSensorEntries(s4, "imu/roles").value("W5").toString() == "E",
+                  "S4d a kept entry changed is a change: the group is copied again, the entry kept as it now is");
+        }
+        check(allSixKept(keptSensorEntries(s4, "imu/roles"), "E"),
+              "S4e all six kept entries survive the re-copy (W5 as it now is, the other five as they were)");
+    }
+
+    std::printf("\nS5 P1 for the sensor group\n");
+    {
+        const QByteArray atCopy = readAll(s4 + "/rig.json");
+        const QVariant   roles  = ppSettings().value("imu/roles");
+        auto launchLeavesIt = [&](const char *label) {
+            reparse(ini);
+            messagesSince(seq);
+            const QByteArray before = readAll(s4 + "/rig.json");
+            const auto l = copyWith(s4, sensorsOnly);
+            const QString log = messagesSince(seq);
+            check(readAll(s4 + "/rig.json") == before && !log.contains("copied") && !log.contains("no longer match")
+                      && rolesOf(l->rig).size() == 3 && l->events == 0,
+                  QStringLiteral("S5 %1: the Rig is left as it is, nothing written").arg(QLatin1String(label)));
+        };
+        {
+            QSettings s = ppSettings();
+            s.clear();
+            s.sync();
+        }
+        launchLeavesIt("a no sensor key at all");
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/rolesMigrated", true);
+            s.sync();
+        }
+        launchLeavesIt("b the marker alone");
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/placement", QVariantMap{ { "W1", "A" } });
+            s.sync();
+        }
+        launchLeavesIt("c imu/placement alone on a migrated machine (it outlives the roles)");
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/roles", roles);
+            s.setValue("imu/alias", QVariantMap{ { "WT901BLE68|W1", "Renamed by an older build" } });
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            check(messagesSince(seq).contains("copied again") && aliasOf(l->rig, "WT901BLE68|W1") == "Renamed by an older build",
+                  "S5d a group with its keys back and its fingerprint different is copied again, as before");
+        }
+        Q_UNUSED(atCopy);
+    }
+
+    std::printf("\nS6 a re-copy keeps a sensor entry this build cannot read (P2)\n");
+    {
+        QJsonObject j = readJson(s4 + "/rig.json");
+        QJsonObject state = j.value("state").toObject();
+        QJsonArray sensors = state.value("sensors").toArray();
+        const QJsonObject unreadable{ { "placement", "W10" }, { "role", "trailHand" } };
+        sensors.append(unreadable);
+        state.insert("sensors", sensors);
+        j.insert("state", state);
+        writeAll(s4 + "/rig.json", QJsonDocument(j).toJson());
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/excluded", QStringList{ "W1", "W3" });
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        {
+            const auto l = copyWith(s4, sensorsOnly);
+            check(messagesSince(seq).contains("copied again") && !enabledOf(l->rig, DeviceKey::fromPersistedId(u"W3")),
+                  "S6a the group is copied again");
+        }
+        check(readJson(s4 + "/rig.json").value("state").toObject().value("sensors").toArray().contains(unreadable),
+              "S6b the sensor entry this build cannot read is written back as read");
+        check(allSixKept(keptSensorEntries(s4, "imu/roles"), "E"),
+              "S6c and all six roles entries kept from settings survive this re-copy too");
+    }
+
+    std::printf("\nS7 the groups apart\n");
+    {
+        const QString s7 = stores.path() + "/s7/rig";
+        const QList<RigStore::Group> camerasAndSensors{ RigStore::Group::Cameras, RigStore::Group::Sensors };
+        writeFixture();   // the camera keys, with an alias, an excluded camera and the bare key's kept entries
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/alias", QVariantMap{ { "WT901BLE68|W1", "Pelvis" } });
+            s.setValue("imu/excluded", QStringList{ "W2" });
+            s.sync();
+        }
+        reparse(ini);
+        { const auto l = copyWith(s7, camerasAndSensors); }
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/excluded", QStringList{ "W3" });
+            s.sync();
+        }
+        reparse(ini);
+        messagesSince(seq);
+        const auto l = copyWith(s7, camerasAndSensors);
+        const QString log = messagesSince(seq);
+        bool cameraAlias = false;
+        for (const auto &a : l->rig.parts().other.aliases) cameraAlias = cameraAlias || (a.first == blackfly && a.second == "Face on");
+        check(lineHas(log, "sensors", "no longer match") && !lineHas(log, "cameras", "no longer match") && cameraAlias
+                  && !enabledOf(l->rig, facetime) && !enabledOf(l->rig, DeviceKey::fromPersistedId(u"W3"))
+                  && enabledOf(l->rig, DeviceKey::fromPersistedId(u"W2")) && aliasOf(l->rig, "WT901BLE68|W1") == "Pelvis",
+              "S7a the sensors copied again (W3 off, W2 on again) leave the cameras' alias and enabled flag");
+        check(readJson(s7 + "/rig.json").value("keptFromSettings").toObject().contains("camera/alias"),
+              "S7b and the cameras' kept entries");
+    }
+
+    std::printf("\nS8 imu/calibration and imu/mountOrientation are not copied\n");
+    {
+        const QString fingerprint = RigStore::settingsFingerprint(RigStore::Group::Sensors);
+        {
+            QSettings s = ppSettings();
+            s.setValue("imu/calibration", QVariantMap{ { "W1", QVariantMap{ { "a", 1 } } } });
+            s.setValue("imu/mountOrientation", QVariantMap{ { "W1", "flipped" } });
+            s.sync();
+        }
+        reparse(ini);
+        check(RigStore::settingsFingerprint(RigStore::Group::Sensors) == fingerprint,
+              "S8 the two unused keys are not part of the group: the same fingerprint");
+    }
+
+    std::printf("\nS9 settings writes by the copy\n");
+    std::printf("  settings writes by the copy: %d, over %d launches that run the sensor group's copy\n", settingsWrites, sensorCopies);
+    check(settingsWrites == 0 && sensorCopies >= 15, "S9 settings writes by the copy: 0");
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);
     return g_fail ? 1 : 0;

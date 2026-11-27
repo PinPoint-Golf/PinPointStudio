@@ -671,6 +671,7 @@ pp_requirement(rig_state_test REQ-DEV-17 CTL-AD-7)   # supports: one value for a
 pp_add_test(rig_store_test
     SOURCES ${SRC}/DomainModel/tests/rig_store_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
@@ -684,26 +685,35 @@ pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept pe
 # event, its other members kept, found by its spelling, under today's spelling in rig.json; the two set-up assumptions
 # as derived `assumed` extrinsics records (C-7b): a fixed face-on camera square with no sigma (AD-7), a down-the-line
 # camera with the analysis's uncalibrated yaw sigma, none otherwise, made again at launch, a measured record replacing
-# them. Hand-rolled main.
+# them; the sensor commands (claimRole, releaseRole, C-6a.2): a table over today's one-claim-per-role rule
+# (imu_roles::claimRole), the Rig's answer and state equal to the rule's on every case, each change one save then one
+# RigChanged; claim then release gives the earlier RigStateId; an alignment record kept with its placement; a sensor's
+# alias and enabled flag by their spellings; the entries the store keeps outside the state neither replaced nor lost;
+# the facts table's default; the derived placement view. Hand-rolled main.
 pp_add_test(rig_commands_test
     SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     AUTOMOC)
-pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Impact exclusive, an unknown code kept; REQ-DEV-17 supports
+pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17 CTL-AD-10)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports
 # rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
 # the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
 # byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json
 # deleted; a newer rig.json); values of the wrong shape kept; neither keys nor rig; switched off; and the club-length
 # prior's group (C-7): copied by its typed key, a key that does not spell itself again kept verbatim, the shot before
 # the cut-over in the copy, a prior learned since standing, an older build's copied again, P1, P2, the groups apart; the
-# assumed extrinsics records (C-7b) following the copied set-up. On ppSettings() inside IsolatedStores. Hand-rolled main.
+# assumed extrinsics records (C-7b) following the copied set-up; the sensor group (C-6a.2): an un-migrated machine's
+# roles through loadRoles, the move made afterwards copying nothing again, aliases and the excluded list under both
+# sensor spellings, every imu/roles entry verbatim (L4), P1, P2, the groups apart, the two unused keys not copied,
+# settings writes 0. On ppSettings() inside IsolatedStores. Hand-rolled main.
 pp_add_test(rig_import_test
     SOURCES ${SRC}/Stores/tests/rig_import_test.cpp
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     AUTOMOC)
@@ -910,6 +920,7 @@ pp_add_test(club_length_prior_test
     SOURCES ${SRC}/Gui/tests/club_length_prior_test.cpp ${PP_RECORDING_STORE_SOURCES}
             ${SRC}/Gui/shot/club_length_prior_entry.h
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}

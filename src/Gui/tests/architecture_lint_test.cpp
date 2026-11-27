@@ -437,7 +437,7 @@ const QVector<HubContract> &hubContracts()
         { "DomainModel/shot_command_values", "the Shot's commands' value types (LabelCorrectionNote, SessionIntentEdit, …)" },
         { "DomainModel/session_input", "the session's typed input, value types (DeclaredFocus, IntentRun, SessionInput)" },
         // Joined by the Rig design addendum's decision 1 (the Solution Architect, 25 Nov 2026; platform refactor C-5a.1).
-        { "DomainModel/rig_commands", "the Rig's commands: interfaces the Rig implements (RigCameraCommands, RigLearningCommands), and a value type (RigDeviceLabel)" },
+        { "DomainModel/rig_commands", "the Rig's commands: interfaces the Rig implements (RigCameraCommands, RigSensorCommands, RigLearningCommands), and a value type (RigDeviceLabel); it includes only Vocabulary/Rig (the sensor commands' SensorFactsTable and RoleClaim among them), Vocabulary/Common/segment_role.h for the role type, Identity and Qt" },
     };
     return t;
 }

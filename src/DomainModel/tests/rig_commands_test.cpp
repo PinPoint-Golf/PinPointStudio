@@ -47,11 +47,32 @@
 //       replaced; a camera left with nothing but a stale record is no entry), and a second launch saves nothing; a
 //       read-only file is derived in memory only. The seam: a measured extrinsics record replaces the assumed one; a
 //       record of another kind does not
+//
+// The sensor commands (claimRole, releaseRole; RigSensorCommands, C-6a.2; invariant 2, one claim per role):
+//   K14 a table over today's rule's cases: refused by a present, switched-on holder (a Witmotion's role; a HackMotion
+//       refused on the hand); displacing an absent holder (a Witmotion; both lanes of an absent HackMotion: L1); a
+//       present but switched-off holder, where both claims stand; a HackMotion holding two roles; a Witmotion moving; a
+//       claim that changes nothing; release (a Witmotion; both lanes of a HackMotion); and the caller errors (a null key,
+//       a camera's key, Unknown, a role with no settings name, a HackMotion asked for another role). For each, the
+//       Rig's answer and its state equal today's imu_roles::claimRole on the same map and facts, and each case's own
+//       outcome is asserted as written; a change saves once, then one RigChanged; anything else saves and emits nothing
+//   K15 the empty entry: claiming a role then releasing it gives back the earlier RigStateId; an entry read with no
+//       role and no record is no entry at the next command; an alignment record stays with its placement through a
+//       release and a new claim (an entry with a record and no role is kept)
+//   K16 a sensor's alias and enabled flag: setAlias / setEnabledOnThisMachine with a sensor key emit one
+//       RigDeviceLabelChanged and no RigChanged; the alias by description|deviceId, the enabled flag by the bare id
+//   K17 what claimRole decides over: the rig state's roles only. An entry the store keeps outside the state (a sensor
+//       entry of a role this build does not know, on the claiming device's own placement; one with no placement key,
+//       holding the role claimed) is neither replaced nor displaced, as today's rule over the whole map would; no role
+//       is lost, and the entry is written back as read (the EDGE in NOTES-C-6a.2)
+//   K18 the facts table: a device it does not hold reads as today's facts function answers for an unlisted id
+//   K19 the placement view (today's imuPlacement): derived from the roles, the arm roles as A, B, C, the trunk left out
 
 #include "../../Core/tests/isolated_stores.h"
 
 #include "../rig.h"
 #include "../../Core/PpMessageLog.h"
+#include "../../IMU/imu_role_map.h"   // today's rule, which K14 compares the Rig with
 #include "../../Stores/rig_store.h"
 #include "../../Vocabulary/Rig/camera_assumptions.h"   // the yaw sigma the analysis reads (K13)
 
@@ -63,9 +84,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <QTimeZone>
+
 #include <algorithm>
 #include <cstdio>
 #include <functional>
+#include <optional>
 
 using namespace pinpoint;
 using namespace pinpoint::rig;
@@ -174,6 +198,35 @@ RigState withRecords(RigState s, const DeviceKey &camera, const QList<Calibratio
     for (CameraSetup &c : s.cameras)
         if (c.key() == camera) c.calibrations = records;
     return s;
+}
+
+// ── The sensors (K14–K19) ──
+//
+// The roles as imu/roles holds them, turned into the rig state's sensors and back by the test's own code (never the
+// Rig's: K14 compares the Rig's conversion with these).
+QList<SensorSetup> sensorsOfRoles(const QVariantMap &roles)
+{
+    QList<SensorSetup> out;
+    for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
+        SensorSetup x;
+        x.key  = PlacementKey::fromPersisted(it.key());
+        x.role = analysis::segmentRoleForPlacementRole(it.value().toString());
+        out.append(x);
+    }
+    return out;
+}
+QVariantMap rolesOfSensors(const QList<SensorSetup> &sensors)
+{
+    QVariantMap out;
+    for (const SensorSetup &x : sensors)
+        if (x.role != analysis::SegmentRole::Unknown) out.insert(x.key.persisted(), analysis::placementRoleName(x.role));
+    return out;
+}
+const SensorSetup *sensorOf(const Rig &rig, const PlacementKey &k)
+{
+    for (const SensorSetup &x : rig.parts().state.sensors)
+        if (x.key == k) return &x;
+    return nullptr;
 }
 
 } // namespace
@@ -711,6 +764,280 @@ int main(int argc, char **argv)
                   && std::any_of(rc->calibrations.begin(), rc->calibrations.end(),
                                  [](const CalibrationRecord &r) { return isDtlYaw(r, camC); }),
               "K13s a record of another kind (focus) does not: the down-the-line camera keeps it and gains its assumed one");
+    }
+
+
+    // ── The sensor commands (C-6a.2) ──────────────────────────────────────────────────────────────────────────────
+    using analysis::SegmentRole;
+    // The devices: Witmotions W1–W3 and a HackMotion H1, present and switched on unless a case says otherwise; GONE and
+    // OLD are not present (OLD was a HackMotion: its two lanes). Each is handed in as a description and a device id, the
+    // way the enumerator names it; the description is not part of the claim.
+    const QString kH1 = QStringLiteral("{0d7a1c2e-0000-4000-8000-0000000000a1}");
+    auto sensor = [](const QString &id) { return DeviceKey::sensor(QStringLiteral("WT901BLE68"), id); };
+    const DeviceKey h1 = DeviceKey::sensor(QStringLiteral("HackMotion wG3"), kH1);
+    const QString h1Lower = kH1 + "#lowerArm", h1Palm = kH1 + "#palm";
+    using FactsMap = QMap<QString, SensorFacts>;
+    const SensorFacts on{ true, true, false }, parked{ true, false, false }, hmOn{ true, true, true };
+    const FactsMap everyone{ { "W1", on }, { "W2", on }, { "W3", on }, { kH1, hmOn } };
+
+    std::printf("\nK14 claimRole and releaseRole against today's rule, case by case\n");
+    {
+        struct Case {
+            const char *name;
+            QVariantMap roles;           // the roles before, as imu/roles holds them
+            FactsMap    facts;
+            DeviceKey   who;
+            std::optional<SegmentRole> role;   // none: releaseRole
+            // What today's rule answers, as the case is written (not computed):
+            bool        ok;
+            QVariantMap after;           // the roles after (the same as before unless ok)
+            QString     refusedRole, holder;
+            QStringList displaced;
+            bool        error;
+        };
+        FactsMap w1Parked = everyone;
+        w1Parked["W1"]    = parked;
+        const QList<Case> cases = {
+            { "refused: the role is held by another present, switched-on Witmotion", { { "W1", "pelvis" } }, everyone,
+              sensor("W2"), SegmentRole::Pelvis, false, { { "W1", "pelvis" } }, "pelvis", "W1", {}, false },
+            { "refused: a HackMotion on the arm, the hand held by a present, switched-on Witmotion", { { "W2", "leadHand" } },
+              everyone, h1, SegmentRole::LeadForearm, false, { { "W2", "leadHand" } }, "leadHand", "W2", {}, false },
+            { "displaced: an absent Witmotion's claim (L1)", { { "GONE", "leadForearm" }, { "W3", "leadHand" } }, everyone,
+              sensor("W2"), SegmentRole::LeadForearm, true, { { "W2", "leadForearm" }, { "W3", "leadHand" } }, "", "",
+              { "GONE" }, false },
+            { "displaced: both lanes of an absent HackMotion (L1)", { { "OLD#lowerArm", "leadForearm" }, { "OLD#palm", "leadHand" } },
+              everyone, sensor("W1"), SegmentRole::LeadHand, true, { { "W1", "leadHand" } }, "", "",
+              { "OLD#palm", "OLD#lowerArm" }, false },
+            { "a present but switched-off holder: both claims stand", { { "W1", "pelvis" } }, w1Parked, sensor("W2"),
+              SegmentRole::Pelvis, true, { { "W1", "pelvis" }, { "W2", "pelvis" } }, "", "", {}, false },
+            { "a HackMotion holds two roles, its lower arm and its palm", { { "W1", "pelvis" } }, everyone, h1,
+              SegmentRole::LeadForearm, true, { { "W1", "pelvis" }, { h1Lower, "leadForearm" }, { h1Palm, "leadHand" } }, "", "",
+              {}, false },
+            { "a Witmotion moving from the hand to the forearm keeps one claim", { { "W1", "leadHand" } }, everyone,
+              sensor("W1"), SegmentRole::LeadForearm, true, { { "W1", "leadForearm" } }, "", "", {}, false },
+            { "a claim that changes nothing", { { "W1", "pelvis" } }, everyone, sensor("W1"), SegmentRole::Pelvis, true,
+              { { "W1", "pelvis" } }, "", "", {}, false },
+            { "release: a Witmotion's one claim", { { "W1", "pelvis" }, { "W2", "thorax" } }, everyone, sensor("W1"),
+              std::nullopt, true, { { "W2", "thorax" } }, "", "", {}, false },
+            { "release: both lanes of a HackMotion", { { h1Lower, "leadForearm" }, { h1Palm, "leadHand" }, { "W1", "pelvis" } },
+              everyone, h1, std::nullopt, true, { { "W1", "pelvis" } }, "", "", {}, false },
+            { "release: a device that holds nothing", { { "W1", "pelvis" } }, everyone, sensor("W3"), std::nullopt, true,
+              { { "W1", "pelvis" } }, "", "", {}, false },
+            { "caller error: a null key", { { "W1", "pelvis" } }, everyone, DeviceKey(), SegmentRole::Thorax, false,
+              { { "W1", "pelvis" } }, "", "", {}, true },
+            { "caller error: a camera's key", { { "W1", "pelvis" } }, everyone, camA, SegmentRole::Thorax, false,
+              { { "W1", "pelvis" } }, "", "", {}, true },
+            { "caller error: Unknown is no role, and never a release", { { "W1", "pelvis" } }, everyone, sensor("W1"),
+              SegmentRole::Unknown, false, { { "W1", "pelvis" } }, "", "", {}, true },
+            { "caller error: a role with no settings name (T12)", { { "W1", "pelvis" } }, everyone, sensor("W1"),
+              SegmentRole::T12, false, { { "W1", "pelvis" } }, "", "", {}, true },
+            { "caller error: a HackMotion asked for the hand", {}, everyone, h1, SegmentRole::LeadHand, false, {}, "", "", {},
+              true },
+            { "caller error: a HackMotion asked for the pelvis", {}, everyone, h1, SegmentRole::Pelvis, false, {}, "", "", {},
+              true },
+        };
+        int matched = 0;
+        for (const Case &c : cases) {
+            // Today: the rule over the map, with the facts the app's function would give (an unlisted id: not present).
+            const FactsMap facts = c.facts;
+            const imu_roles::DeviceFactsFn todaysFacts = [facts](const QString &id) {
+                return facts.value(id, SensorFacts{ false, true, false });
+            };
+            // A role is handed to today's rule by its settings name; one with none (Unknown, T12) by its own name, which
+            // is no placement role (today's caller never hands it "" for a role: "" is a release).
+            const QString todaysRole = !c.role ? QString()
+                                       : analysis::placementRoleName(*c.role).isEmpty() ? analysis::segmentRoleName(*c.role)
+                                                                                        : analysis::placementRoleName(*c.role);
+            const imu_roles::ClaimResult today = imu_roles::claimRole(c.roles, c.who.persistedId(), todaysRole, todaysFacts);
+
+            // The Rig, holding the same roles in its state, handed the same facts as a table.
+            MemoryRepository repo;
+            repo.loaded.id                  = RigId::create();
+            repo.loaded.source              = RigLoad::Source::File;
+            repo.loaded.parts.state.sensors = sensorsOfRoles(c.roles);
+            Rig rig(repo);
+            rig.load();
+            SensorFactsTable table;
+            for (auto it = c.facts.cbegin(); it != c.facts.cend(); ++it) table.set(sensor(it.key()), it.value());
+            Events ev(rig, &repo);
+            const int        saves  = repo.saves;
+            const RigStateId before = rig.stateId();
+            const RoleClaim  got    = c.role ? rig.claimRole(c.who, *c.role, table) : rig.releaseRole(c.who);
+            const QVariantMap after = rolesOfSensors(rig.parts().state.sensors);
+            QStringList displaced;
+            for (const PlacementKey &k : got.displaced) displaced << k.persisted();
+
+            const bool sameAsToday = got.ok == today.ok && got.error == today.error
+                                     && analysis::placementRoleName(got.refusedRole) == today.refusedRole
+                                     && got.holder.persistedId() == today.holderId && displaced == today.displaced
+                                     && after == today.roles && Rig::rolesMapOf(rig.parts().state) == today.roles;
+            const bool asWritten = got.ok == c.ok && after == c.after && analysis::placementRoleName(got.refusedRole) == c.refusedRole
+                                   && got.holder.persistedId() == c.holder && displaced == c.displaced
+                                   && got.error.isEmpty() == !c.error && (got.holder.isNull() || got.holder.isSensor());
+            const bool changed = after != c.roles;
+            const bool events  = changed ? repo.saves == saves + 1 && ev.changed.size() == 1 && ev.savesAtChanged.first() == repo.saves
+                                               && ev.changed.first() == rig.ref() && rig.stateId() != before && ev.labels.isEmpty()
+                                         : repo.saves == saves && ev.changed.isEmpty() && ev.labels.isEmpty() && rig.stateId() == before;
+            matched += sameAsToday ? 1 : 0;
+            check(sameAsToday && asWritten && events,
+                  QStringLiteral("K14 %1: as today's rule (%2), as written, %3")
+                      .arg(QLatin1String(c.name), today.ok ? QStringLiteral("ok") : today.error.isEmpty() ? QStringLiteral("refused")
+                                                                                                            : QStringLiteral("an error"),
+                           changed ? QStringLiteral("one save then one RigChanged") : QStringLiteral("nothing saved or emitted")));
+        }
+        std::printf("  the Rig matched today's rule on %d of %d cases\n", matched, int(cases.size()));
+        check(matched == cases.size() && cases.size() == 17, "K14z every case of the table matched today's rule (17 of 17)");
+    }
+
+    std::printf("\nK15 the empty entry\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        rig.assignPerspective(camA, kFaceOn);
+        const RigStateId earlier = rig.stateId();
+        SensorFactsTable table;
+        table.set(sensor("W1"), on);
+        rig.claimRole(sensor("W1"), SegmentRole::Pelvis, table);
+        check(rig.stateId() != earlier && rig.parts().state.sensors.size() == 1, "K15a a claim makes a new state");
+        rig.releaseRole(sensor("W1"));
+        check(rig.stateId() == earlier && rig.parts().state.sensors.isEmpty(),
+              "K15b claiming then releasing gives back the earlier RigStateId (no entry is left)");
+
+        // An entry read with no role and no record (a file's "role": "") is no entry at the next command.
+        MemoryRepository read;
+        read.loaded.id     = RigId::create();
+        read.loaded.source = RigLoad::Source::File;
+        SensorSetup idle;
+        idle.key = PlacementKey(sensor("W9"));
+        read.loaded.parts.state.sensors = { idle };
+        Rig fromFile(read);
+        fromFile.load();
+        check(fromFile.parts().state.sensors.size() == 1, "K15c the load keeps the entry as read");
+        fromFile.claimRole(sensor("W1"), SegmentRole::Thorax, table);
+        RigState expected;
+        expected.sensors = sensorsOfRoles({ { "W1", "thorax" } });
+        check(!sensorOf(fromFile, PlacementKey(sensor("W9"))) && fromFile.stateId() == rigStateIdOf(expected),
+              "K15d the next command drops it: the state is the one with W1's claim alone");
+
+        // An alignment record stays with its placement (rig_design.md §4.2: held for the run).
+        MemoryRepository held;
+        held.loaded.id     = RigId::create();
+        held.loaded.source = RigLoad::Source::File;
+        SensorSetup worn;
+        worn.key         = PlacementKey(sensor("W1"));
+        worn.role        = SegmentRole::Pelvis;
+        worn.calibration = CalibrationRecord::forSensor(worn.key, CalibrationMethod::Solved, SensorAlignmentParameters{},
+                                                        Uncertainty::notKnown(), QDateTime::fromMSecsSinceEpoch(1764230400000, QTimeZone::UTC));
+        held.loaded.parts.state.sensors = { worn };
+        Rig withRecord(held);
+        withRecord.load();
+        withRecord.releaseRole(sensor("W1"));
+        const SensorSetup *w = sensorOf(withRecord, worn.key);
+        check(w && w->role == SegmentRole::Unknown && w->calibration && w->calibration->observedAtUtc == worn.calibration->observedAtUtc,
+              "K15e released, a placement holding an alignment record stays, with no role and its record");
+        withRecord.claimRole(sensor("W1"), SegmentRole::Thorax, table);
+        w = sensorOf(withRecord, worn.key);
+        check(w && w->role == SegmentRole::Thorax && w->calibration && withRecord.parts().state.sensors.size() == 1,
+              "K15f claimed again, it takes the role and keeps its record");
+        withRecord.claimRole(sensor("W2"), SegmentRole::Pelvis, table);
+        w = sensorOf(withRecord, worn.key);
+        check(w && w->calibration && w->role == SegmentRole::Thorax, "K15g another device's claim leaves the record where it is");
+    }
+
+    std::printf("\nK16 a sensor's alias and enabled flag\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        const RigStateId state = rig.stateId();
+        Events ev(rig, &repo);
+        const DeviceKey described = DeviceKey::sensor("WT901BLE68", "W1");
+        rig.setAlias(described, "Pelvis");
+        check(ev.changed.isEmpty() && rig.stateId() == state && ev.labels.size() == 1 && ev.labels.first().first == described
+                  && ev.labels.first().second == RigDeviceLabel::Alias && repo.savedParts.other.aliases.size() == 1
+                  && repo.savedParts.other.aliases.first().first.persistedWithDescription() == "WT901BLE68|W1",
+              "K16a a sensor's alias: one RigDeviceLabelChanged, no RigChanged, held under description|deviceId");
+        ev.clear();
+        rig.setAlias(DeviceKey::fromPersistedId(u"W1"), "Chest");   // the same id with no description: another spelling
+        check(rig.parts().other.aliases.size() == 2 && ev.labels.size() == 1,
+              "K16b the alias is found by its spelling, not by key equality: a bare id is another entry, as in imu/alias");
+        ev.clear();
+        rig.setEnabledOnThisMachine(described, false);
+        check(ev.changed.isEmpty() && ev.labels.size() == 1 && ev.labels.first().second == RigDeviceLabel::EnabledOnThisMachine
+                  && rig.parts().other.enabledOnThisMachine.size() == 1 && rig.stateId() == state,
+              "K16c a sensor switched off on this machine: one RigDeviceLabelChanged, no RigChanged");
+        ev.clear();
+        rig.setEnabledOnThisMachine(DeviceKey::fromPersistedId(u"W1"), true);
+        check(ev.labels.size() == 1 && rig.parts().other.enabledOnThisMachine.isEmpty(),
+              "K16d the enabled flag is the bare id's (imu/excluded's spelling): switched on again by a key with no description");
+    }
+
+    std::printf("\nK17 what claimRole decides over: the rig state's roles only\n");
+    {
+        // A rig.json holding, beside W2's readable claim, two sensor entries this build cannot read: a role it does not
+        // know on W1's own placement, and an entry with no placement key holding the pelvis.
+        const QString f = stores.path() + "/k17/rig";
+        const QJsonObject unknownRole{ { "placement", "W1" }, { "role", "trailForearm" }, { "note", "a later build's" } };
+        const QJsonObject noKey{ { "placement", "" }, { "role", "pelvis" } };
+        const QJsonObject file{ { "schema", "pinpoint.rig/1" }, { "rigId", RigId::create().toString() },
+                                { "state", QJsonObject{ { "cameras", QJsonArray() },
+                                                        { "sensors", QJsonArray{ unknownRole, noKey,
+                                                                                 QJsonObject{ { "placement", "W2" }, { "role", "thorax" } } } } } },
+                                { "other", QJsonObject() } };
+        QDir().mkpath(f);
+        {
+            QFile out(f + "/rig.json");
+            if (out.open(QIODevice::WriteOnly)) out.write(QJsonDocument(file).toJson());
+        }
+        RigStore store(f);
+        Rig      rig(store);
+        rig.load();
+        SensorFactsTable table;
+        for (const QString &id : { "W1", "W2", "W3" }) table.set(sensor(id), on);
+        // Today's rule, over the whole map as imu/roles would hold these entries.
+        const QVariantMap whole{ { "W1", "trailForearm" }, { "", "pelvis" }, { "W2", "thorax" } };
+        const imu_roles::DeviceFactsFn fn = [&](const QString &id) { return table.factsFor(id); };
+        const imu_roles::ClaimResult own = imu_roles::claimRole(whole, "W1", "leadHand", fn);
+        const RoleClaim gotOwn = rig.claimRole(sensor("W1"), SegmentRole::LeadHand, table);
+        check(gotOwn.ok && own.ok && Rig::rolesMapOf(rig.parts().state) == QVariantMap{ { "W1", "leadHand" }, { "W2", "thorax" } }
+                  && own.roles.value("W1") == "leadHand" && !own.roles.values().contains(QVariant("trailForearm")),
+              "K17a W1 claims the hand: the Rig holds it, as today; today's rule replaced W1's unknown role, the Rig cannot see it");
+        const imu_roles::ClaimResult pel = imu_roles::claimRole(own.roles, "W3", "pelvis", fn);
+        const RoleClaim gotPel = rig.claimRole(sensor("W3"), SegmentRole::Pelvis, table);
+        check(gotPel.ok && pel.ok && pel.displaced == QStringList{ "" } && gotPel.displaced.isEmpty()
+                  && Rig::rolesMapOf(rig.parts().state).value("W3") == "pelvis",
+              "K17b W3 claims the pelvis: today's rule would displace the entry with no key; the Rig cannot see it, and the "
+              "claim stands");
+        RigStore again(f);
+        const RigLoad back = again.load();
+        const QJsonArray written = QJsonDocument::fromJson([&] { QFile in(f + "/rig.json"); return in.open(QIODevice::ReadOnly) ? in.readAll() : QByteArray(); }())
+                                       .object().value("state").toObject().value("sensors").toArray();
+        check(written.contains(unknownRole) && written.contains(noKey) && rolesOfSensors(back.parts.state.sensors)
+                                                                              == QVariantMap{ { "W1", "leadHand" }, { "W2", "thorax" }, { "W3", "pelvis" } },
+              "K17c no role is lost: every claim is read back, and both entries this build cannot read are written back as read");
+    }
+
+    std::printf("\nK18 the facts table\n");
+    {
+        SensorFactsTable table;
+        table.set(sensor("W1"), parked);
+        table.set(camA, on);   // not a sensor: ignored
+        check(table.factsFor("W1") == parked && table.size() == 1 && !table.holds(camA.id()),
+              "K18a a sensor's facts by its bare id; a camera's key is not held");
+        check(table.factsFor("NOT-LISTED") == SensorFacts{ false, true, false } && SensorFactsTable::unknownDevice() == SensorFacts{ false, true, false },
+              "K18b a device it does not hold: not present, not a HackMotion, switched on (ImuManager::deviceFacts for an "
+              "id the enumerator does not list and the session did not exclude)");
+    }
+
+    std::printf("\nK19 the placement view\n");
+    {
+        RigState s;
+        s.sensors = sensorsOfRoles({ { "W1", "pelvis" }, { "W2", "thorax" }, { "W3", "leadUpperArm" }, { h1Lower, "leadForearm" },
+                                     { h1Palm, "leadHand" } });
+        const QVariantMap view = Rig::placementViewOf(s);
+        check(view == QVariantMap{ { "W3", "C" }, { h1Lower, "A" }, { h1Palm, "B" } },
+              "K19 the arm roles as A, B, C under the same keys, the trunk roles left out (derived, never stored)");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

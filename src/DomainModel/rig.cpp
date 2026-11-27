@@ -19,6 +19,7 @@
 #include "rig.h"
 
 #include "../Core/pp_debug.h"
+#include "../IMU/imu_role_map.h"                    // the one claim per role rule (invariant 2; §6 rule 4, ruled)
 #include "../Vocabulary/Rig/camera_assumptions.h"   // what each assumed record says (AD-7)
 
 #include <QDateTime>
@@ -116,6 +117,40 @@ void deriveAssumedExtrinsics(rig::RigState &s)
     s.cameras = std::move(kept);
 }
 
+// ── The sensors' roles (invariant 2; rig_commands.h) ──
+//
+// A sensor placement with no role and no alignment record is the same as no entry (rig_commands.h), so a claim then a
+// release gives back the earlier RigStateId.
+bool isEmptySensor(const rig::SensorSetup &x) { return x.role == analysis::SegmentRole::Unknown && !x.calibration; }
+void dropEmptySensors(rig::RigState &s) { s.sensors.removeIf(isEmptySensor); }
+
+// The map today's rule answered, back into the state: one placement per key, its role by its settings name. Each
+// placement's alignment record is carried over; a placement whose role went but which holds a record stays, with no
+// role (the record is the Rig's for the run, rig_design.md §4.2); dropEmptySensors then drops the rest.
+void setSensorsFromRoles(rig::RigState &s, const QVariantMap &roles)
+{
+    QList<rig::SensorSetup> next;
+    for (auto it = roles.cbegin(); it != roles.cend(); ++it) {
+        rig::SensorSetup x;
+        x.key  = rig::PlacementKey::fromPersisted(it.key());
+        x.role = analysis::segmentRoleForPlacementRole(it.value().toString());
+        next.append(x);
+    }
+    for (const rig::SensorSetup &old : s.sensors) {
+        if (!old.calibration) continue;
+        auto it = std::find_if(next.begin(), next.end(), [&](const rig::SensorSetup &x) { return x.key == old.key; });
+        if (it != next.end()) {
+            it->calibration = old.calibration;
+        } else {
+            rig::SensorSetup kept;
+            kept.key         = old.key;
+            kept.calibration = old.calibration;
+            next.append(kept);
+        }
+    }
+    s.sensors = std::move(next);
+}
+
 // The alias map's own spelling of a device (decision 9): never key equality, so two descriptions of one sensor id stay
 // two entries, as in imu/alias.
 QString aliasSpelling(const rig::DeviceKey &k)
@@ -171,6 +206,7 @@ template <typename Change> void Rig::changeState(Change change)
     change(next);
     deriveAssumedExtrinsics(next);   // the assumed records follow the set-up, in the same new state
     dropDefaultCameras(next);
+    dropEmptySensors(next);
     const RigStateId id = rig::rigStateIdOf(next);
     if (id == m_stateId) return;   // the same set-up: nothing saved, nothing emitted
     next.sinceUtc = QDateTime::currentDateTimeUtc();
@@ -213,6 +249,45 @@ void Rig::clearHittingArea(const rig::DeviceKey &camera)
 {
     if (!camera.isCamera()) return;
     changeState([&](rig::RigState &s) { entryOf(s, camera).hittingArea.reset(); });
+}
+
+QVariantMap Rig::rolesMapOf(const rig::RigState &state)
+{
+    QVariantMap roles;
+    for (const rig::SensorSetup &x : state.sensors) {
+        const QString name = analysis::placementRoleName(x.role);
+        if (!x.key.isNull() && !name.isEmpty()) roles.insert(x.key.persisted(), name);
+    }
+    return roles;
+}
+
+QVariantMap Rig::placementViewOf(const rig::RigState &state) { return imu_roles::placementFromRoles(rolesMapOf(state)); }
+
+rig::RoleClaim Rig::claimRole(const rig::DeviceKey &sensor, analysis::SegmentRole role, const rig::SensorFactsTable &facts)
+{
+    // A role with no settings name (Unknown, T12, the thighs, the club) is today's caller error, never a release: its
+    // own name goes in, which the rule refuses as "not a placement role". Only releaseRole hands the rule "".
+    const QString name = analysis::placementRoleName(role);
+    return claim(sensor, name.isEmpty() ? analysis::segmentRoleName(role) : name, facts);
+}
+
+rig::RoleClaim Rig::releaseRole(const rig::DeviceKey &sensor) { return claim(sensor, QString(), rig::SensorFactsTable()); }
+
+rig::RoleClaim Rig::claim(const rig::DeviceKey &sensor, const QString &roleName, const rig::SensorFactsTable &facts)
+{
+    // A key that is not a sensor's spells no bare id, which the rule answers as "no device id".
+    const imu_roles::DeviceFactsFn fn = [&facts](const QString &deviceId) { return facts.factsFor(deviceId); };
+    const imu_roles::ClaimResult r = imu_roles::claimRole(rolesMapOf(m_parts.state), sensor.persistedId(), roleName, fn);
+    rig::RoleClaim out;
+    out.ok          = r.ok;
+    out.error       = r.error;
+    out.refusedRole = analysis::segmentRoleForPlacementRole(r.refusedRole);
+    if (!r.holderId.isEmpty()) out.holder = rig::DeviceKey::fromPersistedId(r.holderId);
+    for (const QString &k : r.displaced) out.displaced.append(rig::PlacementKey::fromPersisted(k));
+    // Refused, or a caller error: the state as it was, nothing saved, nothing emitted. A claim that leaves the roles as
+    // they were makes the same digest, so changeState saves and emits nothing for it either.
+    if (r.ok) changeState([&](rig::RigState &s) { setSensorsFromRoles(s, r.roles); });
+    return out;
 }
 
 void Rig::setAlias(const rig::DeviceKey &device, const QString &alias)

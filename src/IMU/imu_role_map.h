@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -26,6 +25,7 @@
 
 #include "../Vocabulary/Common/segment_role.h"
 #include "../Vocabulary/Rig/device_key.h"
+#include "../Vocabulary/Rig/sensor_facts.h"   // the facts a claim needs (rig::SensorFacts; DeviceFacts below)
 
 // ---------------------------------------------------------------------------
 // Role-keyed IMU placement — the pure logic (session_wizard_refactor_design.md §4.13)
@@ -47,7 +47,12 @@
 // calls them, and AppSettings is compiled into four targets (the app, both QML suites and
 // the update-policy suite) that would otherwise all have to learn a new .cpp. They need
 // nothing but QtCore. The device-fact half (imu_role_map.cpp) is called by ImuManager
-// only, and it alone needs the HackMotion unit-key parser.
+// and, since C-6a.2, by the Rig (src/DomainModel/rig.cpp: claimRole, for its claimRole and
+// releaseRole commands; invariant 2, rig_design.md §4.1, the Domain model's one include of
+// src/IMU, §6 rule 4, ruled), and it alone needs the HackMotion unit-key parser. The Rig's
+// store (src/Stores/rig_store.cpp) calls loadRoles for the sensor group's copy from settings.
+// Includes: Qt, Vocabulary/Common/segment_role.h and Vocabulary/Rig's device_key.h and
+// sensor_facts.h only.
 namespace pinpoint::imu_roles {
 
 // ── Names ──────────────────────────────────────────────────────────────────────────
@@ -168,12 +173,10 @@ inline RolesLoad loadRoles(bool alreadyMigrated, const QVariantMap &storedRoles,
 
 // What the resolver needs to know about a device id. `present` means the enumerator can
 // see it (the same test the slot resolver has always used — a device row exists and its
-// state is inspectable); it does NOT require a connection.
-struct DeviceFacts {
-    bool present        = false;
-    bool sessionEnabled = false;
-    bool hackMotion     = false;
-};
+// state is inspectable); it does NOT require a connection. The type is the Rig's vocabulary's
+// (Vocabulary/Rig/sensor_facts.h, rig::SensorFacts, moved there unchanged in C-6a.2 so the Rig
+// can be handed it as a typed value); this name is an alias of it, so no caller changes.
+using DeviceFacts = rig::SensorFacts;
 using DeviceFactsFn = std::function<DeviceFacts(const QString &deviceId)>;
 
 // The device id a key belongs to: the key itself for a Witmotion (or an unmigrated bare

@@ -23,6 +23,8 @@
 // label. Text unchanged from the role map.
 #include "../../IMU/imu_role_map.h"
 
+#include <QRegularExpression>   // stripDeviceIds; no longer reached through imu_role_map.h (C-6a.2)
+
 namespace pinpoint::imu_roles {
 
 // The name to show for a sensor, from what is REMEMBERED — it may be switched off and so absent
