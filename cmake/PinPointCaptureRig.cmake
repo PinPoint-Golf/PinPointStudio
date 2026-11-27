@@ -79,5 +79,12 @@ endif()
 enable_testing()   # the app tree registers no other test; the rig is run through ctest like every suite
 add_test(NAME capture_rig COMMAND capture_rig_test)
 set_tests_properties(capture_rig PROPERTIES TIMEOUT 300 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+# The known bugs, each its own test: written to the right behaviour, it passes while today's code fails it, fails once
+# the bug is fixed (the case becomes an ordinary pin), and fails on a crash (capture_rig_test.cpp, kKnownBugs).
+foreach(_bug 188 188b 281 53)
+    add_test(NAME capture_rig_xfail_${_bug} COMMAND capture_rig_test --xfail ${_bug})
+    set_tests_properties(capture_rig_xfail_${_bug} PROPERTIES TIMEOUT 120 LABELS capture_rig_known_bugs
+                         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endforeach()
 list(LENGTH _rig_sources _rig_n)
 message(STATUS "Capture test rig (PP_CAPTURE_RIG): capture_rig_test, ${_rig_n} of the app's sources")

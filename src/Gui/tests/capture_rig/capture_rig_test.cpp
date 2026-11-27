@@ -35,7 +35,11 @@
 //   R5  a processed shot: a skip-analysis capture, exported and written, announced as processed;
 //   D1  a stand-in deferred source is reserved, polled and collected (the gather is reachable);
 //   T1  the post-roll per source; T2 the window's bounds frozen at the pause, and the resume guard during the gather;
-//   T3  reserve at detection, collect at the gather; T4 the gather's own deadline, and its order against the library's.
+//   T3  reserve at detection, collect at the gather; T4 the gather's own deadline, and its order against the library's;
+//   W1  the first write (R-REC-1), W2 the staged writes; W3 the Recording read once at the freeze; W4 a session folder
+//       that cannot be written (blocked, a card with no document);
+//   --xfail <issue>: the known bugs, each written to the right behaviour and expected to fail: #188 (End with a shot in
+//       flight, and in its post-roll), #281 (back-to-back), #53 (a swing soon after the previous shot).
 // The stand-ins (step 81): the camera, VideoInputStandIn, registered with the device enumerator and created only in
 // this build; the deferred source, StandInDeferredSource below, handed to the processor beside the sensor manager's.
 //
@@ -77,6 +81,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QCryptographicHash>
 #include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -285,7 +290,15 @@ struct Rig {
                                                                                      : QStringLiteral("capturing"));
         });
         QObject::connect(processor.get(), &ShotProcessor::shotDocumentAnnounced,
-                         [this](const pinpoint::ShotRef &) { ++announced; });
+                         [this](const pinpoint::ShotRef &shot) {
+                             ++announced; announcedShots << shot; events << QStringLiteral("announced");
+                         });
+        // The order the shot's stages are announced in.
+        QObject::connect(processor.get(), &ShotProcessor::analysisFailed, [this] { events << QStringLiteral("analysisFailed"); });
+        QObject::connect(processor.get(), &ShotProcessor::swingSaved, [this] { events << QStringLiteral("mediaSaved"); });
+        QObject::connect(processor.get(), &ShotProcessor::shotProcessed, [this] { events << QStringLiteral("processed"); });
+        QObject::connect(processor.get(), &ShotProcessor::shotFailed, [this] { events << QStringLiteral("failed"); });
+        QObject::connect(processor.get(), &ShotProcessor::shotOutcome, [this] { events << QStringLiteral("outcome"); });
     }
     ~Rig()
     {
@@ -359,7 +372,8 @@ struct Rig {
     int     lastShotId = -1;
     bool    lastExportOk = false, lastAnalysisOk = false;
     QString lastSwingDir, lastError;
-    QStringList states, bufferAtState;
+    QStringList states, bufferAtState, events;
+    QList<pinpoint::ShotRef> announcedShots;   // each shot whose first document was announced (EVT-01)
     QVector<qint64> stateAtUs, stateAtWallMs;   // when each state was entered: the buffer's clock, the wall clock
 
     // When the state `name` was first entered (the buffer's clock), or -1.
@@ -373,7 +387,7 @@ struct Rig {
         const int i = states.indexOf(name);
         return i < 0 ? -1 : stateAtWallMs.value(i, -1);
     }
-    void clearStates() { states.clear(); bufferAtState.clear(); stateAtUs.clear(); stateAtWallMs.clear(); }
+    void clearStates() { states.clear(); bufferAtState.clear(); stateAtUs.clear(); stateAtWallMs.clear(); events.clear(); }
 };
 
 // Every swing document under `root` (a run's library), relative to it, sorted.
@@ -686,6 +700,244 @@ void caseTimingDeadline(const pinpoint::test::IsolatedStores &iso)
     }
 }
 
+// ── Write pins and the scratch cases (#394, step 84; DUTIES-shot_processor.md rows 18, 25, 31, 34-37) ─────────
+
+// The bytes of a file, hashed: a document that is rewritten changes them.
+QByteArray hashOf(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return {};
+    return QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha256);
+}
+
+// The swing documents under one session's folder.
+QStringList documentsIn(const QString &folder)
+{
+    QStringList out;
+    QDirIterator it(folder, { QStringLiteral("swing.json"), QStringLiteral("swing.ppsw") }, QDir::Files,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) out << it.next();
+    out.sort();
+    return out;
+}
+
+// A rig with the stand-in camera, the in-window replay off, and a full window of frames before its first swing.
+std::unique_ptr<Rig> cameraRig(const pinpoint::test::IsolatedStores &iso, const QString &run, bool skipAnalysis = false)
+{
+    auto r = std::make_unique<Rig>(iso, run);
+    r->appSettings.setAutoReplayAfterCapture(false);
+    r->appSettings.setSaveRawFrames(skipAnalysis);
+    r->appSettings.setSkipAnalysisForRawCapture(skipAnalysis);
+    r->start();
+    if (!r->connectStandInCamera(/*warmUpMs=*/4500)) {
+        check(false, run + ": the stand-in camera is connected");
+        return {};
+    }
+    return r;
+}
+
+// W1 the first write (R-REC-1) and W2 the staged writes, on the ordinary path (the analysis runs, and fails on the
+// stand-in's frames). The swing is allocated only after its analysis, at the export; its media are written before its
+// document; the document is written once, at the join, and announced (EVT-01) before the terminal statement; and End
+// does not rewrite it.
+void caseWrites(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("W1 the first write; W2 the staged writes\n");
+    auto r = cameraRig(iso, QStringLiteral("w1"));
+    if (!r) return;
+    const QString session = r->processor->activeSessionDir();
+    const pinpoint::SessionId running = r->processor->openSession() ? r->processor->openSession()->id() : pinpoint::SessionId();
+    bool allocatedAtFreeze = true, documentAtMedia = true, mediaAtMedia = false;
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        if (r->processor->stateName() == QStringLiteral("processing"))
+            allocatedAtFreeze = !r->processor->lastSwingDir().isEmpty() || !QDir(session).entryList(
+                                    { QStringLiteral("swing_*") }, QDir::Dirs).isEmpty();
+    });
+    QObject::connect(r->processor.get(), &ShotProcessor::swingSaved, r->processor.get(), [&](const QString &dir) {
+        const QStringList files = QDir(dir).entryList(QDir::Files);
+        mediaAtMedia    = files.contains(QStringLiteral("Stand-in-camera.mp4")) && files.contains(QStringLiteral("thumb.jpg"));
+        documentAtMedia = !documentsIn(dir).isEmpty();
+    });
+    const bool idle = r->swing();
+    check(idle, "the shot runs to its end");
+    check(!allocatedAtFreeze, "W2 nothing is allocated at the freeze: no swing folder until the export");
+    check(r->events.indexOf(QStringLiteral("analysisFailed")) >= 0
+              && r->events.indexOf(QStringLiteral("analysisFailed")) < r->events.indexOf(QStringLiteral("mediaSaved")),
+          "W2 the export (and with it the allocation) comes after the analysis: " + r->events.join(QLatin1Char(' ')));
+    check(mediaAtMedia && !documentAtMedia, "W2 the media are written first, with no document yet");
+    const QStringList docs = documentsIn(session);
+    check(docs.size() == 1 && r->announcedShots.size() == 1 && r->announcedShots.front().session() == running
+              && r->announcedShots.front().swingNumber() == 1,
+          "W1 one document, the first shot of the session begun (by its id)");
+    check(r->events.indexOf(QStringLiteral("announced")) > r->events.indexOf(QStringLiteral("mediaSaved"))
+              && r->events.indexOf(QStringLiteral("announced")) < r->events.indexOf(QStringLiteral("outcome"))
+              && r->events.count(QStringLiteral("announced")) == 1,
+          "W1 the document is announced once (EVT-01), after the media and before the terminal statement");
+    const QByteArray before = docs.isEmpty() ? QByteArray() : hashOf(docs.front());
+    r->processor->endSessionFolder();
+    check(!before.isEmpty() && hashOf(docs.value(0)) == before, "W1 End does not rewrite it: written once, by capture");
+}
+
+// W3 the Recording is read once, at the freeze (rows 18, 28): the session's club changed while the shot is processed
+// does not reach its document, which records the club at the freeze.
+void caseFrozenRecording(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("W3 the Recording, read once at the freeze\n");
+    auto r = cameraRig(iso, QStringLiteral("w3"));
+    if (!r) return;
+    r->sessionController->setActiveClub(QStringLiteral("7i"));
+    bool changed = false;
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        if (r->processor->stateName() == QStringLiteral("processing") && !changed) {
+            changed = true;
+            QTimer::singleShot(0, r->processor.get(), [&] { r->sessionController->setActiveClub(QStringLiteral("PW")); });
+        }
+    });
+    const bool idle = r->swing();
+    const pinpoint::PersistedShot shot = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
+    check(idle && changed && shot.ok && shot.club == QStringLiteral("7i"),
+          "the document records the club at the freeze (7i), not the one chosen while it was processed (PW): \"" + shot.club + "\"");
+    r->processor->endSessionFolder();
+}
+
+// W4 a library that cannot be written (rows 26, 36, 43): the swing's folder cannot be made, so the shot says it is
+// blocked (swingSaveBlocked), writes nothing, still lands a card (a card with no document, #235 (1)'s case), and makes
+// one terminal statement.
+void caseUnwritable(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("W4 a session folder that cannot be written\n");
+    auto r = cameraRig(iso, QStringLiteral("w4"));
+    if (!r) return;
+    const QString session = r->processor->activeSessionDir();
+    int blocked = 0;
+    QObject::connect(r->processor.get(), &ShotProcessor::swingSaveBlocked, r->processor.get(), [&] { ++blocked; });
+    const QFileDevice::Permissions was = QFile::permissions(session);
+    QFile::setPermissions(session, QFileDevice::ReadOwner | QFileDevice::ExeOwner);   // read-only: no swing folder
+    const bool idle = r->swing();
+    QFile::setPermissions(session, was);
+    check(idle && blocked == 1, QStringLiteral("the shot says it is blocked, once (%1)").arg(blocked));
+    check(swingDocuments(r->library).isEmpty() && r->announced == 0, "nothing is written, nothing announced");
+    check(r->shotModel.rowCount() == 1 && r->outcomes == 1, "a card lands all the same, with one terminal statement");
+    r->processor->endSessionFolder();
+}
+
+// ── The known bugs: each written to the right behaviour, and expected to fail on today's code ──────────────────
+// Run one with --xfail <issue>; ctest runs each as its own test (cmake/PinPointCaptureRig.cmake), which passes only
+// while the right behaviour is NOT seen (an expected failure), fails as soon as it is (the bug is gone: make the case
+// an ordinary pin), and fails on a crash.
+
+// Whether the run's library trash holds anything: a session discarded as empty goes there.
+bool libraryTrashEmpty(const Rig &r)
+{
+    const QString trash = r.library + QStringLiteral("/.pinpoint-trash");
+    return !QDir(trash).exists() || QDirIterator(trash, QDir::AllEntries | QDir::NoDotAndDotDot,
+                                                 QDirIterator::Subdirectories).hasNext() == false;
+}
+
+// #188: a shot still being processed when End is pressed is saved into a stray new session. RIGHT: it lands in the
+// session that was running when it was hit (by its id), and that session is not discarded as empty. Ended while its analysis runs, at the processor (the app's End now waits
+// for a shot in flight unless the golfer says End anyway; that dialog is AppState's, not in the rig).
+bool xfailEndInFlight(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("X188 End with a shot in flight\n");
+    auto r = cameraRig(iso, QStringLiteral("x188"));
+    if (!r) return false;
+    const QString session = r->processor->activeSessionDir();
+    const pinpoint::SessionId running = r->processor->openSession() ? r->processor->openSession()->id() : pinpoint::SessionId();
+    bool ended = false;
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        if (r->processor->stateName() == QStringLiteral("processing") && !ended) {
+            ended = true;
+            QTimer::singleShot(0, r->processor.get(), [&] { r->processor->endSessionFolder(); });   // the golfer's End
+        }
+    });
+    const bool idle = r->swing();
+    const QStringList all = swingDocuments(r->library);
+    const pinpoint::SessionId landed = r->announcedShots.isEmpty() ? pinpoint::SessionId() : r->announcedShots.front().session();
+    std::printf("    session running: %s (%s)\n    the shot's session: %s\n    documents: %s\n    the library's trash: %s\n",
+                qPrintable(running.toString()), qPrintable(QDir(r->library).relativeFilePath(session)),
+                qPrintable(landed.toString()), qPrintable(all.join(QStringLiteral(", "))),
+                libraryTrashEmpty(*r) ? "empty" : "holds a discarded session");
+    // ⚠ BY THE SESSION'S ID, NOT ITS FOLDER: today the running session is discarded as empty and a new one, started on
+    // demand for the shot, takes the same folder name.
+    return idle && ended && !running.isNull() && landed == running && all.size() == 1 && libraryTrashEmpty(*r);
+}
+
+// #188, just before End: End pressed in the swing's post-roll. RIGHT: as above, it lands in its own session.
+bool xfailEndInPostRoll(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("X188b End in the swing's post-roll\n");
+    auto r = cameraRig(iso, QStringLiteral("x188b"));
+    if (!r) return false;
+    const QString session = r->processor->activeSessionDir();
+    const pinpoint::SessionId running = r->processor->openSession() ? r->processor->openSession()->id() : pinpoint::SessionId();
+    QTimer::singleShot(100, r->processor.get(), [&] { r->processor->endSessionFolder(); });   // 100 ms after the trigger
+    const bool idle = r->swing();
+    const QStringList all = swingDocuments(r->library);
+    const pinpoint::SessionId landed = r->announcedShots.isEmpty() ? pinpoint::SessionId() : r->announcedShots.front().session();
+    std::printf("    session running: %s (%s)\n    the shot's session: %s\n    documents: %s\n    the library's trash: %s\n",
+                qPrintable(running.toString()), qPrintable(QDir(r->library).relativeFilePath(session)),
+                qPrintable(landed.toString()), qPrintable(all.join(QStringLiteral(", "))),
+                libraryTrashEmpty(*r) ? "empty" : "holds a discarded session");
+    return idle && !running.isNull() && landed == running && all.size() == 1 && libraryTrashEmpty(*r);
+}
+
+// #281: a swing hit while the previous one is analysing is never detected. RIGHT: both swings are saved. The second
+// is triggered at the processor while the first is processed (the shot controller's busy gate would drop it sooner).
+bool xfailBackToBack(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("X281 back-to-back: a swing while the previous one is processed\n");
+    auto r = cameraRig(iso, QStringLiteral("x281"), /*skipAnalysis=*/true);
+    if (!r) return false;
+    bool second = false;
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        if (r->processor->stateName() == QStringLiteral("processing") && !second) {
+            second = true;
+            QTimer::singleShot(0, r->processor.get(), [&] {
+                r->processor->onShotDetected(ShotController::Source::Manual, pinpoint::EventBuffer::nowMicros(), 0);
+            });
+        }
+    });
+    r->swing();
+    waitFor([&] { return !r->processor->busy(); }, 30000);
+    waitFor([] { return false; }, 2000);   // a second shot, had it been taken, would be under way by now
+    waitFor([&] { return !r->processor->busy(); }, 30000);
+    const QStringList docs = swingDocuments(r->library);
+    std::printf("    documents: %s\n", qPrintable(docs.join(QStringLiteral(", "))));
+    r->processor->endSessionFolder();
+    return second && docs.size() == 2;
+}
+
+// #53 (its capture half): a swing soon after the previous shot is saved with its clip starting late. The previous
+// shot's resume clears the rings, so a swing hit 0.3 s after it has 0.3 s of frames before its impact, not the
+// window's 2.7 s. RIGHT: a full-length clip on every camera (the capture check's lateStart is not set).
+bool xfailSoonAfter(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("X53 a swing soon after the previous shot\n");
+    auto r = cameraRig(iso, QStringLiteral("x53"), /*skipAnalysis=*/true);
+    if (!r) return false;
+    const bool first = r->swing(ShotController::Source::Manual, /*backMs=*/0);
+    const pinpoint::PersistedShot one = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
+    waitFor([] { return false; }, 300);
+    const bool secondIdle = r->swing(ShotController::Source::Manual, /*backMs=*/0);
+    const pinpoint::PersistedShot two = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
+    std::printf("    the first shot's capture warning: %s\n    the second's: %s\n",
+                qPrintable(QJsonDocument(QJsonObject::fromVariantMap(one.dataWarningDetail)).toJson(QJsonDocument::Compact)),
+                qPrintable(QJsonDocument(QJsonObject::fromVariantMap(two.dataWarningDetail)).toJson(QJsonDocument::Compact)));
+    r->processor->endSessionFolder();
+    check(first && one.ok && !one.dataWarningDetail.value(QStringLiteral("lateStart")).toBool(),
+          "X53 the control: the first shot, after a full pre-roll, is full length");
+    return secondIdle && two.ok && !two.dataWarningDetail.value(QStringLiteral("lateStart")).toBool();
+}
+
+struct KnownBug { const char *issue; bool (*run)(const pinpoint::test::IsolatedStores &); const char *right; };
+const KnownBug kKnownBugs[] = {
+    { "188",  xfailEndInFlight,   "a shot ended while being processed lands in its own session" },
+    { "188b", xfailEndInPostRoll, "a shot ended in its post-roll lands in its own session" },
+    { "281",  xfailBackToBack,    "a swing hit while the previous one is processed is saved too" },
+    { "53",   xfailSoonAfter,     "a swing soon after the previous shot has a full-length clip" },
+};
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -701,13 +953,37 @@ int main(int argc, char **argv)
     QCoreApplication::setApplicationName(QStringLiteral("PinPointStudio"));
     pinpoint::installProcessRuleData(
         std::make_shared<const pinpoint::analysis::MetricCatalogue>(pinpoint::analysis::makeMetricCatalogue()));
+    const auto registerStandInCamera = [] {
+        DeviceEnumerator::instance()->registerDevice(DeviceType::VideoInput, VideoInputFactory::Backend::StandIn,
+                                                     QStringLiteral("standin-camera-0"), QStringLiteral("Stand-in camera"),
+                                                     VideoInputStandIn::capabilities());
+    };
+
+    // --xfail <issue>: one known bug, expected to fail (above).
+    const QStringList args = QCoreApplication::arguments();
+    if (const int at = args.indexOf(QStringLiteral("--xfail")); at >= 0) {
+        const QString issue = args.value(at + 1);
+        for (const KnownBug &bug : kKnownBugs) {
+            if (issue != QLatin1String(bug.issue)) continue;
+            registerStandInCamera();
+            const bool right = bug.run(iso);
+            if (g_fail) {
+                std::printf("FAILED: a check this case relies on failed (%d)\n", g_fail);
+                return 1;
+            }
+            std::printf(right ? "XPASS (#%s): %s, now. The bug is gone: make this an ordinary pin\n"
+                              : "XFAIL (#%s, expected): today's code does not do it: %s\n",
+                        bug.issue, bug.right);
+            return right ? 1 : 0;
+        }
+        std::printf("no known bug %s\n", qPrintable(issue));
+        return 2;
+    }
 
     caseOneSwing(iso);
     caseTwoRunsEqual(iso);
     // The stand-in camera, listed from here on (a rig that does not connect it is camera-less, as above).
-    DeviceEnumerator::instance()->registerDevice(DeviceType::VideoInput, VideoInputFactory::Backend::StandIn,
-                                                 QStringLiteral("standin-camera-0"), QStringLiteral("Stand-in camera"),
-                                                 VideoInputStandIn::capabilities());
+    registerStandInCamera();
     caseSavedSwing(iso);
     caseTwoSavedRunsEqual(iso);
     caseProcessedSwing(iso);
@@ -715,6 +991,9 @@ int main(int argc, char **argv)
     caseTimingPostRoll(iso);
     caseTimingGather(iso);
     caseTimingDeadline(iso);
+    caseWrites(iso);
+    caseFrozenRecording(iso);
+    caseUnwritable(iso);
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;
