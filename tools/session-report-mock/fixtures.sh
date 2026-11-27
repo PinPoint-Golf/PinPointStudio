@@ -103,7 +103,8 @@ for root, dirs, files in os.walk(dst):
 PY
     done
     local LOG=$DUMPS/$t.log
-    XDG_CONFIG_HOME=$CFG QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM=offscreen PINPOINT_MAIL_DRYRUN=1 PINPOINT_LOG_STDERR=1 \
+    mkdir -p "$CFG/rig" "$CFG/studio" "$CFG/diagnostics"   # the app's own stores, inside the copy, never the machine's
+    XDG_CONFIG_HOME=$CFG PINPOINT_RIG_DIR=$CFG/rig PINPOINT_STUDIO_DIR=$CFG/studio PINPOINT_DIAGNOSTICS_DIR=$CFG/diagnostics QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM=offscreen PINPOINT_MAIL_DRYRUN=1 PINPOINT_LOG_STDERR=1 \
       $REPO/tools/typeset-harness/guard.sh perl -e 'alarm 180; exec @ARGV' $APP --probe-qml $HERE/dump_report.qml \
         --probe-session $TL/${SES[$t]} --probe-stills 1 > $LOG 2>&1
     echo "$t exit=$?"

@@ -38,7 +38,9 @@ Read first: the method, `docs/design/stage_typeset_playbook.md`, and the spec, s
 | `GUARD_GB` | `6` (`8` for `try.sh`) | The guard's memory limit. |
 
 **Slots.** A slot is a private copy of the fixture session and of the settings
-(`$TYPESET_SLOTS/<name>/{session,cfg}`, used as `XDG_CONFIG_HOME`). It is made on first use, by rsync,
+(`$TYPESET_SLOTS/<name>/{session,cfg}`, used as `XDG_CONFIG_HOME`), with the app's own stores beside them
+(`rig/`, `studio/`, `diagnostics/`, passed as `PINPOINT_RIG_DIR`, `PINPOINT_STUDIO_DIR` and `PINPOINT_DIAGNOSTICS_DIR`,
+so a render never writes the machine's Rig file, studio profile or rule data). It is made on first use, by rsync,
 without the session's `diagnostics.json.*` backups (about 310 MB, a minute or so on the share).
 Parallel agents each use their own slot, so they never fight over settings, and Mark's own settings and
 library are never touched. Defaults: `render.sh` uses `a`, `render_stage.sh` uses `base`, and `try.sh`

@@ -34,11 +34,11 @@ ARGS=(--probe-qml $H/try_overlay.qml --probe-variant $OVERLAY --probe-session $W
 [[ -n $ORDINAL ]] && ARGS+=(--probe-ordinal $ORDINAL)
 if [[ -n $SELFTEST ]]; then
   mkdir -p $TYPESET_OUT/logs; LOG=$TYPESET_OUT/logs/try_selftest_$1.log
-  XDG_CONFIG_HOME=$W/cfg QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$SCREENS/screen.json" GUARD_GB=8 \
+  XDG_CONFIG_HOME=$W/cfg PINPOINT_RIG_DIR=$W/rig PINPOINT_STUDIO_DIR=$W/studio PINPOINT_DIAGNOSTICS_DIR=$W/diagnostics QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$SCREENS/screen.json" GUARD_GB=8 \
     $H/guard.sh timeout 300 "$PPS_APP" $ARGS --probe-selftest > $LOG 2>&1
   RC=$?
   grep -E "$LOG_FILTER" $LOG | head -60
   echo "self-test exit=$RC   (log: $LOG)"
   exit $RC
 fi
-XDG_CONFIG_HOME=$W/cfg QML_DISABLE_DISK_CACHE=1 GUARD_GB=8 $H/guard.sh "$PPS_APP" $ARGS 2>&1 | grep --line-buffered -E "GUARD|TRY|\.qml:[0-9]+"
+XDG_CONFIG_HOME=$W/cfg PINPOINT_RIG_DIR=$W/rig PINPOINT_STUDIO_DIR=$W/studio PINPOINT_DIAGNOSTICS_DIR=$W/diagnostics QML_DISABLE_DISK_CACHE=1 GUARD_GB=8 $H/guard.sh "$PPS_APP" $ARGS 2>&1 | grep --line-buffered -E "GUARD|TRY|\.qml:[0-9]+"

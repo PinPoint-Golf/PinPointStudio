@@ -11,6 +11,7 @@ tooling for the build:
   `print_mock.qml` through the app's own `PpPdfPrinter`. The build replaces it with `PpSessionReport` on
   `PpPager` under the design's §9 layout contract.
 - `overlay.py` makes the stills: the frame at a swing position, with the measured body line drawn on it.
+- Every launch (`run_probe.sh`, `fixtures.sh`) runs the app over a temporary copy of the settings, with the app's own stores (the Rig file, the studio profile, the diagnostics rule data) in that copy (`PINPOINT_RIG_DIR`, `PINPOINT_STUDIO_DIR`, `PINPOINT_DIAGNOSTICS_DIR`), never the machine's.
 - `fixtures.sh` + `build_fixtures.py` make the report's QML test data (`src/Gui/tests/qml/data/session_report/`, read by
   `tst_session_report.qml`): every case is the current `SessionReportModel`'s map of a named library session (a fresh
   scratch copy, dumped by `dump_report.qml`; every page of a case from one session) or a documented stress transform of

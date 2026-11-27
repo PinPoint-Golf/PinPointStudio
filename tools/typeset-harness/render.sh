@@ -56,7 +56,7 @@ W=$(ensure_slot $SLOT) || { echo "render.sh: could not make slot $SLOT" >&2; exi
 mkdir -p $TYPESET_OUT/logs
 LOG=$TYPESET_OUT/logs/${TAG}_${LAYOUT}${PRINT:+-$PRINT}.log
 
-XDG_CONFIG_HOME=$W/cfg QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$SCREENFILE" \
+XDG_CONFIG_HOME=$W/cfg PINPOINT_RIG_DIR=$W/rig PINPOINT_STUDIO_DIR=$W/studio PINPOINT_DIAGNOSTICS_DIR=$W/diagnostics QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$SCREENFILE" \
   $H/guard.sh timeout $TIMEOUT "$PPS_APP" --probe-qml $H/render_overlay.qml --probe-variant "$OVERLAY" \
   --probe-target "$TARGET" --probe-panel-key "$PANEL_KEY" --probe-feed "$FEED" --probe-tab-prop "$TAB_PROP" \
   --probe-session $W/session/${TYPESET_SESSION:t} --probe-ordinal $ORDINAL --probe-nav $NAV --probe-layout $LAYOUT --probe-print "$PRINT" \

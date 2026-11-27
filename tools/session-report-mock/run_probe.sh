@@ -28,7 +28,8 @@ else
   cp ~/.config/PinPointStudio/PinPointStudio.ini "$INI"
 fi
 echo '{"screens":[{"name":"s","x":0,"y":0,"width":1680,"height":1200,"logicalDpi":96,"logicalBaseDpi":96,"dpr":2}]}' > "$CFG/screen.json"
-PINPOINT_HEADLESS_PROBE=1 XDG_CONFIG_HOME=$CFG QML_DISABLE_DISK_CACHE=1 QML_XHR_ALLOW_FILE_READ=1 \
+mkdir -p "$CFG/rig" "$CFG/studio" "$CFG/diagnostics"   # the app's own stores, inside the copy, never the machine's
+PINPOINT_HEADLESS_PROBE=1 XDG_CONFIG_HOME=$CFG PINPOINT_RIG_DIR=$CFG/rig PINPOINT_STUDIO_DIR=$CFG/studio PINPOINT_DIAGNOSTICS_DIR=$CFG/diagnostics QML_DISABLE_DISK_CACHE=1 QML_XHR_ALLOW_FILE_READ=1 \
   QT_QPA_PLATFORM="offscreen:configfile=$CFG/screen.json" \
   perl -e 'alarm 600; exec @ARGV' $REPO/tools/typeset-harness/guard.sh "$APP" --probe-qml "$PROBE" "$@" >"$LOG" 2>&1
 RC=$?; rm -rf "$CFG"

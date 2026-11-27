@@ -20,7 +20,7 @@ done
 W=$(ensure_slot $SLOT) || { echo "render_stage.sh: could not make slot $SLOT" >&2; exit 2; }
 mkdir -p $TYPESET_OUT/logs
 LOG=$TYPESET_OUT/logs/stage_${1}_$2.log
-XDG_CONFIG_HOME=$W/cfg QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$(screen_json $SCREEN)" \
+XDG_CONFIG_HOME=$W/cfg PINPOINT_RIG_DIR=$W/rig PINPOINT_STUDIO_DIR=$W/studio PINPOINT_DIAGNOSTICS_DIR=$W/diagnostics QML_DISABLE_DISK_CACHE=1 QT_QPA_PLATFORM="offscreen:configfile=$(screen_json $SCREEN)" \
   $H/guard.sh timeout ${7:-900} "$PPS_APP" --probe-qml $H/render_stage.qml \
   --probe-session $W/session/${TYPESET_SESSION:t} --probe-ordinal 8 --probe-mode $2 \
   --probe-themes $3 --probe-layouts $4 --probe-panels $5 --probe-settle ${6:-3000} \

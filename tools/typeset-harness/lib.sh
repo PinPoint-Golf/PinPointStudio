@@ -16,6 +16,9 @@ SCREENS=$H/screens
 # the real library or Mark's settings, and parallel agents never share state.
 ensure_slot() {
   local W=$TYPESET_SLOTS/$1 S=${TYPESET_SESSION:t}
+  # The app's own stores (the Rig, the studio profile, the diagnostics rule data) live in the slot, never the
+  # machine's: each launch line passes PINPOINT_RIG_DIR, PINPOINT_STUDIO_DIR and PINPOINT_DIAGNOSTICS_DIR under $W.
+  mkdir -p $W/rig $W/studio $W/diagnostics || return 1
   if [[ ! -d $W/session/$S ]]; then
     echo "Creating slot $W (a copy of $S, once)…" >&2
     mkdir -p $W/session || return 1
