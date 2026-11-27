@@ -137,6 +137,7 @@
 #include "../Vocabulary/Analysis/gate_record.h"
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Vocabulary/Metrics/series_reduce.h"
+#include "../Vocabulary/Rig/camera_assumptions.h"   // the down-the-line camera's yaw sigma (AD-7)
 #include "grader_sample.h"   // grader::graderReadingAt — the top end of leadElbowBendChange3d, as graded (D6)
 
 #include <QString>
@@ -293,7 +294,7 @@ inline Skeleton3dBodyOutput buildSkeleton3dBody(const Skeleton3dBodyInput &in)
 {
     namespace b = body3d;
     Skeleton3dBodyOutput out;
-    out.yawSigmaDeg = in.calibrated ? tuned::dtlCamera::kDtlYawSigmaCalDeg : tuned::dtlCamera::kDtlYawSigmaUncalDeg;
+    out.yawSigmaDeg = in.calibrated ? ::pinpoint::rig::kDtlYawSigmaCalDeg : ::pinpoint::rig::kDtlYawSigmaUncalDeg;
     out.calibrated  = in.calibrated;
     if (!in.fit) return out;
     const skeleton3d::FitResult &fr = *in.fit;

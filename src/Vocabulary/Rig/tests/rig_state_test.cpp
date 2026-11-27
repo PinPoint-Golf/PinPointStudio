@@ -27,8 +27,11 @@
 // number one fixed way, so a fixture's digest is pinned as a literal here and must be the same literal on the cabin
 // PC (MSVC) as on the Mac (clang). Both literals (the hand-written case and the fixture) were made from the header's
 // format description in Python (bytes spelled by hand, hashlib's SHA-256), not by running this code.
+// And AD-7's camera assumptions (camera_assumptions.h; C-7b): the down-the-line yaw sigmas pinned bit for bit to the
+// literals the analysis read before they moved here (9.0, 1.0), and the two assumed orientations as ruled.
 
 #include "../rig_state.h"
+#include "../camera_assumptions.h"
 
 #include <QCoreApplication>
 #include <QHash>
@@ -38,6 +41,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <type_traits>
@@ -329,6 +333,23 @@ int main(int argc, char **argv)
         const QString id = idOf(fixture());
         check("pinned", id == QStringLiteral("8a30b447fabb1560addca066054785c29e2385c36112d7cdece5b87e0b61970d"));
         std::printf("    fixture digest: %s\n", qPrintable(id));
+    }
+
+    std::printf("AD-7's camera assumptions (camera_assumptions.h, C-7b)\n");
+    {
+        // The down-the-line yaw sigmas moved here from pp_tuned_constants.h (tuned::dtlCamera) with the analysis's
+        // readers (the Solution Architect, 27 Nov 2026, the ruling replacing Step 10's ruling 4): the same bits as the
+        // literals the analysis read, 9.0 and 1.0, so no bearing's sigma changes (RP-9).
+        const double uncal = rig::kDtlYawSigmaUncalDeg, cal = rig::kDtlYawSigmaCalDeg, nine = 9.0, one = 1.0;
+        check("the uncalibrated down-the-line yaw sigma is 9.0, bit for bit", std::memcmp(&uncal, &nine, sizeof nine) == 0);
+        check("the calibrated down-the-line yaw sigma is 1.0, bit for bit", std::memcmp(&cal, &one, sizeof one) == 0);
+        const rig::AssumedOrientation &f = rig::kFaceOnSquare, &d = rig::kDownTheLineUncalibrated;
+        check("the fixed face-on camera: yaw, pitch, roll 0, each with a sigma of 0 (AD-7: no orientation sigma)",
+              f.yawDeg == 0.0 && f.pitchDeg == 0.0 && f.rollDeg == 0.0 && f.yawSigmaDeg == 0.0 && f.pitchSigmaDeg == 0.0
+                  && f.rollSigmaDeg == 0.0);
+        check("the down-the-line camera: yaw, pitch, roll 0, the yaw's sigma the 9, none claimed for pitch or roll",
+              d.yawDeg == 0.0 && d.pitchDeg == 0.0 && d.rollDeg == 0.0 && d.yawSigmaDeg == rig::kDtlYawSigmaUncalDeg
+                  && !d.pitchSigmaDeg && !d.rollSigmaDeg);
     }
 
     std::printf("\n%d of %d checks passed\n", g_run - g_fail, g_run);

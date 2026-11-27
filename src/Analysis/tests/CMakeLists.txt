@@ -648,7 +648,9 @@ pp_requirement(perspective_test REQ-DEV-1)   # the three camera roles REQ-DEV-1 
 # rig_state_test: the rig state as a value (src/Vocabulary/Rig/rig_state.h, calibration_record.h; header-only) and the
 # three ids RigId, RigStateId, RigRef (identity.h): the digest ignores list order, changes with each versioned field,
 # ignores sinceUtc, the evidence pointer, aliases, enabled flags and the prior; a third camera is one more entry; the
-# canonical bytes of a hand-written case; a fixture's digest pinned as a literal, the same on the Mac and the cabin PC.
+# canonical bytes of a hand-written case; a fixture's digest pinned as a literal, the same on the Mac and the cabin PC;
+# AD-7's camera assumptions (camera_assumptions.h, C-7b): the down-the-line yaw sigmas 9° and 1° bit for bit, as the
+# analysis read them before they moved, and the two assumed orientations.
 # The headers are listed so AUTOMOC makes the gadgets' and the perspective namespace's meta-objects.
 pp_add_test(rig_state_test
     SOURCES ${SRC}/Vocabulary/Rig/tests/rig_state_test.cpp
@@ -657,13 +659,15 @@ pp_add_test(rig_state_test
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Vocabulary/Recording/perspective.h
     AUTOMOC)
-pp_requirement(rig_state_test REQ-DEV-17)   # supports: one value for a bay's set-up and calibration, named by its content
+pp_requirement(rig_state_test REQ-DEV-17 CTL-AD-7)   # supports: one value for a bay's set-up and calibration, named by its content; AD-7's camera assumptions pinned
 # rig_store_test: the Rig and its one file (src/DomainModel/rig.*, src/Stores/rig_store.*; FILE-APP-07): a machine with
 # no rig gets an empty one with a new RigId, written once; the next launch reads it and writes nothing; the schema is
 # checked on read (another schema, not JSON, no rigId: read-only, never saved over); a newer pinpoint.rig/N is read for
 # what this build knows and never saved over; the write is whole and atomic; a failed save keeps the state and warns;
 # an unknown member is written back; both parts round-trip with no sensor alignment written; no event at load; the
-# test override (PINPOINT_RIG_DIR, set by IsolatedStores) keeps the real rig folder untouched. Hand-rolled main.
+# assumed extrinsics records (C-7b) written at the first launch over a file from before them, read back to the same
+# id, written back over themselves at a later save, beside the records this build cannot read; the test override
+# (PINPOINT_RIG_DIR, set by IsolatedStores) keeps the real rig folder untouched. Hand-rolled main.
 pp_add_test(rig_store_test
     SOURCES ${SRC}/DomainModel/tests/rig_store_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
@@ -677,7 +681,10 @@ pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept pe
 # RigStateId; a no-op saves and emits nothing; the box kept while not fixed; an alias or an enabled flag emits one
 # RigDeviceLabelChanged and no RigChanged; aliases by their own spelling; an unknown code survives; a failed save
 # keeps the change and the next command saves it; the learned club-length prior (learnClubLength, C-7) saved with no
-# event, its other members kept, found by its spelling, under today's spelling in rig.json. Hand-rolled main.
+# event, its other members kept, found by its spelling, under today's spelling in rig.json; the two set-up assumptions
+# as derived `assumed` extrinsics records (C-7b): a fixed face-on camera square with no sigma (AD-7), a down-the-line
+# camera with the analysis's uncalibrated yaw sigma, none otherwise, made again at launch, a measured record replacing
+# them. Hand-rolled main.
 pp_add_test(rig_commands_test
     SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
@@ -691,8 +698,8 @@ pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Imp
 # byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json
 # deleted; a newer rig.json); values of the wrong shape kept; neither keys nor rig; switched off; and the club-length
 # prior's group (C-7): copied by its typed key, a key that does not spell itself again kept verbatim, the shot before
-# the cut-over in the copy, a prior learned since standing, an older build's copied again, P1, P2, the groups apart. On
-# ppSettings() inside IsolatedStores. Hand-rolled main.
+# the cut-over in the copy, a prior learned since standing, an older build's copied again, P1, P2, the groups apart; the
+# assumed extrinsics records (C-7b) following the copied set-up. On ppSettings() inside IsolatedStores. Hand-rolled main.
 pp_add_test(rig_import_test
     SOURCES ${SRC}/Stores/tests/rig_import_test.cpp
             ${SRC}/Stores/rig_store.cpp

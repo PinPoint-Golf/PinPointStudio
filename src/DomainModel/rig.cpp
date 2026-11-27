@@ -19,10 +19,12 @@
 #include "rig.h"
 
 #include "../Core/pp_debug.h"
+#include "../Vocabulary/Rig/camera_assumptions.h"   // what each assumed record says (AD-7)
 
 #include <QDateTime>
 
 #include <algorithm>
+#include <optional>
 
 namespace pinpoint {
 
@@ -41,11 +43,77 @@ rig::CameraSetup &entryOf(rig::RigState &s, const rig::DeviceKey &camera)
 }
 
 // An entry with every versioned fact at its default is the same as no entry (rig_commands.h).
-void dropDefaultCameras(rig::RigState &s)
+bool isDefaultCamera(const rig::CameraSetup &c)
 {
-    s.cameras.removeIf([](const rig::CameraSetup &c) {
-        return c.perspectiveCode() == kNoneCode && !c.mirrored && !c.fixedInPlace && !c.hittingArea && c.calibrations.isEmpty();
+    return c.perspectiveCode() == kNoneCode && !c.mirrored && !c.fixedInPlace && !c.hittingArea && c.calibrations.isEmpty();
+}
+void dropDefaultCameras(rig::RigState &s) { s.cameras.removeIf(isDefaultCamera); }
+
+// ── The two set-up assumptions, as stated records (RP-8; rig_design.md §4.3, §4.8; information_model.md §2.3) ──
+//
+// The analysis makes two assumptions about the cameras' placement that nothing measures yet. Each is written into the
+// rig state as an `extrinsics` record with method `assumed`, on the camera it describes, so each Recording's rig
+// says the orientation was assumed, not measured; the camera calibration programme (#74) later replaces the record.
+// The analysis never reads these records (RP-9); it reads the down-the-line yaw sigmas from the same header. What
+// each record says is Vocabulary/Rig/camera_assumptions.h's (the Solution Architect, 27 Nov 2026, the rulings for
+// Step 10 on #377); which camera gets which is decided here (ruling 1):
+//   - a face-on camera fixed in place: square and level (rig::kFaceOnSquare; AD-7's wall-mounted camera);
+//   - a down-the-line camera with no measured extrinsics, fixed in place or not: the analysis's assumed placement, the
+//     yaw uncertain by 9° (rig::kDownTheLineUncalibrated);
+//   - any other camera (None, Impact, Other, a code this build does not know, and a face-on camera not fixed in place):
+//     no such record.
+// Each record states yaw, pitch and roll, and a sigma only for an axis that claims one (an axis with none is absent
+// from the uncertainty, never 0). Neither record has a time observed (it is no observation), so the digest holds only
+// its content and putting a camera back gives back its earlier RigStateId.
+// THE SEAM: a camera holding an extrinsics record of any other method (a measured one; Stage C makes none) gets no
+// assumed record: the measured record replaces it.
+
+const QString kYaw   = QStringLiteral("yawDeg");
+const QString kPitch = QStringLiteral("pitchDeg");
+const QString kRoll  = QStringLiteral("rollDeg");
+
+rig::CalibrationRecord assumedRecord(const rig::DeviceKey &camera, const rig::AssumedOrientation &o)
+{
+    rig::NamedValues sigmas;
+    if (o.yawSigmaDeg) sigmas.set(kYaw, *o.yawSigmaDeg);
+    if (o.pitchSigmaDeg) sigmas.set(kPitch, *o.pitchSigmaDeg);
+    if (o.rollSigmaDeg) sigmas.set(kRoll, *o.rollSigmaDeg);
+    return rig::CalibrationRecord::forCamera(camera, rig::CalibrationKind::Extrinsics, rig::CalibrationMethod::Assumed,
+                                             rig::NamedValues{ { kYaw, o.yawDeg }, { kPitch, o.pitchDeg }, { kRoll, o.rollDeg } },
+                                             rig::Uncertainty::sigmas(std::move(sigmas)), QDateTime());
+}
+
+std::optional<rig::CalibrationRecord> assumedExtrinsicsFor(const rig::CameraSetup &c)
+{
+    const bool measured = std::any_of(c.calibrations.cbegin(), c.calibrations.cend(), [](const rig::CalibrationRecord &r) {
+        return r.kind == rig::CalibrationKind::Extrinsics && r.method != rig::CalibrationMethod::Assumed;
     });
+    if (measured) return std::nullopt;
+    switch (c.perspective()) {
+    case recording::Perspective::FaceOn:
+        if (!c.fixedInPlace) return std::nullopt;
+        return assumedRecord(c.key(), rig::kFaceOnSquare);
+    case recording::Perspective::DownTheLine:
+        return assumedRecord(c.key(), rig::kDownTheLineUncalibrated);
+    default:
+        return std::nullopt;
+    }
+}
+
+// Each camera's assumed record made again from its set-up: the one it held goes, the one that applies now (if any)
+// comes; every other record is kept as it is. A camera that the removal leaves with every fact at its default (it held
+// nothing but an assumed record that no longer applies) is no entry; any other entry is left as it is.
+void deriveAssumedExtrinsics(rig::RigState &s)
+{
+    QList<rig::CameraSetup> kept;
+    for (rig::CameraSetup c : s.cameras) {
+        const bool held = c.calibrations.removeIf([](const rig::CalibrationRecord &r) {
+            return r.kind == rig::CalibrationKind::Extrinsics && r.method == rig::CalibrationMethod::Assumed;
+        }) > 0;
+        if (auto r = assumedExtrinsicsFor(c)) c.calibrations.append(std::move(*r));
+        if (!(held && isDefaultCamera(c))) kept.append(std::move(c));
+    }
+    s.cameras = std::move(kept);
 }
 
 // The alias map's own spelling of a device (decision 9): never key equality, so two descriptions of one sensor id stay
@@ -67,12 +135,20 @@ void Rig::load()
     const bool minted = loaded.id.isNull();
     m_id = minted ? RigId::create() : loaded.id;
     if (minted && !m_parts.state.sinceUtc.isValid()) m_parts.state.sinceUtc = QDateTime::currentDateTimeUtc();
+    // The assumed records are made again from the set-up as loaded: a file from before them, a set-up copied from
+    // settings, or a record a build with other constants wrote. When that changes the state, it is the state in force
+    // from now, saved once, silently: a launch's load emits nothing.
+    const RigStateId asStored = rig::rigStateIdOf(m_parts);
+    deriveAssumedExtrinsics(m_parts.state);
     m_stateId = rig::rigStateIdOf(m_parts);
+    const bool derived = m_stateId != asStored;
+    if (derived && !minted) m_parts.state.sinceUtc = QDateTime::currentDateTimeUtc();
     ppInfo() << "[Rig] loaded" << m_id.toString() << "state" << m_stateId.toString() << "cameras"
              << m_parts.state.cameras.size() << "sensors" << m_parts.state.sensors.size()
-             << (minted ? "(a new RigId)" : "");
-    // A new RigId, or a group the store copied at this load, is written once, silently. A read-only file never is.
-    if (loaded.source != RigLoad::Source::ReadOnly && (minted || loaded.saveNeeded)) save();
+             << (minted ? "(a new RigId)" : "") << (derived ? "(the assumed camera records made again)" : "");
+    // A new RigId, a group the store copied at this load, or the assumed records made again, is written once,
+    // silently. A read-only file never is.
+    if (loaded.source != RigLoad::Source::ReadOnly && (minted || loaded.saveNeeded || derived)) save();
 }
 
 bool Rig::save()
@@ -93,6 +169,7 @@ template <typename Change> void Rig::changeState(Change change)
 {
     rig::RigState next = m_parts.state;
     change(next);
+    deriveAssumedExtrinsics(next);   // the assumed records follow the set-up, in the same new state
     dropDefaultCameras(next);
     const RigStateId id = rig::rigStateIdOf(next);
     if (id == m_stateId) return;   // the same set-up: nothing saved, nothing emitted

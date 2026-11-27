@@ -1196,6 +1196,7 @@ Printed by every mode; they never fail the check.
 
 | Control | Tests |
 |---|---|
+| CTL-AD-7 (A camera fixed to a wall (the face-on) must be taken as …) | `rig_state_test` |
 | CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | `session_setup_lint_test` |
 | CTL-AG-15 (Agents must never launch the app plainly, offscreen included: every probe or …) | `run_headless_selftest`, `synthetic_devices_off_test`, `synthetic_devices_test` |
 | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | `rtm_check`, `rtm_selftest` |
@@ -1219,7 +1220,7 @@ Printed by every mode; they never fail the check.
 | `quit_pins_synthetic_selftest` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `rig_commands_test` | an automated test of the logic (E1) | REQ-DEV-1 (The app shall work with machine-vision cameras, the computer's own cameras and …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `rig_import_test` | an automated test of the logic (E1) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …); REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Analysis/tests/CMakeLists.txt` |
-| `rig_state_test` | an automated test of the logic (E1) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
+| `rig_state_test` | an automated test of the logic (E1) | CTL-AD-7 (A camera fixed to a wall (the face-on) must be taken as …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `rig_store_test` | an automated test of the logic (E1) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `rtm_check` | an automated test of the logic (E1) | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `rtm_selftest` | an automated test of the logic (E1) | CTL-BT-39 (Every new test, and every test whose assertions or set-up change, must …) | macos | `src/Gui/tests/CMakeLists.txt` |

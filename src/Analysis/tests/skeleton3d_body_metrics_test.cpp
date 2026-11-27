@@ -440,7 +440,7 @@ int main()
         check(out.shoulderAim->t_us.empty() && aim && aim->value < 0 && near(aim->value, -3.1, 0.11),
               "§8 shoulderLineYaw: one reading at address, no curve, open (≈ −3°)");
         const double lineSigma = std::hypot(0.01, 0.01) / (0.36 * std::cos(10 * kD)) / kD;
-        check(aim && aim->sigma && near(*aim->sigma, std::hypot(lineSigma, pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg), 1e-6),
+        check(aim && aim->sigma && near(*aim->sigma, std::hypot(lineSigma, pinpoint::rig::kDtlYawSigmaUncalDeg), 1e-6),
               "§8 …σ = the line σ ⊕ σ_yaw (uncalibrated)");
         const PhaseSample *imp = sampleAt(*out.leadKnee, Phase::Impact);
         check(imp && !out.leadKnee->valid.empty() && out.leadKnee->valid[89] == 0 && out.leadKnee->valid[91] == 0,
@@ -467,7 +467,7 @@ int main()
         check(out.gates.size() == 1 && out.gates[0].gate == QStringLiteral("body3d.cameraAssumed")
                   && out.gates[0].effect == GateEffect::Downgraded && out.gates[0].subject == QStringLiteral("shoulderLineYaw")
                   && out.gates[0].covers == QStringList{ QStringLiteral("shoulderLineYaw") }
-                  && near(out.gates[0].evidence.value(QStringLiteral("sigmaYawDeg")).toDouble(), pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg, 1e-12),
+                  && near(out.gates[0].evidence.value(QStringLiteral("sigmaYawDeg")).toDouble(), pinpoint::rig::kDtlYawSigmaUncalDeg, 1e-12),
               "§9 ONE record, body3d.cameraAssumed, Downgraded, covering shoulderLineYaw alone (σ_yaw uncalibrated)");
         Skeleton3dBodyInput cal = in; cal.calibrated = true;
         const Skeleton3dBodyOutput co = buildSkeleton3dBody(cal);

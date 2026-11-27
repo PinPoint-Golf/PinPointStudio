@@ -663,7 +663,7 @@ int main()
             const sd::Reading one = sd::readAt({}, { { p2, dirAt(172.0, 0.0), 2 } }, p2, cfg);
             check(one.src == sd::Source::Fit && near(one.sigmaDeg, std::hypot(cfg.fitSigmaOneDeg, 5.0), 1e-9),
                   "§SD a one-view skeleton frame carries the one-view σ");
-            sd::Config cal = cfg; cal.yawSigmaDeg = pinpoint::tuned::dtlCamera::kDtlYawSigmaCalDeg;
+            sd::Config cal = cfg; cal.yawSigmaDeg = pinpoint::rig::kDtlYawSigmaCalDeg;
             const sd::Reading c1 = sd::readAt({}, { { p2, dirAt(172.0, 0.0), 2 } }, p2, cal);
             check(near(c1.sigmaDeg, std::hypot(cfg.fitSigmaOneDeg, 1.0), 1e-9), "§SD a calibrated camera carries σ_yaw 1°");
             sd::Config off = cfg; off.withSigma = false;

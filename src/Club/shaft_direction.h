@@ -76,6 +76,7 @@
 
 #include "shaft_fusion.h"
 #include "../Vocabulary/Common/pp_tuned_constants.h"
+#include "../Vocabulary/Rig/camera_assumptions.h"   // the down-the-line camera's yaw sigma (AD-7)
 #include "../Skeleton3d/skeleton3d_fit.h"   // Tier: the skeleton's shaftTier values (pinned below)
 
 namespace pinpoint::analysis::shaftdir {
@@ -137,7 +138,7 @@ struct Config {
     int64_t gradeHalfWindowUs = pinpoint::tuned::sampler::kWindowHalfUs;
     // The caller sets these: the camera's yaw σ (kDtlYawSigmaUncalDeg / kDtlYawSigmaCalDeg by the
     // job's calibration), the handedness, and whether σ is written at all (uncertainty.enabled).
-    double  yawSigmaDeg = pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg;
+    double  yawSigmaDeg = ::pinpoint::rig::kDtlYawSigmaUncalDeg;
     bool    leftHanded  = false;
     bool    withSigma   = true;
 };

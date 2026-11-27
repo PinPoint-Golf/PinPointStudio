@@ -38,12 +38,22 @@
 //       found by the key's spelling, so two keys that spell the same are one entry; nothing learned saves nothing; a
 //       null key is nothing; a failed save is remembered (P4); through the real store, rig.json holds it under
 //       today's spelling, byte for byte, and a reload finds it
+//   K13 the two set-up assumptions the analysis makes, as `assumed` extrinsics records the Rig derives (RP-8; C-7b): a
+//       face-on camera fixed in place is square (yaw 0, sigma 0: AD-7); a down-the-line camera with no measured
+//       extrinsics has yaw 0 with the uncalibrated yaw sigma the analysis reads (tuned::dtlCamera, never a copy), fixed
+//       or not; any other camera, and a face-on camera not fixed, has none. The record is in the state and its digest,
+//       comes and goes with the fact that triggers it (one save, one RigChanged), and has no time observed, so putting a
+//       camera back gives its earlier id. At the launch it is derived again, saved once with no event (a stale record
+//       replaced; a camera left with nothing but a stale record is no entry), and a second launch saves nothing; a
+//       read-only file is derived in memory only. The seam: a measured extrinsics record replaces the assumed one; a
+//       record of another kind does not
 
 #include "../../Core/tests/isolated_stores.h"
 
 #include "../rig.h"
 #include "../../Core/PpMessageLog.h"
 #include "../../Stores/rig_store.h"
+#include "../../Vocabulary/Rig/camera_assumptions.h"   // the yaw sigma the analysis reads (K13)
 
 #include <QCoreApplication>
 #include <QDir>
@@ -53,6 +63,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include <algorithm>
 #include <cstdio>
 #include <functional>
 
@@ -126,6 +137,43 @@ int codeOf(const Rig &rig, const DeviceKey &k)
 {
     const CameraSetup *c = cameraOf(rig, k);
     return c ? c->perspectiveCode() : kNone;
+}
+
+// The two assumed records (K13), written out here from their statements, not from the Rig's code (the Solution
+// Architect's rulings 2 and 4, 27 Nov 2026): AD-7's square face-on camera (yaw, pitch and roll 0, a sigma of 0 on each:
+// no orientation sigma), and the down-the-line camera's yaw, pitch and roll 0 with only the yaw's sigma, the one the
+// analysis reads (rig::kDtlYawSigmaUncalDeg); pitch and roll claim none. Neither has a time observed: it
+// is an assumption, not an observation.
+bool sameValues(const NamedValues &a, const NamedValues &b) { return a.values() == b.values(); }
+const NamedValues kLevelAlongTheLine{ { "yawDeg", 0.0 }, { "pitchDeg", 0.0 }, { "rollDeg", 0.0 } };
+bool isAssumed(const CalibrationRecord &r, const DeviceKey &camera, const NamedValues &sigmas)
+{
+    const auto *subject = std::get_if<DeviceKey>(&r.subject);
+    const auto *params  = std::get_if<NamedValues>(&r.parameters);
+    return subject && *subject == camera && r.kind == CalibrationKind::Extrinsics && r.method == CalibrationMethod::Assumed
+           && params && sameValues(*params, kLevelAlongTheLine) && r.uncertainty.isKnown()
+           && sameValues(r.uncertainty.values(), sigmas) && !r.observedAtUtc.isValid() && !r.evidence;
+}
+bool isSquare(const CalibrationRecord &r, const DeviceKey &camera)
+{
+    return isAssumed(r, camera, NamedValues{ { "yawDeg", 0.0 }, { "pitchDeg", 0.0 }, { "rollDeg", 0.0 } });
+}
+bool isDtlYaw(const CalibrationRecord &r, const DeviceKey &camera)
+{
+    return isAssumed(r, camera, NamedValues{ { "yawDeg", pinpoint::rig::kDtlYawSigmaUncalDeg } });
+}
+CalibrationRecord squareRecord(const DeviceKey &camera)
+{
+    return CalibrationRecord::forCamera(camera, CalibrationKind::Extrinsics, CalibrationMethod::Assumed, kLevelAlongTheLine,
+                                        Uncertainty::sigmas(NamedValues{ { "yawDeg", 0.0 }, { "pitchDeg", 0.0 }, { "rollDeg", 0.0 } }),
+                                        QDateTime());
+}
+// `s` with `camera`'s records replaced by `records`.
+RigState withRecords(RigState s, const DeviceKey &camera, const QList<CalibrationRecord> &records)
+{
+    for (CameraSetup &c : s.cameras)
+        if (c.key() == camera) c.calibrations = records;
+    return s;
 }
 
 } // namespace
@@ -506,6 +554,163 @@ int main(int argc, char **argv)
         check(e.value("emaPx").toDouble() == 512.25 && e.value("varPx").toDouble() == 3.5 && e.value("n").toInt() == 6
                   && e.value("lengthMm").toInt() == 940,
               "K12j a reload finds it by the typed key, every member as learned");
+    }
+
+    std::printf("\nK13 the two set-up assumptions, as recorded `assumed` extrinsics records\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        Events ev(rig, &repo);
+        rig.assignPerspective(camA, kFaceOn);
+        const RigStateId unfixed = rig.stateId();
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.isEmpty(),
+              "K13a a face-on camera that is not fixed in place has no assumed record");
+        ev.clear();
+        const int saves = repo.saves;
+        rig.setFixedInPlace(camA, true);
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.size() == 1
+                  && isSquare(cameraOf(rig, camA)->calibrations.first(), camA),
+              "K13b fixed in place: one extrinsics record, method assumed, square and level (yaw, pitch, roll 0, each sigma 0), no time observed");
+        check(rig.stateId() != unfixed && rig.stateId() == rigStateIdOf(rig.parts().state)
+                  && rig.stateId() == rigStateIdOf(withRecords(rig.parts().state, camA, { squareRecord(camA) }))
+                  && rig.stateId() != rigStateIdOf(withRecords(rig.parts().state, camA, {})),
+              "K13c the record is in the rig state and its digest: the id is the state's with it, not without it");
+        check(repo.saves == saves + 1 && ev.changed.size() == 1 && ev.changed.first() == rig.ref()
+                  && rigStateIdOf(repo.savedParts.state) == rig.stateId(),
+              "K13d one command: one save holding the record, then one RigChanged");
+        const RigStateId fixedId = rig.stateId();
+        rig.setFixedInPlace(camA, false);
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.isEmpty() && rig.stateId() == unfixed,
+              "K13e fixed in place cleared: the record goes, and the earlier id comes back");
+        rig.setFixedInPlace(camA, true);
+        check(rig.stateId() == fixedId, "K13f fixed again: the same record and the same id (nothing in it is a clock)");
+
+        rig.assignPerspective(camB, kDtl);
+        check(cameraOf(rig, camB) && cameraOf(rig, camB)->calibrations.size() == 1
+                  && isDtlYaw(cameraOf(rig, camB)->calibrations.first(), camB),
+              "K13g a down-the-line camera with no measured extrinsics: one assumed record, yaw, pitch, roll 0, with the "
+              "uncalibrated yaw sigma (rig::kDtlYawSigmaUncalDeg) and no sigma for pitch or roll");
+        rig.setFixedInPlace(camB, true);
+        check(cameraOf(rig, camB) && cameraOf(rig, camB)->calibrations.size() == 1
+                  && isDtlYaw(cameraOf(rig, camB)->calibrations.first(), camB),
+              "K13h a down-the-line camera fixed in place keeps the down-the-line record (the analysis gives it the yaw "
+              "sigma), and only that one");
+        rig.assignPerspective(camA, kDtl);
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.size() == 1
+                  && isDtlYaw(cameraOf(rig, camA)->calibrations.first(), camA),
+              "K13i a fixed face-on camera made down-the-line: its square record is replaced by the down-the-line one");
+        rig.assignPerspective(camA, kFaceOn);
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.size() == 1
+                  && isSquare(cameraOf(rig, camA)->calibrations.first(), camA),
+              "K13j and back to face-on: square again");
+
+        bool none = true;
+        rig.setFixedInPlace(camC, true);   // fixed, perspective None
+        none = none && cameraOf(rig, camC) && cameraOf(rig, camC)->calibrations.isEmpty();
+        rig.assignPerspective(camC, kImpact);
+        none = none && cameraOf(rig, camC) && cameraOf(rig, camC)->calibrations.isEmpty();
+        rig.assignPerspective(camC, recording::perspectiveCode(recording::Perspective::Other));
+        none = none && cameraOf(rig, camC) && cameraOf(rig, camC)->calibrations.isEmpty();
+        rig.assignPerspective(camC, 7);   // a code this build does not know
+        none = none && cameraOf(rig, camC) && cameraOf(rig, camC)->calibrations.isEmpty();
+        check(none, "K13k a camera neither applies to (None, Impact, Other, an unknown code; fixed in place) has no record");
+        rig.assignPerspective(camB, kNone);
+        rig.setFixedInPlace(camB, false);
+        check(!cameraOf(rig, camB), "K13l a down-the-line camera put back to None and not fixed: no record, and no entry");
+    }
+    {
+        // At the launch: a rig stored before the records existed, or by a build whose records differ. Derived once,
+        // saved once, silently; a second launch of what was saved saves nothing.
+        MemoryRepository repo;
+        repo.loaded.id     = RigId::create();
+        repo.loaded.source = RigLoad::Source::File;
+        CameraSetup a(camA);
+        a.setPerspective(recording::Perspective::FaceOn);
+        a.fixedInPlace = true;
+        CameraSetup b(camB);
+        b.setPerspective(recording::Perspective::DownTheLine);
+        b.calibrations.append(CalibrationRecord::forCamera(camB, CalibrationKind::Extrinsics, CalibrationMethod::Assumed,
+                                                           NamedValues{ { "yawDeg", 0.0 } },
+                                                           Uncertainty::sigmas(NamedValues{ { "yawDeg", 5.0 } }),
+                                                           QDateTime::currentDateTimeUtc()));   // a stale record
+        CameraSetup c(camC);   // every fact at its default but a stale assumed record (a carried-over copy)
+        c.calibrations.append(squareRecord(camC));
+        repo.loaded.parts.state.cameras = { a, b, c };
+        Rig rig(repo);
+        Events ev(rig, &repo);
+        rig.load();
+        check(cameraOf(rig, camA) && cameraOf(rig, camA)->calibrations.size() == 1
+                  && isSquare(cameraOf(rig, camA)->calibrations.first(), camA)
+                  && cameraOf(rig, camB) && cameraOf(rig, camB)->calibrations.size() == 1
+                  && isDtlYaw(cameraOf(rig, camB)->calibrations.first(), camB),
+              "K13m at the launch: the fixed face-on camera gains its record, and the down-the-line camera's stale one "
+              "is replaced by today's");
+        check(!cameraOf(rig, camC), "K13n a camera that held nothing but an assumed record that no longer applies is no entry");
+        check(repo.saves == 1 && rigStateIdOf(repo.savedParts.state) == rig.stateId() && ev.changed.isEmpty()
+                  && ev.labels.isEmpty() && !rig.hasUnsavedChange(),
+              "K13o the derived state is saved once at the launch, with no event");
+        MemoryRepository again;
+        again.loaded.id     = rig.id();
+        again.loaded.source = RigLoad::Source::File;
+        again.loaded.parts  = repo.savedParts;
+        Rig second(again);
+        second.load();
+        check(again.saves == 0 && second.stateId() == rig.stateId(), "K13p the next launch derives the same: nothing saved");
+    }
+    {
+        // A file this build must not write: derived in memory, never saved, never "unsaved".
+        MemoryRepository repo;
+        repo.loaded.id     = RigId::create();
+        repo.loaded.source = RigLoad::Source::ReadOnly;
+        repo.fail          = true;
+        CameraSetup b(camB);
+        b.setPerspective(recording::Perspective::DownTheLine);
+        repo.loaded.parts.state.cameras = { b };
+        Rig rig(repo);
+        rig.load();
+        check(cameraOf(rig, camB) && cameraOf(rig, camB)->calibrations.size() == 1 && repo.saves == 0
+                  && !rig.hasUnsavedChange(),
+              "K13q a read-only file: the record is derived in memory, and nothing is saved or left unsaved");
+    }
+    {
+        // The seam: a measured extrinsics record (none is made in Stage C) is the camera's; no assumed one beside it.
+        MemoryRepository repo;
+        repo.loaded.id     = RigId::create();
+        repo.loaded.source = RigLoad::Source::File;
+        const CalibrationRecord solvedA = CalibrationRecord::forCamera(
+            camA, CalibrationKind::Extrinsics, CalibrationMethod::Solved, NamedValues{ { "yawDeg", 1.25 } },
+            Uncertainty::sigmas(NamedValues{ { "yawDeg", 0.5 } }), QDateTime());
+        const CalibrationRecord solvedB = CalibrationRecord::forCamera(
+            camB, CalibrationKind::Extrinsics, CalibrationMethod::Solved, NamedValues{ { "yawDeg", -3.5 } },
+            Uncertainty::sigmas(NamedValues{ { "yawDeg", 1.0 } }), QDateTime());
+        const CalibrationRecord focusB = CalibrationRecord::forCamera(camB, CalibrationKind::Focus, CalibrationMethod::UserMeasured,
+                                                                      {}, Uncertainty::notKnown(), QDateTime());
+        CameraSetup a(camA);
+        a.setPerspective(recording::Perspective::FaceOn);
+        a.fixedInPlace = true;
+        a.calibrations = { solvedA, squareRecord(camA) };
+        CameraSetup b(camB);
+        b.setPerspective(recording::Perspective::DownTheLine);
+        b.calibrations = { solvedB };
+        CameraSetup c(camC);
+        c.setPerspective(recording::Perspective::DownTheLine);
+        c.calibrations = { focusB };   // a record of another kind is not a measured extrinsics
+        c.calibrations.first().subject = camC;
+        repo.loaded.parts.state.cameras = { a, b, c };
+        Rig rig(repo);
+        rig.load();
+        const CameraSetup *ra = cameraOf(rig, camA), *rb = cameraOf(rig, camB), *rc = cameraOf(rig, camC);
+        check(ra && ra->calibrations.size() == 1 && ra->calibrations.first().method == CalibrationMethod::Solved
+                  && rb && rb->calibrations.size() == 1 && rb->calibrations.first().method == CalibrationMethod::Solved,
+              "K13r a measured extrinsics record replaces the assumed one: a face-on and a down-the-line camera keep "
+              "only theirs");
+        check(rc && rc->calibrations.size() == 2
+                  && std::any_of(rc->calibrations.begin(), rc->calibrations.end(),
+                                 [](const CalibrationRecord &r) { return r.kind == CalibrationKind::Focus; })
+                  && std::any_of(rc->calibrations.begin(), rc->calibrations.end(),
+                                 [](const CalibrationRecord &r) { return isDtlYaw(r, camC); }),
+              "K13s a record of another kind (focus) does not: the down-the-line camera keeps it and gains its assumed one");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

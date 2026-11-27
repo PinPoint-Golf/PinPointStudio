@@ -41,6 +41,9 @@
 //   - A save that fails is logged by the store; the change stands in memory, its event is emitted, and the Rig
 //     remembers it is unsaved: the next command, or the quit, saves the whole rig again (P4). No command is refused
 //     because the disk failed.
+//   - The assumed extrinsics records (rig.h, "The assumed records") follow the set-up in the same new state: a
+//     command that makes a camera face-on and fixed in place, or down the line, gives it its record, and one that
+//     ends that takes it away. They are part of the command's one save and one RigChanged, never a second state.
 //   - A camera entry whose versioned facts are all their defaults (perspective None, not mirrored, not fixed, no box,
 //     no calibration record) is the same as no entry: it is not kept in the rig state. So putting a camera back as it
 //     was gives back the earlier RigStateId, whether or not the camera was known before.

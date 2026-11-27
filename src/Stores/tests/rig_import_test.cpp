@@ -52,6 +52,11 @@
 //   L6  the prior's key gone from settings (P1): the Rig's priors are left as they are
 //   L7  a group copied again keeps a prior entry in rig.json this build cannot read (P2)
 //   L8  the two groups apart: a camera group copied again leaves the priors, and each group's kept entries stay
+//
+// The assumed extrinsics records (C-7b), which the Rig derives from the copied set-up:
+//   A1  the first copy gives the fixed face-on and the down-the-line camera their records, with no event; a group
+//       copied again after an older build's edit moves them with the set-up (a camera put on Impact loses its record);
+//       a camera gone from the group, holding only its carried-over record, is no entry, in the Rig or in rig.json
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -677,6 +682,59 @@ int main(int argc, char **argv)
         const QJsonObject kept2 = readJson(lf + "/rig.json").value("keptFromSettings").toObject();
         check(kept2.contains("analysis/clubLenPrior") && kept2.contains("camera/perspective") && kept2.contains("camera/alias"),
               "L8c and when the prior's group is copied again, the camera's kept entries stay");
+    }
+
+    std::printf("\nA1 the assumed records follow the copy from settings\n");
+    {
+        const QString af = stores.path() + "/a1/rig";
+        auto assumed = [](const CameraSetup *c) {
+            int n = 0;
+            if (c)
+                for (const CalibrationRecord &r : c->calibrations)
+                    n += r.kind == CalibrationKind::Extrinsics && r.method == CalibrationMethod::Assumed;
+            return n;
+        };
+        auto setPerspectives = [&](const QVariantMap &p) {
+            QSettings s = ppSettings();
+            s.setValue("camera/perspective", p);
+            s.sync();
+            reparse(ini);
+        };
+        writeFixture();   // the face-on Blackfly fixed in place; the FaceTime camera on an unknown code
+        setPerspectives(QVariantMap{ { kBlackfly, 2 }, { kFaceTime, 1 } });
+        {
+            Launch l(af);
+            check(assumed(cameraOf(l.rig, blackfly)) == 1 && assumed(cameraOf(l.rig, facetime)) == 1 && l.events == 0,
+                  "A1a the first copy: the fixed face-on camera and the down-the-line camera each hold one assumed record");
+        }
+        // An older build moves the down-the-line camera to Impact: the group is copied again, and its record goes.
+        setPerspectives(QVariantMap{ { kBlackfly, 2 }, { kFaceTime, 4 } });
+        {
+            Launch l(af);
+            check(cameraOf(l.rig, facetime) && assumed(cameraOf(l.rig, facetime)) == 0 && assumed(cameraOf(l.rig, blackfly)) == 1,
+                  "A1b copied again with the camera on Impact: its record is gone, the face-on camera's stays");
+        }
+        // An older build forgets the face-on camera altogether: the copy carries its records over, and with nothing else
+        // left, the camera is no entry.
+        {
+            QSettings s = ppSettings();
+            for (const char *k : { "camera/perspective", "camera/isMirrored", "camera/fixedInPlace", "camera/ballRoi", "camera/alias" }) {
+                QVariantMap m = s.value(k).toMap();
+                m.remove(kBlackfly);
+                s.setValue(k, m);
+            }
+            s.sync();
+            reparse(ini);
+        }
+        {
+            Launch l(af);
+            check(!cameraOf(l.rig, blackfly) && cameraOf(l.rig, facetime),
+                  "A1c a camera gone from the copied group, which held only its carried-over assumed record, is no entry");
+        }
+        bool written = false;
+        for (const QJsonValue &v : readJson(af + "/rig.json").value("state").toObject().value("cameras").toArray())
+            written = written || v.toObject().value("key").toString() == kBlackfly;
+        check(!written, "A1d ... and is not written to rig.json");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

@@ -32,6 +32,7 @@
 //     not a graded reading and do not fire it; the curve's share is in the evidence and the log.
 
 #include "shaft_direction.h"
+#include "../Vocabulary/Rig/camera_assumptions.h"   // the down-the-line camera's yaw sigma (AD-7)
 #include "../Vocabulary/Analysis/swing_analysis.h"
 #include "../Vocabulary/Analysis/gate_record.h"
 
@@ -69,7 +70,7 @@ inline ShaftDirectionOutput buildShaftDirection(const ShaftDirectionInput &in)
     shaftdir::Config cfg;
     cfg.leftHanded  = in.leftHanded;
     cfg.withSigma   = in.withSigma;
-    cfg.yawSigmaDeg = in.calibrated ? tuned::dtlCamera::kDtlYawSigmaCalDeg : tuned::dtlCamera::kDtlYawSigmaUncalDeg;
+    cfg.yawSigmaDeg = in.calibrated ? ::pinpoint::rig::kDtlYawSigmaCalDeg : ::pinpoint::rig::kDtlYawSigmaUncalDeg;
     out.yawSigmaDeg = cfg.yawSigmaDeg;
 
     std::vector<shaftdir::PhaseIn> phases;

@@ -44,6 +44,14 @@
 //       and clears (the box) is not written back from the file; the digest ignores all of it
 //   S10 the cameras round-trip (C-5a.1): every versioned field, an unknown perspective code and a calibration record,
 //       read back to the same RigStateId; and through the Rig's commands, the same after a relaunch
+//   S13 the assumed extrinsics records (C-7b) in rig.json: a file from before them gains them at the first launch,
+//       written with each camera's other records (extrinsics, assumed, yawDeg 0, the sigma, no time observed), with no
+//       event; the next launch reads them to the same RigStateId and writes nothing; a later save writes each back over
+//       itself unchanged; a camera that holds only unreadable records and every default fact stays out of the state
+//       and is written back exactly as read, with no record added; a down-the-line one keeps its unreadable record
+//       beside its assumed one; a fact cleared removes its record from the file; a save that leaves the facts as they
+//       were writes the whole file back byte for byte; an all-default camera entry with no record, as read, is not
+//       touched by the derivation at the launch (no save, the entry and its unknown field kept)
 //   S9  the test override: defaultFolder() is PINPOINT_RIG_DIR, inside the temporary directory; without it, Qt's
 //       test location, never the real one; the real folder is untouched by the run
 
@@ -52,6 +60,7 @@
 #include "../rig.h"
 #include "../../Core/PpMessageLog.h"
 #include "../../Stores/rig_store.h"
+#include "../../Vocabulary/Rig/camera_assumptions.h"   // the yaw sigma the analysis reads (S13)
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -65,6 +74,7 @@
 #include <QStandardPaths>
 #include <QTimeZone>
 
+#include <algorithm>
 #include <cstdio>
 
 using namespace pinpoint;
@@ -564,6 +574,121 @@ int main(int argc, char **argv)
             Launch relaunch(l.store.folder());
             check(relaunch.rig.ref() == ref && relaunch.rig.parts().other.aliases.size() == 1 && relaunch.events == 0,
                   "S10f through the commands: a relaunch gives the same RigRef and alias, with no event");
+        }
+    }
+
+    std::printf("\nS13 the assumed records in rig.json\n");
+    {
+        // A file as the build before the records wrote it: a fixed face-on camera, a down-the-line camera, and two
+        // cameras that hold only records this build cannot read (one with every fact at its default, which stays out of
+        // the state; one down the line, which is in it).
+        const QString f = caseFolder(stores);
+        const QByteArray file =
+            R"({"schema":"pinpoint.rig/1","rigId":"6d1f3a8e-2c4b-4d7e-9f0a-1b2c3d4e5f60",)"
+            R"("state":{"sinceUtc":"2026-11-27T09:00:00.000Z","cameras":[)"
+            R"({"key":"Blackfly S|0123","perspective":2,"mirrored":false,"fixedInPlace":true,"calibrations":[]},)"
+            R"({"key":"Blackfly S|0456","perspective":1,"mirrored":true,"fixedInPlace":false,"calibrations":[]},)"
+            R"({"key":"Cam Q|7","perspective":0,"mirrored":false,"fixedInPlace":false,"calibrations":[)"
+            R"({"subject":{"camera":"Cam Q|7"},"kind":"extrinsics","method":"laserTracker","parameters":{},"uncertainty":null,"observedAtUtc":null}]},)"
+            R"({"key":"Cam R|8","perspective":1,"mirrored":false,"fixedInPlace":false,"calibrations":[)"
+            R"({"subject":{"camera":"Cam R|8"},"kind":"thermalDrift","method":"solved","parameters":{},"uncertainty":null,"observedAtUtc":null}]}],)"
+            R"("sensors":[]},"other":{"aliases":[]}})";
+        writeAll(f + "/rig.json", file);
+        const QJsonArray origCams = readJson(f + "/rig.json").value("state").toObject().value("cameras").toArray();
+        const DeviceKey faceOn = DeviceKey::fromPersistedCameraKey(u"Blackfly S|0123");
+        const DeviceKey dtl    = DeviceKey::fromPersistedCameraKey(u"Blackfly S|0456");
+        const DeviceKey camQ   = DeviceKey::fromPersistedCameraKey(u"Cam Q|7");
+        const DeviceKey camR   = DeviceKey::fromPersistedCameraKey(u"Cam R|8");
+        auto entryOf = [](const QJsonObject &root, const QString &key) {
+            for (const QJsonValue &v : root.value("state").toObject().value("cameras").toArray())
+                if (v.toObject().value("key").toString() == key) return v.toObject();
+            return QJsonObject();
+        };
+        auto recordsOf = [&](const QJsonObject &root, const QString &key) { return entryOf(root, key).value("calibrations").toArray(); };
+        // Rulings 2 and 4 (the Solution Architect, 27 Nov 2026): yaw, pitch and roll 0 on both; the face-on camera's
+        // sigma 0 on each, the down-the-line camera's on the yaw only.
+        auto isAssumedJson = [](const QJsonValue &v, const QString &key, const QJsonObject &sigmas) {
+            const QJsonObject r = v.toObject();
+            return r.value("subject").toObject() == QJsonObject{ { "camera", key } } && r.value("kind").toString() == "extrinsics"
+                   && r.value("method").toString() == "assumed"
+                   && r.value("parameters").toObject() == QJsonObject{ { "yawDeg", 0.0 }, { "pitchDeg", 0.0 }, { "rollDeg", 0.0 } }
+                   && r.value("uncertainty").toObject() == sigmas && r.value("observedAtUtc").isNull() && !r.contains("evidence");
+        };
+        const QJsonObject squareSigmas{ { "yawDeg", 0.0 }, { "pitchDeg", 0.0 }, { "rollDeg", 0.0 } };
+        const QJsonObject dtlSigma{ { "yawDeg", pinpoint::rig::kDtlYawSigmaUncalDeg } };
+        RigStateId first;
+        {
+            Launch l(f);
+            first = l.rig.stateId();
+            const CameraSetup *q = nullptr, *r = nullptr;
+            for (const CameraSetup &c : l.rig.parts().state.cameras) {
+                if (c.key() == camQ) q = &c;
+                if (c.key() == camR) r = &c;
+            }
+            check(!q, "S13a a camera holding only a record this build cannot read, every fact at its default, stays out "
+                      "of the state: no assumed record makes it appear");
+            check(r && r->calibrations.size() == 1 && r->calibrations.first().method == CalibrationMethod::Assumed,
+                  "S13b a down-the-line camera holding only an unreadable record gains its assumed record in the state");
+            check(l.events == 0, "S13c the records derived at the launch emit nothing");
+        }
+        const QByteArray afterFirst = readAll(f + "/rig.json");
+        const QJsonObject saved = QJsonDocument::fromJson(afterFirst).object();
+        check(recordsOf(saved, "Blackfly S|0123").size() == 1 && isAssumedJson(recordsOf(saved, "Blackfly S|0123").at(0), "Blackfly S|0123", squareSigmas),
+              "S13d rig.json holds the fixed face-on camera's square record: extrinsics, assumed, yaw/pitch/roll 0, each sigma 0, no time");
+        check(recordsOf(saved, "Blackfly S|0456").size() == 1
+                  && isAssumedJson(recordsOf(saved, "Blackfly S|0456").at(0), "Blackfly S|0456", dtlSigma),
+              "S13e ... and the down-the-line camera's: yaw/pitch/roll 0, a sigma on the yaw only, the analysis's constant");
+        check(entryOf(saved, "Cam Q|7") == origCams.at(2).toObject(),
+              "S13f the camera with only an unreadable record is written back exactly as read, with no assumed record");
+        const QJsonArray rRecs = recordsOf(saved, "Cam R|8");
+        check(rRecs.size() == 2 && rRecs.contains(origCams.at(3).toObject().value("calibrations").toArray().at(0))
+                  && std::any_of(rRecs.begin(), rRecs.end(), [&](const QJsonValue &v) { return isAssumedJson(v, "Cam R|8", dtlSigma); }),
+              "S13g the down-the-line camera keeps its unreadable record, as read, beside its assumed one");
+        {
+            Launch l(f);
+            check(readAll(f + "/rig.json") == afterFirst && l.rig.stateId() == first && l.events == 0,
+                  "S13h the next launch reads the records back to the same RigStateId and writes nothing");
+            l.rig.setAlias(dtl, "Down the line");   // two saves that change no record, and leave the facts as they were
+            l.rig.setAlias(dtl, QString());
+        }
+        const QJsonObject aliased = readJson(f + "/rig.json");
+        check(recordsOf(aliased, "Blackfly S|0123") == recordsOf(saved, "Blackfly S|0123")
+                  && recordsOf(aliased, "Blackfly S|0456") == recordsOf(saved, "Blackfly S|0456")
+                  && recordsOf(aliased, "Cam R|8") == recordsOf(saved, "Cam R|8"),
+              "S13i a later save writes each record back over itself, unchanged (merge over the file as read)");
+        check(readAll(f + "/rig.json") == afterFirst,
+              "S13l ... and the whole file, byte for byte, once the alias set and cleared leaves the facts as they were");
+        {
+            Launch l(f);
+            check(l.rig.stateId() == first, "S13j and a relaunch after it reads the same RigStateId");
+            l.rig.setFixedInPlace(faceOn, false);
+        }
+        const QJsonObject unfixed = readJson(f + "/rig.json");
+        check(recordsOf(unfixed, "Blackfly S|0123").isEmpty() && recordsOf(unfixed, "Blackfly S|0456").size() == 1,
+              "S13k the face-on camera no longer fixed: its record is gone from rig.json; the other's stays");
+    }
+    {
+        // A camera entry with every fact at its default and no record (no copy from settings writes one; a later
+        // build's, or a hand edit) is in the state as read. The records' derivation at the launch must not touch it:
+        // the launch writes nothing, and the entry, with a field this build does not know, stays.
+        const QString f = caseFolder(stores);
+        const QByteArray file =
+            R"({"schema":"pinpoint.rig/1","rigId":"7e2a4b9c-3d5f-4a6b-8c7d-9e0f1a2b3c4d",)"
+            R"("state":{"sinceUtc":"2026-11-27T09:00:00.000Z","cameras":[)"
+            R"({"key":"Cam S|9","perspective":0,"mirrored":false,"fixedInPlace":false,"calibrations":[],"laterField":3}],)"
+            R"("sensors":[]},"other":{"aliases":[]}})";
+        writeAll(f + "/rig.json", file);
+        RigStateId atLoad;
+        {
+            Launch l(f);
+            atLoad = l.rig.stateId();
+            check(l.rig.parts().state.cameras.size() == 1 && readAll(f + "/rig.json") == file && l.events == 0,
+                  "S13m an all-default camera entry with no record: kept in the state, and the launch writes nothing");
+        }
+        {
+            Launch l(f);
+            check(l.rig.stateId() == atLoad && readAll(f + "/rig.json") == file,
+                  "S13n ... and at the next launch, the same (its unknown field still in the file)");
         }
     }
 

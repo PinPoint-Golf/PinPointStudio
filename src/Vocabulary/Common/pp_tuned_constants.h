@@ -1993,25 +1993,7 @@ inline constexpr double kShadowAreaMinFrac = 0.08;   // shaft.dtl.ball.shadowAre
 inline constexpr double kShadowAreaMaxFrac = 4.0;    // shaft.dtl.ball.shadowAreaMaxFrac — × π·r²
 } // namespace dtlBall
 
-// --- The down-the-line camera's direction (planned-metrics promotion, 12 Nov 2026) --------------
-// Every BEARING read in the two-camera frame (a heading in the ground plane: where the shaft points,
-// where the shoulders aim) moves one-for-one with the down-the-line camera's yaw, which nothing
-// measures until a calibration reaches the job (job.dtlCameraCalib.calibrated). Tilts and
-// inclinations do not carry it (≤ 1° over ±15° of yaw, shaft_fusion.h). Added in quadrature to the
-// reading's own σ, with the camera-assumed trust record (club3d.cameraAssumed).
-namespace dtlCamera {
-// Uncalibrated: the 4 July stick probe found the down-the-line camera turned 4.4–8.7° toward the
-// golfer, by its distance (tools/shaftlab/dtl_yaw_probe.py; dtl_posture_design.md §4). That error is
-// a one-way BIAS, not noise: it pushes P2 toward outside and the top toward laid off at once (4 July
-// swing 8 read +9.4° / −11.0°). Mark, 12 Nov 2026: widen to 9°, the largest turn measured, so every
-// uncalibrated bearing says plainly how weak it is until calibration lands (was 5°). A design value.
-// The FACE-ON camera is taken as square to the target line (Mark, 12 Nov: a camera fixed to a wall
-// is not pointed at an angle), so it carries no term of its own.
-inline constexpr double kDtlYawSigmaUncalDeg = 9.0;
-// Calibrated (camera_pose_sticks.h on the protocol's stick clips): a stated 1°. Provisional — no
-// calibrated session has been graded against a second yaw measurement yet.
-inline constexpr double kDtlYawSigmaCalDeg   = 1.0;
-} // namespace dtlCamera
+// --- The down-the-line camera's yaw sigma: moved to src/Vocabulary/Rig/camera_assumptions.h (rig::kDtlYawSigma*Deg).
 
 // --- Shaft direction (src/Club/shaft_direction.h; ShaftDirectionStage) --------------------------
 // The bearing of the shaft against the target line at P2 and the top. The fused 3-D shaft is the
