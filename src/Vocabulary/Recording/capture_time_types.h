@@ -51,7 +51,8 @@ struct ImuSegmentBinding {
     QQuaternion mountM;   // anatomical-body -> sensor-body     (M)
     // Calibration status snapshot (ImuInstance) — persisted so SwingLab can
     // filter a corpus by calibration provenance. `calibrated` is the composite
-    // gate (anatCalibrated AND both mount checks within threshold).
+    // gate, ImuInstance::fullyCalibrated(): a whole calibration run passed for the sensor
+    // (#417); anatCalibrated alone says an alignment was applied, perhaps by half a run.
     bool        anatCalibrated = false;
     bool        calibrated     = false;
     double      mountDeviationDeg    = 0.0;

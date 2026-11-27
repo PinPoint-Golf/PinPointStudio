@@ -108,10 +108,10 @@ class ImuInstance : public ImuDeviceBase
     // (which the long-axis-rotation deviation above is blind to). Set by
     // setNominalCalibration. 0 until calibrated.
     Q_PROPERTY(double      mountGravityErrorDeg READ mountGravityErrorDeg NOTIFY anatCalibratedChanged)
-    // The composite validity gate (fullyCalibrated() below): anatomical transform valid AND
-    // both mount checks within threshold — what saved shots record as `calibrated`, and the
-    // check a setup page must use rather than re-deriving it from the three properties above
-    // (design §4.11, finding F1). Same NOTIFY as its inputs, which all change together.
+    // The composite validity gate (fullyCalibrated() below): a whole calibration that passed —
+    // what saved shots record as `calibrated`, and the check a setup page must use rather than
+    // re-deriving it from the properties above (design §4.11, finding F1). Same NOTIFY as its
+    // inputs, which all change together.
     Q_PROPERTY(bool        fullyCalibrated READ fullyCalibrated NOTIFY anatCalibratedChanged)
     // The trunk stand-tall solve that set A/M (calibrateTrunk below), in calibrateTrunk's own
     // keys plus "calibratedAt" — EMPTY unless the current calibration came from it. For a
@@ -200,19 +200,39 @@ public:
     // catches flips, long-axis deviation catches strap rotation. BOTH must pass.
     static constexpr double kMountDeviationMaxDeg    = 15.0;
     static constexpr double kMountGravityErrorMaxDeg = 25.0;
-    // Composite "is calibrated" — anatomical transform valid AND both mount
-    // checks within threshold. This is what saved shots record as `calibrated`.
-    // ⚠ The two mount checks are the ARM routines' (strap rotation, arm-down gravity). A trunk
-    // solve has its own mount gates — long axis within 35° of up, face within 40° of horizontal
-    // (imu_frame_contract.md §5) — and is applied only when they all pass, so a trunk
-    // calibration is fully calibrated by construction; the arm thresholds are not applied to it.
+
+    // How far the calibration now applied has come (#417: a sensor is calibrated only by a whole
+    // calibration that passed). Every set and clear path sets it; nothing else does.
+    //   None            no alignment, or one no calibration run made (setFunctionalCalibration)
+    //   ArmDown         the arm routine's first half: the nominal mount at arm-down
+    //   ArmRefined      the arm routine's second half: the T-pose refine, after an arm-down
+    //   TrunkStandTall  the trunk routine's first half: a valid stand-tall solve
+    //   TrunkConfirmed  the trunk routine's end: both turns passed (confirmTrunkCalibration)
+    enum class CalibrationStep : quint8 { None, ArmDown, ArmRefined, TrunkStandTall, TrunkConfirmed };
+    CalibrationStep calibrationStep() const { return m_calibStep; }
+
+    // Composite "is calibrated" — what saved shots record as `calibrated`, what the set-up pages,
+    // the toolbar and the IMU panel read, and what the Rig holds a record for. True only when a
+    // whole calibration run passed for THIS sensor (each sensor is judged on its own evidence):
+    //   the arm — arm-down then the T-pose refine, and both mount checks within threshold (a refine
+    //             rejected for |φ| > 25° reports |φ| as the deviation, so it fails the gate);
+    //   the trunk — a valid stand-tall solve (whose own mount gates, long axis within 35° of up and
+    //             face within 40° of horizontal, imu_frame_contract.md §5, passed) and then both
+    //             turns, confirmed by the trunk routine; the arm thresholds are not applied to it.
+    // Anything else — arm-down alone, a stand tall alone, a stopped or failed run — leaves the
+    // alignment applied (anatCalibrated) and the sensor NOT calibrated.
     bool fullyCalibrated() const override
     {
-        if (m_anatCalibrated && m_trunkProv.present)
-            return true;
-        return m_anatCalibrated
-            && m_mountDeviationDeg    <= kMountDeviationMaxDeg
-            && m_mountGravityErrorDeg <= kMountGravityErrorMaxDeg;
+        if (!m_anatCalibrated) return false;
+        switch (m_calibStep) {
+        case CalibrationStep::ArmRefined:
+            return m_mountDeviationDeg    <= kMountDeviationMaxDeg
+                && m_mountGravityErrorDeg <= kMountGravityErrorMaxDeg;
+        case CalibrationStep::TrunkConfirmed:
+            return m_trunkProv.present;
+        default:
+            return false;
+        }
     }
 
     // BLE chain delay between the physical impact and host arrival of the
@@ -288,9 +308,9 @@ public:
     // role: "pelvis" (hip sensor) | "thorax" (chest sensor). Summarises the LAST 2 s of this
     // sensor's own samples (trunk_stand_tall::latest — call it as the hold bar fills; the golfer
     // must have been still for the whole 2 s) and runs imu_calibration::solveTrunkSegment.
-    // A and M are applied ONLY when the solve is valid; then anatCalibrated, fullyCalibrated and
-    // calibrated all read true and the record rides on every later shot's binding
-    // (trunkCalibProvenance). An invalid solve changes NOTHING on the instance — a previous
+    // A and M are applied ONLY when the solve is valid; then anatCalibrated and calibrated read
+    // true and the record rides on every later shot's binding (trunkCalibProvenance), but
+    // fullyCalibrated waits for confirmTrunkCalibration, after both turns (#417). An invalid solve changes NOTHING on the instance — a previous
     // calibration, if any, stays — so a routine that must not inherit one clears it first
     // (clearFunctionalCalibration + clearCalibration, as WitmotionArmRoutine._reset does).
     // An unknown role returns { valid: false, failure: "…" } and touches nothing.
@@ -312,6 +332,12 @@ public:
     //     ceremony file's stand-tall replay ends its window there (trunk_ceremony_file.h)
     //   serial (string)         laneSerial(), what the ceremony lane and the binding are keyed by
     Q_INVOKABLE QVariantMap calibrateTrunk(const QString &role);
+
+    // The trunk routine's end (TrunkRoutine._finish): stand tall passed and then both turns. Makes
+    // the stand-tall solve now applied count as calibrated (fullyCalibrated, the Rig's record).
+    // Refused — false, and nothing changes — unless the alignment applied is a valid stand-tall
+    // solve that nothing has replaced or cleared since.
+    Q_INVOKABLE bool        confirmTrunkCalibration();
 
 signals:
     // stateLabelChanged / imuConnectedChanged / busyChanged / batteryPercentChanged /
@@ -345,9 +371,10 @@ private:
     friend struct ImuInstanceTestAccess;
 
     // THE RIG'S RECORD OF THIS SENSOR'S ALIGNMENT (ImuDeviceBase::setCalibrationSink; rig_design_addendum.md decision
-    // 4). Called last, after every path that sets or clears the anatomical half (A, M, the flag and its time, the two
-    // mount checks, the trunk provenance): calibrated, it commits a `sensorAlignment` record of what this instance now
-    // holds; not calibrated, it clears the record. The older half (setCalibration, clearCalibration) is not the Rig's
+    // 4, as amended by #417). Called last, after every path that sets or clears the anatomical half (A, M, the flag and
+    // its time, the two mount checks, the trunk provenance, the step) and after confirmTrunkCalibration: fully
+    // calibrated (a whole run passed), it commits a `sensorAlignment` record of what this instance now holds; anything
+    // else — half a run, a failed one, none — clears the record, though the alignment may still be applied. The older half (setCalibration, clearCalibration) is not the Rig's
     // record and reports nothing. The record: subject this sensor's PlacementKey (its bare id); method `solved` (A and
     // M are worked out here, from the sensor's own poses); the role the trunk solve was asked for when A and M are its,
     // else the role the placement holds now; A, M, both mount checks and the trunk provenance as held; uncertainty not
@@ -498,6 +525,7 @@ private:
     QDateTime   m_calibratedAtUtc;                     // wallclock of last calibration (invalid = never)
     pinpoint::TrunkCalibProvenance m_trunkProv;         // present only while A/M are the trunk solve's
     QVariantMap m_trunkRecord;                          // calibrateTrunk's map for that solve; else empty
+    CalibrationStep m_calibStep = CalibrationStep::None;   // how far the applied calibration has come (#417)
     void        clearTrunkProvenance();                 // every other calibration path calls this
 
     // Log throttle — summary every 10 s

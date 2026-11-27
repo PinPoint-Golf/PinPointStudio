@@ -425,7 +425,8 @@ function parseLine(line, records) {
     }
     return { own: "log", text: line }
 }
-var SENSOR_CALLS = { clearFunctionalCalibration: "clearFunctional", clearCalibration: "clear", calibrateTrunk: "solve" }
+var SENSOR_CALLS = { clearFunctionalCalibration: "clearFunctional", clearCalibration: "clear", calibrateTrunk: "solve",
+                     confirmTrunkCalibration: "confirm" }
 function project(events, tickMs) {
     var out = [], records = []
     var round = function(t) { return tickMs > 0 ? Math.round(t / tickMs) * tickMs : t }

@@ -38,7 +38,7 @@
 //                both sensors still for `returnStill` — the golfer faces the screen again. Then stepEnd
 //                and the recorder's checkTurn("away"), and the verdict on screen.
 //   turnThrough  the FOLLOW-THROUGH TURN: the same toward the target, checkTurn("through").
-//   done         both turns passed: the A/M from stand tall stand, completed() once.
+//   done         both turns passed: the A/M from stand tall stand, now calibrated (#417), completed() once.
 //   failed       a trunk sensor is missing or dropped its link: Recalibrate starts again.
 //
 // A turn that fails shows its verdict (`retry`), then re-arms by itself on stillness — no demo again,
@@ -671,7 +671,11 @@ CalibrationRoutineBase {
         _go(name, "retry", "turn=fail cause=" + cause + (reseat ? " back=standTall" : ""))
     }
 
+    // Both turns passed: only now do the two stand-tall solves count as calibrated (#417). Each sensor
+    // refuses unless its own valid stand-tall solve is still the one applied (imu_instance.h).
     function _finish() {
+        pelvisImu.confirmTrunkCalibration()
+        thoraxImu.confirmTrunkCalibration()
         calibrationDone = true
         _go("done", "", "turn=valid")
         _endCeremony()

@@ -244,7 +244,10 @@ Item {
                 verify(names.slice(0, solve).indexOf("clearCalibration") >= 0, JSON.stringify(names))
                 compare(p[0].countCalls("calibrateTrunk"), 1)
                 compare(p[0].calls[solve].args, [p[1]])
-                verify(p[0].fullyCalibrated, p[1] + " not fullyCalibrated after a valid solve")
+                // #417: calibrated only at the end, once both turns passed: confirmed after the solve.
+                compare(p[0].countCalls("confirmTrunkCalibration"), 1)
+                verify(names.indexOf("confirmTrunkCalibration") > solve, JSON.stringify(names))
+                verify(p[0].fullyCalibrated, p[1] + " not fullyCalibrated after stand tall and both turns")
             })
             // The attached records are calibrateTrunk's own.
             var att = cer.calls.filter(function(c) { return c.name === "attachResult" })
@@ -293,6 +296,8 @@ Item {
             r.begin()
             waitFor(function() { return r.substage === "retry" }, 5000, "no retry after the failed turn")
             compare(r.stage, "turnAway")
+            // #417: a failed turn calibrates neither sensor (the turns are judged as a pair).
+            verify(!pel.fullyCalibrated && !tho.fullyCalibrated, "a sensor counts as calibrated after a failed turn")
             compare(r.message, "Chest turned too little — make a fuller backswing turn, then turn back to address")
             compare(r.messageKind, "warn")
             // The verdict, then the turn re-arms by itself — no demo again; the verdict stays on screen.
@@ -444,6 +449,12 @@ Item {
             compare(log.lines.length, mark.log, "the routine logged after leave: " + log.lines.slice(mark.log).join(" | "))
             compare(r.stage, "idle")
             compare(completedCount, 0)
+            // #417: a run left before both turns passed calibrates neither sensor. Past stand tall the
+            // alignment stays applied; it is not calibrated.
+            verify(!pel.fullyCalibrated && !tho.fullyCalibrated, row.tag + ": a sensor counts as calibrated after a run left unfinished")
+            if (row.stage === "turnAway" || row.stage === "turnThrough")
+                verify(pel.anatCalibrated && tho.anatCalibrated, row.tag + ": the stand-tall alignment was not kept applied")
+            compare(pel.countCalls("confirmTrunkCalibration") + tho.countCalls("confirmTrunkCalibration"), 0)
         }
 
         function test_TR7_restoreShowsTheFinishedRun() {
@@ -479,6 +490,7 @@ Item {
             tho.imuConnected = false
             compare(r.stage, "failed")
             verify(r.failed)
+            verify(!pel.fullyCalibrated && !tho.fullyCalibrated, "a sensor counts as calibrated after the run failed")
             compare(r.message, "Chest sensor lost its connection — reconnect it on the Sensors step, then Recalibrate")
             compare(cer.order().slice(-2), ["stepEnd:turnAway", "end"])
             compare(completedCount, 0)

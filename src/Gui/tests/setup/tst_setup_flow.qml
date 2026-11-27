@@ -346,8 +346,8 @@ Item {
             compare(flow().current, "checkArm")
             compare(draft().state("calibrateArm"), "skipped")
             back()
-            a.anatCalibrated = true
-            b.anatCalibrated = true
+            a.markCalibrated()
+            b.markCalibrated()
             draft().recordOutcome("arm", "witmotion", [a, b])
             verify(draft().outcome("arm").done)
             verify(flow().canContinue)
@@ -632,7 +632,7 @@ Item {
             cams.addInstance("FO", { ballPresent: true })
             var a = wit("WT-A", "A", true)
             var b = wit("WT-B", "B", true)
-            a.anatCalibrated = true; b.anatCalibrated = true
+            a.markCalibrated(); b.markCalibrated()
             makeShell()
             open()
             compare(journal.alive, 1)
@@ -710,7 +710,7 @@ Item {
             var b = wit("WT-B", "B", true)
             makeShell()
             open()
-            a.anatCalibrated = true; b.anatCalibrated = true
+            a.markCalibrated(); b.markCalibrated()
             draft().recordOutcome("arm", "witmotion", [a, b])
             verify(draft().outcome("arm").done)
             compare(ctx().setupFacts.imuRoles.slice().sort(), ["leadForearm", "leadHand"])

@@ -30,8 +30,12 @@
 //       clearCalibration, CL2 clearFunctionalCalibration, CL4 the two routines' resets, CL7 the object's teardown). After
 //       each: the Rig's record equals the live anatomical half (A, M, both mount checks, the trunk provenance, the method
 //       `solved`, the kind, the role, a time observed equal to the object's own), or there is none when the object is
-//       not anatomically calibrated; exactly one RigChanged when the record changed and none when it did not; nothing
-//       saved. SE1 and CL1 touch only the older flag, so the record does not move (decision 4.2)
+//       not fully calibrated (#417: arm-down alone, a stand tall alone, a failed refine and a one-shot functional solve
+//       apply an alignment and hold no record); exactly one RigChanged when the record changed and none when it did
+//       not; nothing saved. SE1 and CL1 touch only the older flag, so the record does not move (decision 4.2)
+//   C1  the ruling (#417): a sensor is calibrated, and the Rig holds its record, only after a whole run passed — the arm
+//       after arm-down and an accepted refine with both mount checks in limits, judged per sensor; the trunk after a
+//       valid stand tall and the routine's confirmation once both turns pass. Half a run leaves the alignment applied
 //   W2  re-entrancy: at each RigChanged the object already holds what the record says (the commit is its last act),
 //       and the roles, aliases and enabled flags are as they were; the object's own A and M equal what the same calls
 //       give with no sink at all (the sensor's behaviour is unchanged)
@@ -130,7 +134,8 @@ QString witmotionMismatch(const Rig &rig, const ImuInstance &imu, SegmentRole ro
 {
     const PlacementKey key(DeviceKey::fromPersistedId(imu.deviceId()));
     const CalibrationRecord *r = recordOf(rig, key);
-    if (!imu.anatCalibrated()) return r ? QStringLiteral("a record, and the sensor is not calibrated") : QString();
+    // #417: a record only for a sensor a whole run calibrated; half a run (the alignment applied) holds none.
+    if (!imu.fullyCalibrated()) return r ? QStringLiteral("a record, and the sensor is not calibrated") : QString();
     if (!r) return QStringLiteral("no record, and the sensor is calibrated");
     const auto *p = std::get_if<SensorAlignmentParameters>(&r->parameters);
     const auto *subject = std::get_if<PlacementKey>(&r->subject);
@@ -258,21 +263,27 @@ int main(int argc, char **argv)
         };
         const QVector3D grav(0, -1, 0), longAxis(0, 1, 0), flex(1, 0, 0);
         QVariantMap trunkOut;
+        double se4cGravity = 0.0, se4cDeviation = 0.0;
         const Row rows[] = {
             { "SE1", "setCalibration: the older half only, no record", [&] { imu->setCalibration(kRef1, kRef2); }, 0, SegmentRole::LeadForearm },
-            { "SE2", "setFunctionalCalibration", [&] { imu->setFunctionalCalibration(kRef1, grav, longAxis, flex, false); }, 1, SegmentRole::LeadForearm },
+            { "SE2", "setFunctionalCalibration: no run, so no record", [&] { imu->setFunctionalCalibration(kRef1, grav, longAxis, flex, false); }, 0, SegmentRole::LeadForearm },
             { "CL1", "clearCalibration: the older half only, the record stays", [&] { imu->clearCalibration(); }, 0, SegmentRole::LeadForearm },
-            { "SE3", "setNominalCalibration", [&] { imu->setNominalCalibration(kRef2, false); }, 1, SegmentRole::LeadForearm },
+            { "SE3", "setNominalCalibration: arm-down alone, no record", [&] { imu->setNominalCalibration(kRef2, false); }, 0, SegmentRole::LeadForearm },
             { "SE4a", "refineMountAboutLongAxis, |phi| <= 25", [&] { imu->refineMountAboutLongAxis(kRef3, 10.0, false); }, 1, SegmentRole::LeadForearm },
-            { "SE4b", "refineMountAboutLongAxis, |phi| > 25 (kept nominal)", [&] { imu->refineMountAboutLongAxis(kRef4, 40.0, false); }, 1, SegmentRole::LeadForearm },
+            { "SE4b", "refineMountAboutLongAxis, |phi| > 25 (kept nominal, fails the gate): the record cleared", [&] { imu->refineMountAboutLongAxis(kRef4, 40.0, false); }, 1, SegmentRole::LeadForearm },
             { "SE5x", "calibrateTrunk, an unknown role: nothing applied", [&] { imu->calibrateTrunk("knee"); }, 0, SegmentRole::LeadForearm },
             { "SE5i", "calibrateTrunk, an invalid solve (no samples): nothing applied", [&] { imu->calibrateTrunk("pelvis"); }, 0, SegmentRole::LeadForearm },
-            { "SE5", "calibrateTrunk, a valid solve on the device's own frames", [&] { standTall(*imu, 600); trunkOut = imu->calibrateTrunk("pelvis"); }, 1, SegmentRole::Pelvis },
+            { "SE5", "calibrateTrunk, a valid solve on the device's own frames: stand tall alone, no record", [&] { standTall(*imu, 600); trunkOut = imu->calibrateTrunk("pelvis"); }, 0, SegmentRole::Pelvis },
+            { "SE5c", "confirmTrunkCalibration after both turns", [&] { imu->confirmTrunkCalibration(); }, 1, SegmentRole::Pelvis },
             { "CL4w", "the arm routine's reset: clearCalibration then clearFunctionalCalibration", [&] { imu->clearCalibration(); imu->clearFunctionalCalibration(); }, 1, SegmentRole::LeadForearm },
-            { "SE3b", "setNominalCalibration again", [&] { imu->setNominalCalibration(kRef1, false); }, 1, SegmentRole::LeadForearm },
-            { "CL4t", "the trunk routine's reset: clearFunctionalCalibration then clearCalibration", [&] { imu->clearFunctionalCalibration(); imu->clearCalibration(); }, 1, SegmentRole::LeadForearm },
+            { "SE3b", "setNominalCalibration again", [&] { imu->setNominalCalibration(kRef1, false); }, 0, SegmentRole::LeadForearm },
+            // The sensor's last frames are SE5's, standing upright, so this arm-down's gravity check reads the mount
+            // flipped (> 25°): an accepted refine still fails the gate, so no record.
+            { "SE4c", "refineMountAboutLongAxis after it, the gravity check failed at arm-down: no record", [&] { imu->refineMountAboutLongAxis(kRef2, 8.0, false); se4cGravity = imu->mountGravityErrorDeg(); se4cDeviation = imu->mountDeviationDeg(); }, 0, SegmentRole::LeadForearm },
+            { "CL4t", "the trunk routine's reset: clearFunctionalCalibration then clearCalibration, of no record", [&] { imu->clearFunctionalCalibration(); imu->clearCalibration(); }, 0, SegmentRole::LeadForearm },
             { "CL2", "clearFunctionalCalibration of nothing", [&] { imu->clearFunctionalCalibration(); }, 0, SegmentRole::LeadForearm },
-            { "SE3c", "setNominalCalibration before the teardown", [&] { imu->setNominalCalibration(kRef3, false); }, 1, SegmentRole::LeadForearm },
+            { "SE3c", "setNominalCalibration before the teardown", [&] { imu->setNominalCalibration(kRef3, false); }, 0, SegmentRole::LeadForearm },
+            { "SE5d", "a stand tall and its confirmation before the teardown", [&] { standTall(*imu, 600); imu->calibrateTrunk("pelvis"); imu->confirmTrunkCalibration(); }, 1, SegmentRole::Pelvis },
         };
         for (const Row &row : rows) {
             const int before = events;
@@ -281,14 +292,16 @@ int main(int argc, char **argv)
             check(why.isEmpty() && events - before == row.events && repo.saves == savesBefore,
                   QStringLiteral("W1 %1 %2: the record %3; %4 RigChanged; nothing saved%5")
                       .arg(QLatin1String(row.id), QLatin1String(row.what),
-                           imu->anatCalibrated() ? QStringLiteral("equals the live alignment") : QStringLiteral("is gone"))
+                           imu->fullyCalibrated() ? QStringLiteral("equals the live alignment") : QStringLiteral("is none"))
                       .arg(row.events)
                       .arg(why.isEmpty() ? QString() : QStringLiteral(" (differs: %1, events %2)").arg(why).arg(events - before)));
         }
-        check(trunkOut.value("valid").toBool() && imu->trunkCalibProvenance().present == false,
-              "W1 SE5's solve was valid (the trunk provenance it set was cleared by the reset after it)");
-        check(reentrancyFaults == 0 && events == 9,
-              QStringLiteral("W2 at each of the 9 RigChanged the object already held the record's alignment, and the roles, "
+        check(se4cGravity > ImuInstance::kMountGravityErrorMaxDeg && se4cDeviation <= ImuInstance::kMountDeviationMaxDeg,
+              QStringLiteral("W1 SE4c failed on the gravity check alone (gravity %1°, strap %2°)").arg(se4cGravity, 0, 'f', 1).arg(se4cDeviation, 0, 'f', 1));
+        check(trunkOut.value("valid").toBool() && imu->trunkCalibProvenance().present,
+              "W1 SE5's solve was valid (and SE5d's is the one in force now)");
+        check(reentrancyFaults == 0 && events == 5,
+              QStringLiteral("W2 at each of the 5 RigChanged the object already held the record's alignment, and the roles, "
                              "aliases and enabled flags were as before (faults %1)").arg(reentrancyFaults));
 
         const int before = events;
@@ -297,6 +310,63 @@ int main(int argc, char **argv)
         check(!recordOf(rig, PlacementKey(DeviceKey::fromPersistedId(u"W1"))) && events - before == 1 && rig.stateId() == roleOnly
                   && repo.saves == savesBefore,
               "W1 CL7 the object's teardown clears the record: one RigChanged, the role-only RigStateId back, nothing saved");
+    }
+
+    std::printf("\nC1 a sensor is calibrated only by a whole calibration that passed (#417): half a run applies, and is not "
+                "calibrated\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        const auto made = [&](const char *id) {
+            auto *i = new ImuInstance(witmotion(QString::fromLatin1(id)), nullptr, nullptr, nullptr);
+            i->setCalibrationSink(&rig, rolesOf(rig));
+            i->setOutputRateHz(200);
+            return i;
+        };
+        const auto held = [&](const ImuInstance *i) { return recordOf(rig, PlacementKey(DeviceKey::fromPersistedId(i->deviceId()))) != nullptr; };
+
+        // The arm: arm-down alone (a run stopped, or the lead lost, before the T-pose).
+        ImuInstance *a = made("C1A");
+        a->setNominalCalibration(kRef1, false);
+        check(a->anatCalibrated() && !a->fullyCalibrated() && !held(a),
+              "C1a arm-down alone: the alignment is applied (anatCalibrated), the sensor is NOT calibrated, the Rig holds no record");
+        // The arm: the T-pose's refine without an arm-down before it.
+        ImuInstance *b = made("C1B");
+        b->refineMountAboutLongAxis(kRef2, 5.0, false);
+        check(!b->fullyCalibrated() && !held(b), "C1b a refine with no arm-down before it: not calibrated, no record");
+        // The trunk: stand tall alone (the two turns not yet checked).
+        ImuInstance *t = made("C1T");
+        standTall(*t, 600);
+        const QVariantMap out = t->calibrateTrunk("pelvis");
+        check(out.value("valid").toBool() && t->anatCalibrated() && !t->fullyCalibrated() && !held(t),
+              "C1c a valid stand tall alone: the alignment is applied, the sensor is NOT calibrated until both turns pass, no record");
+
+        // The passing paths, and what ends them.
+        a->refineMountAboutLongAxis(kRef3, 10.0, false);
+        check(a->fullyCalibrated() && held(a) && witmotionMismatch(rig, *a, SegmentRole::Unknown).isEmpty(),
+              "C1d arm-down then an accepted refine within the gates: calibrated, and the Rig's record equals the live alignment");
+        ImuInstance *f = made("C1F");
+        f->setNominalCalibration(kRef2, false);
+        f->refineMountAboutLongAxis(kRef3, 20.0, false);   // accepted (<= 25), over the 15° strap gate
+        check(f->anatCalibrated() && !f->fullyCalibrated() && !held(f) && a->fullyCalibrated() && held(a),
+              "C1e per sensor: a refine over the strap gate leaves that sensor applied and NOT calibrated, and another "
+              "sensor of the same run that passed stays calibrated");
+        ImuInstance *g = made("C1G");
+        g->setNominalCalibration(kRef2, false);
+        g->refineMountAboutLongAxis(kRef4, 40.0, false);   // rejected: kept nominal, |φ| as the deviation
+        check(!g->fullyCalibrated() && !held(g), "C1f a refine rejected for |phi| > 25: not calibrated, no record");
+        check(!a->confirmTrunkCalibration() && a->fullyCalibrated() && held(a),
+              "C1g confirmTrunkCalibration on an arm calibration is refused and changes nothing");
+        check(t->confirmTrunkCalibration() && t->fullyCalibrated() && held(t)
+                  && witmotionMismatch(rig, *t, SegmentRole::Pelvis).isEmpty(),
+              "C1h stand tall then the routine's confirmation (both turns passed): calibrated, the record equals the live solve");
+        a->setNominalCalibration(kRef1, false);
+        t->clearFunctionalCalibration();
+        check(!a->fullyCalibrated() && !held(a) && !t->fullyCalibrated() && !held(t) && !t->confirmTrunkCalibration(),
+              "C1i a new arm-down, and a clear, end the calibration and the record at once; a confirmation after a clear is refused");
+        for (ImuInstance *i : { a, b, t, f, g }) delete i;
+        settle();
     }
 
     std::printf("\nW2 the sensor's own behaviour is unchanged: the same calls with no sink give the same A and M\n");
@@ -423,6 +493,7 @@ int main(int argc, char **argv)
         imu->setCalibrationSink(&rig, rolesOf(rig));
         const PlacementKey key(DeviceKey::fromPersistedId(u"W5"));
         imu->setNominalCalibration(kRef1, false);   // calibrated with no role: a record-only entry
+        imu->refineMountAboutLongAxis(kRef2, 5.0, false);
         const SensorSetup *x = sensorOf(rig, key);
         check(x && x->role == SegmentRole::Unknown && x->calibration && witmotionMismatch(rig, *imu, SegmentRole::Unknown).isEmpty(),
               "R1a a sensor calibrated while it holds no role: the Rig keeps a record-only entry, equal to the live alignment");

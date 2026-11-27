@@ -221,6 +221,13 @@ Item {
                         && stageNow === "idle" && !anim
             if (!clean) dumpTimeline(finding + " " + row.tag)
             verify(clean, detail)
+            // #417: a run left before the T-pose's refine calibrates no sensor; after arm-down the
+            // alignment stays applied, and is not calibrated.
+            verify(!drv.imus.A.fullyCalibrated && !drv.imus.B.fullyCalibrated,
+                   how + " at " + stageAtLeave + ": a sensor counts as calibrated after a run left unfinished")
+            if (row.stage === "raise" || row.stage === "phase2")
+                verify(drv.imus.A.anatCalibrated && drv.imus.B.anatCalibrated,
+                       how + " at " + stageAtLeave + ": the arm-down alignment was not kept applied")
         }
 
         // ── 0. The harness clock ─────────────────────────────────────────────
@@ -389,6 +396,11 @@ Item {
             verify(drv.textShown(msg), "the message is not on screen")
             drv.wiz.goNext("done")
             compare(drv.wiz.currentStep, drv.wiz.stepCalibrate, "Continue went past a failed mount")
+            // #417, judged per sensor: the hand that failed its strap check is applied and NOT calibrated;
+            // the forearm and upper arm, which passed theirs, are calibrated.
+            verify(drv.imus.B.anatCalibrated && !drv.imus.B.fullyCalibrated, "the failed hand counts as calibrated")
+            verify(drv.imus.A.fullyCalibrated, "the passing forearm is not calibrated")
+            verify(drv.imus.C.fullyCalibrated, "the passing upper arm is not calibrated")
 
             var m = drv.mark()
             drv.clickFlowRecalibrate()
@@ -423,6 +435,11 @@ Item {
             // timer kept running on the dead sensor. The expected-failure marker went with it.)
             compare(drv.badgeText(), "Failed")
             compare(drv.stage(), "failed")
+            // #417: the lead lost before the T-pose — arm-down alone (phase 2) or nothing (phase 1)
+            // calibrates neither sensor.
+            verify(!drv.imus.A.fullyCalibrated && !drv.imus.B.fullyCalibrated, "a sensor counts as calibrated after a failed run")
+            if (row.stage === "phase2")
+                verify(drv.imus.B.anatCalibrated, "the arm-down alignment was not kept applied")
             var running = drv.runningTimers()
             verify(running.indexOf("phase1Hold") < 0 && running.indexOf("stabilityHold") < 0,
                    "a hold timer still runs on the dead sensor: " + JSON.stringify(running))

@@ -439,7 +439,7 @@ ImuInstance::~ImuInstance()
 {
     // The alignment dies with the object (rig_design_addendum.md decision 4, "what ends a record"): the Rig's record
     // goes with it. At the manager's own teardown (the end of the run) the sink is detached first, so nothing is sent.
-    if (pinpoint::RigCalibrationSink *const sink = calibrationSink(); sink && m_anatCalibrated)
+    if (pinpoint::RigCalibrationSink *const sink = calibrationSink(); sink && fullyCalibrated())
         sink->clear(pinpoint::rig::PlacementKey(pinpoint::rig::DeviceKey::fromPersistedId(m_deviceId)),
                     pinpoint::rig::CalibrationKind::SensorAlignment);
 
@@ -766,6 +766,7 @@ void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
     m_anatCalibrated = true;
     m_calibratedAtUtc = QDateTime::currentDateTimeUtc();
     clearTrunkProvenance();   // A/M are no longer the trunk solve's
+    m_calibStep = CalibrationStep::None;   // a one-shot solve, no calibration run: applied, never calibrated (#417)
 
     // Mis-mount check: angle between the solved mounting and the expected nominal.
     // δM = M_solved * conj(M_nominal); rotation angle = 2*acos(|w|).
@@ -801,6 +802,8 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
     clearTrunkProvenance();   // A/M are no longer the trunk solve's
     m_mountDeviationDeg = 0.0;   // nominal = no fine-tune applied
+    // The arm routine's first half only: applied (the T-pose's φ is read through it), not calibrated (#417).
+    m_calibStep = CalibrationStep::ArmDown;
 
     // Gravity-direction (flip) check: express the current arm-down accelerometer
     // reading in the anatomical body frame (M^-1 * accel). At arm-down it must be
@@ -837,6 +840,10 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
     // pose's rotation axis being rotated about Y; phi nulls it.
     const QQuaternion nominal = handMount ? imu_calibration::nominalHandMount()
                                           : imu_calibration::nominalArmMount();
+    // The second half of the arm routine counts only after its first: the arm-down set the gravity check this gate
+    // also reads (#417). A refine with no arm-down before it applies, and is not calibrated.
+    const bool afterArmDown = m_calibStep == CalibrationStep::ArmDown || m_calibStep == CalibrationStep::ArmRefined;
+    const CalibrationStep step = afterArmDown ? CalibrationStep::ArmRefined : CalibrationStep::None;
 
     // Safety guard: a genuine strap-slop correction is small. A large |phi| means
     // the second pose didn't isolate a clean long-axis rotation for this segment
@@ -848,7 +855,8 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
         m_anatCalibrated    = true;
         m_calibratedAtUtc   = QDateTime::currentDateTimeUtc();
         clearTrunkProvenance();   // A/M are no longer the trunk solve's
-        m_mountDeviationDeg = std::abs(phiDeg);
+        m_mountDeviationDeg = std::abs(phiDeg);   // > 25°, so the gate fails: not calibrated
+        m_calibStep         = step;
         ppWarn() << "[ImuInstance]" << m_deviceDescription
                  << "— precise refine REJECTED (phi" << phiDeg << "deg too large); kept nominal";
         appendLog(timestamp() + QStringLiteral("  Precise refine rejected (Δ %1° too large) — kept nominal.")
@@ -869,6 +877,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
     m_calibratedAtUtc  = QDateTime::currentDateTimeUtc();
     clearTrunkProvenance();   // A/M are no longer the trunk solve's
     m_mountDeviationDeg = std::abs(phiDeg);
+    m_calibStep         = step;
 
     ppWarn() << "[ImuInstance]" << m_deviceDescription
              << "— precise refine: long-axis correction" << phiDeg << "deg";
@@ -887,6 +896,7 @@ void ImuInstance::clearFunctionalCalibration()
     m_anatCalibrated  = false;
     m_calibratedAtUtc = QDateTime();
     clearTrunkProvenance();   // A/M are no longer the trunk solve's
+    m_calibStep       = CalibrationStep::None;
     m_alignA = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_mountM = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
     m_worker->setAnatomical(m_alignA, m_mountM, false);
@@ -962,6 +972,9 @@ QVariantMap ImuInstance::calibrateTrunk(const QString &role)
     m_mountDeviationDeg    = 0.0;
     m_mountGravityErrorDeg = 0.0;
     m_trunkProv = trunk_stand_tall::provenanceFrom(al);
+    // Stand tall is the trunk routine's first half: applied (the turns read the heading through it), not calibrated
+    // until both turns pass and the routine confirms it (confirmTrunkCalibration, #417).
+    m_calibStep = CalibrationStep::TrunkStandTall;
     out.insert(QStringLiteral("calibratedAt"), m_calibratedAtUtc.toString(Qt::ISODateWithMs));
     m_trunkRecord = out;
 
@@ -987,13 +1000,29 @@ QVariantMap ImuInstance::calibrateTrunk(const QString &role)
     return out;
 }
 
+bool ImuInstance::confirmTrunkCalibration()
+{
+    if (!m_anatCalibrated || m_calibStep != CalibrationStep::TrunkStandTall || !m_trunkProv.present) {
+        ppWarn() << "[ImuInstance]" << m_deviceDescription
+                 << "— trunk calibration NOT confirmed: the alignment applied is not a stand-tall solve (step"
+                 << int(m_calibStep) << ")";
+        return false;
+    }
+    m_calibStep = CalibrationStep::TrunkConfirmed;
+    ppInfo() << "[ImuInstance]" << m_deviceDescription << "— trunk calibration confirmed (stand tall and both turns passed)";
+    appendLog(timestamp() + QStringLiteral("  Trunk calibration complete (stand tall and both turns passed)."));
+    emit anatCalibratedChanged();
+    reportAlignmentToRig();
+    return true;
+}
+
 void ImuInstance::reportAlignmentToRig()
 {
     pinpoint::RigCalibrationSink *const sink = calibrationSink();
     if (!sink) return;
     namespace rig = pinpoint::rig;
     const rig::PlacementKey key(rig::DeviceKey::fromPersistedId(m_deviceId));
-    if (!m_anatCalibrated) {
+    if (!fullyCalibrated()) {   // half a run, a failed one, or none: no record (#417), whatever is applied
         sink->clear(key, rig::CalibrationKind::SensorAlignment);
         return;
     }

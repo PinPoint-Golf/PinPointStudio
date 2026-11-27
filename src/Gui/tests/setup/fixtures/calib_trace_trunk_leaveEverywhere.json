@@ -720,6 +720,8 @@
     {"t":156500,"own":"P","stage":"turnThrough","sub":"returned","peak":90,"turn":3},
     {"t":156500,"own":"rec","rec":"checkTurn","args":["through",false]},
     {"t":156500,"own":"rec","rec":"stepEnd","args":["turnThrough"]},
+    {"t":156500,"own":"sensor","sensor":"pelvis","call":"confirm"},
+    {"t":156500,"own":"sensor","sensor":"thorax","call":"confirm"},
     {"t":156500,"own":"P","stage":"done","sub":"","verdict":"valid"},
     {"t":156500,"own":"rec","rec":"end"},
     {"t":156500,"own":"P","signal":"completed"},

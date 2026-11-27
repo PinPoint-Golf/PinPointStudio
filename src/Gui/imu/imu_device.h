@@ -87,8 +87,9 @@ public:
     // "Is this device calibrated well enough to trust" — the ONE rule the session
     // toolbar, the IMU panel and setup all read (as the QML property
     // `fullyCalibrated` each concrete class declares). Each kind answers it from
-    // its own evidence: a Witmotion from its anatomical solve AND both mount
-    // checks; a wG3 from the device's own calibration state, because it has no
+    // its own evidence: a Witmotion from a whole calibration run that passed
+    // (arm: arm-down, the refine and both mount checks; trunk: stand tall and both
+    // turns, #417); a wG3 from the device's own calibration state, because it has no
     // mount checks to offer. Deriving it in QML from one kind's properties is how
     // every HackMotion came to read as uncalibrated (#50).
     virtual bool    fullyCalibrated() const = 0;

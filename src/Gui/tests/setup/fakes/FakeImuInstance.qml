@@ -48,11 +48,17 @@ QtObject {
     property bool       anatCalibrated:       false
     property double     mountDeviationDeg:    0
     property double     mountGravityErrorDeg: 0
-    // The composite gate (imu_instance.h fullyCalibrated(): anatomical transform AND both mount
-    // checks within kMountDeviationMaxDeg 15° / kMountGravityErrorMaxDeg 25°). Added for Stage 4:
+    // How far the applied calibration has come (imu_instance.h CalibrationStep, #417): "" none,
+    // "armDown", "armRefined", "trunkStandTall", "trunkConfirmed". Set by the calls below as the real
+    // instance's is; markCalibrated() sets a finished arm run for a test that only needs one.
+    property string calibStep: ""
+    // The composite gate (imu_instance.h fullyCalibrated(): a whole run that passed — the arm after
+    // arm-down and a refine with both mount checks within kMountDeviationMaxDeg 15° /
+    // kMountGravityErrorMaxDeg 25°; the trunk after stand tall and confirmTrunkCalibration).
     // SetupDraft.outcome() reads it as a Witmotion segment's live validity.
-    readonly property bool fullyCalibrated: anatCalibrated && mountDeviationDeg <= 15
-                                            && mountGravityErrorDeg <= 25
+    readonly property bool fullyCalibrated: anatCalibrated
+        && ((calibStep === "armRefined" && mountDeviationDeg <= 15 && mountGravityErrorDeg <= 25)
+            || calibStep === "trunkConfirmed")
 
     // ── Trunk stand-tall solve (imu_instance.h calibrateTrunk, W2.1a) ────
     // The record of the solve that set A/M; empty unless the current calibration came from it
@@ -61,8 +67,8 @@ QtObject {
     // Scripted results of calibrateTrunk(role), oldest first: each call takes the next entry
     // (a map merged over the default record — e.g. { valid: false, failure: "Hip sensor: …" }),
     // and once the script is spent every call is valid. A valid result applies A/M, so
-    // anatCalibrated and fullyCalibrated read true, as on the real instance; an invalid one
-    // changes nothing.
+    // anatCalibrated reads true and fullyCalibrated waits for confirmTrunkCalibration(), as on the
+    // real instance; an invalid one changes nothing.
     property var trunkScript: []
 
     // Scripted outcome of refineMountAboutLongAxis(). The real gate is dev ≤ 15°, grav ≤ 25°.
@@ -100,6 +106,7 @@ QtObject {
         mountDeviationDeg = 0
         mountGravityErrorDeg = 0
         trunkCalibration = ({})
+        calibStep = ""
     }
     function calibrateTrunk(role) {
         _rec("calibrateTrunk", [role])
@@ -125,13 +132,21 @@ QtObject {
             anatCalibrated = true
             calibrated = true
             trunkCalibration = rec
+            calibStep = "trunkStandTall"
         }
         return rec
+    }
+    function confirmTrunkCalibration() {
+        _rec("confirmTrunkCalibration", [])
+        if (!anatCalibrated || calibStep !== "trunkStandTall") return false
+        calibStep = "trunkConfirmed"
+        return true
     }
     function setNominalCalibration(q, handMount) {
         _rec("setNominalCalibration", [q, handMount])
         anatQuat = Qt.quaternion(1, 0, 0, 0)
         anatCalibrated = true
+        calibStep = "armDown"
     }
     function refineMountAboutLongAxis(ref, phiDeg, handMount) {
         _rec("refineMountAboutLongAxis", [ref, phiDeg, handMount])
@@ -139,6 +154,7 @@ QtObject {
         anatCalibrated       = r.anatCalibrated !== undefined ? r.anatCalibrated : true
         mountDeviationDeg    = r.dev  !== undefined ? r.dev  : 0
         mountGravityErrorDeg = r.grav !== undefined ? r.grav : 0
+        calibStep = (calibStep === "armDown" || calibStep === "armRefined") ? "armRefined" : ""
     }
     function setCalibration(a, b) {
         _rec("setCalibration", [a, b])
@@ -149,6 +165,9 @@ QtObject {
 
     // ── Test helpers ─────────────────────────────────────────────────────
     function setQuat(w, x, y, z) { quatW = w; quatX = x; quatY = y; quatZ = z }
+    // A finished arm run (arm-down and a passing refine), for a test that needs a calibrated sensor
+    // and not the run itself.
+    function markCalibrated() { anatCalibrated = true; calibStep = "armRefined" }
 
     // A scripted movement: frames [{ heading, gyro, ms }], oldest first — each frame's heading (°)
     // and gyroDps are set, then held `ms` (real ms) before the next; the last frame's values stay.
