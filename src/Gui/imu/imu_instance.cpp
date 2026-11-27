@@ -28,6 +28,7 @@
 #include "source_descriptor.h"
 #include "trunk_angles.h"
 #include "trunk_stand_tall.h"
+#include "../../Vocabulary/Rig/calibration_record.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -436,6 +437,12 @@ double ImuInstance::trunkHeadingDeg() const
 
 ImuInstance::~ImuInstance()
 {
+    // The alignment dies with the object (rig_design_addendum.md decision 4, "what ends a record"): the Rig's record
+    // goes with it. At the manager's own teardown (the end of the run) the sink is detached first, so nothing is sent.
+    if (pinpoint::RigCalibrationSink *const sink = calibrationSink(); sink && m_anatCalibrated)
+        sink->clear(pinpoint::rig::PlacementKey(pinpoint::rig::DeviceKey::fromPersistedId(m_deviceId)),
+                    pinpoint::rig::CalibrationKind::SensorAlignment);
+
     m_zeroSettleTimer.stop();
     m_zeroConfirmTimer.stop();
     m_retryTimer.stop();
@@ -779,6 +786,7 @@ void ImuInstance::setFunctionalCalibration(const QQuaternion &refRaw,
     m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();   // refresh anatQuat consumers
+    reportAlignmentToRig();
 }
 
 void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMount)
@@ -818,6 +826,7 @@ void ImuInstance::setNominalCalibration(const QQuaternion &refRaw, bool handMoun
     m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();
+    reportAlignmentToRig();
 }
 
 void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phiDeg, bool handMount)
@@ -847,6 +856,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
         m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
         emit anatCalibratedChanged();
         emit quatChanged();
+        reportAlignmentToRig();
         return;
     }
 
@@ -869,6 +879,7 @@ void ImuInstance::refineMountAboutLongAxis(const QQuaternion &refRaw, double phi
     m_worker->setAnatomical(m_alignA, m_mountM, m_anatCalibrated);
     emit anatCalibratedChanged();
     emit quatChanged();
+    reportAlignmentToRig();
 }
 
 void ImuInstance::clearFunctionalCalibration()
@@ -881,6 +892,7 @@ void ImuInstance::clearFunctionalCalibration()
     m_worker->setAnatomical(m_alignA, m_mountM, false);
     emit anatCalibratedChanged();
     emit quatChanged();
+    reportAlignmentToRig();
 }
 
 void ImuInstance::clearTrunkProvenance()
@@ -971,7 +983,28 @@ QVariantMap ImuInstance::calibrateTrunk(const QString &role)
     emit calibratedChanged();
     emit anatCalibratedChanged();
     emit quatChanged();
+    reportAlignmentToRig();
     return out;
+}
+
+void ImuInstance::reportAlignmentToRig()
+{
+    pinpoint::RigCalibrationSink *const sink = calibrationSink();
+    if (!sink) return;
+    namespace rig = pinpoint::rig;
+    const rig::PlacementKey key(rig::DeviceKey::fromPersistedId(m_deviceId));
+    if (!m_anatCalibrated) {
+        sink->clear(key, rig::CalibrationKind::SensorAlignment);
+        return;
+    }
+    rig::SensorAlignmentParameters p;
+    p.role = m_trunkProv.present
+                 ? pinpoint::analysis::segmentRoleForPlacementRole(m_trunkRecord.value(QStringLiteral("role")).toString())
+                 : roleOf(key);
+    p.alignment  = rig::SensorAlignment{ m_alignA, m_mountM, m_mountDeviationDeg, m_mountGravityErrorDeg };
+    p.trunkSolve = m_trunkProv;
+    sink->commit(rig::CalibrationRecord::forSensor(key, rig::CalibrationMethod::Solved, std::move(p),
+                                                   rig::Uncertainty::notKnown(), m_calibratedAtUtc));
 }
 
 void ImuInstance::setOutputRateHz(int hz)

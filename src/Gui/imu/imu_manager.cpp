@@ -152,6 +152,12 @@ ImuManager::~ImuManager()
     // Nothing may be selected from here on; the queue's callback reaches m_selected.
     if (m_pacedConnect) m_pacedConnect->cancel();
 
+    // The end of the run ends each sensor's alignment record with no clear (rig_design_addendum.md decision 4): the
+    // objects about to be deleted, here or as children (a deselect still pending), report nothing to the Rig, whose
+    // RigChanged would otherwise reach this manager half-destroyed.
+    for (ImuDeviceBase *d : findChildren<ImuDeviceBase *>(Qt::FindDirectChildrenOnly))
+        d->detachCalibrationSink();
+
     // Join the shot workers and destroy any live SwingWindow before freeing
     // ring memory under them (main.cpp declares the processor after the
     // managers, so normally ~ShotProcessor already ran and cleared this).
@@ -897,6 +903,13 @@ void ImuManager::setOrientationFilter(const QString &name)
 
 ImuDeviceBase *ImuManager::createInstance(const Device &device)
 {
+    // The Rig's calibration sink, and the role each of the device's placements holds now (C-6b.2; imu_device.h).
+    const auto handSink = [this](ImuDeviceBase *inst) {
+        inst->setCalibrationSink(m_calibrationSink, [this](const pinpoint::rig::PlacementKey &placement) {
+            return pp_imurig::roleOfPlacement(m_roles, placement);
+        });
+    };
+
     // The wG3 is a second device KIND, not a second Witmotion — output rate,
     // orientation filter and impact sensitivity are all Witmotion concepts
     // that simply don't exist on this device (adaptive rate, on-device
@@ -905,6 +918,7 @@ ImuDeviceBase *ImuManager::createInstance(const Device &device)
     // branch wires up only what IS generic across both kinds.
     if (device.imuVendor == ImuVendor::HackMotion) {
         auto *inst = new HmInstance(device, m_eventBuffer, &m_ioThread, this);
+        handSink(inst);
 
         // Forward log entries to any QML log view listening to imuManager.
         connect(inst, &ImuDeviceBase::logEntryAdded,
@@ -931,6 +945,7 @@ ImuDeviceBase *ImuManager::createInstance(const Device &device)
     }
 
     auto *inst = new ImuInstance(device, m_eventBuffer, &m_ioThread, this);
+    handSink(inst);
 
     // Restore persisted output rate so it is applied from the very first
     // initializeDevice() call rather than only after the State::Ready reinit.

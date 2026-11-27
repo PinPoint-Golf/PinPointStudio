@@ -124,6 +124,28 @@ void deriveAssumedExtrinsics(rig::RigState &s)
 bool isEmptySensor(const rig::SensorSetup &x) { return x.role == analysis::SegmentRole::Unknown && !x.calibration; }
 void dropEmptySensors(rig::RigState &s) { s.sensors.removeIf(isEmptySensor); }
 
+// What rig.json holds of a state: the state without its sensors' alignment records (held for the run only,
+// rig_design.md §4.2), so a placement with nothing else is no entry. Two states with the same digest of it save the same
+// facts, so a command that changes only an alignment record writes nothing (rig_calibration_sink.h).
+RigStateId persistedDigestOf(const rig::RigState &s)
+{
+    rig::RigState p = s;
+    for (rig::SensorSetup &x : p.sensors) x.calibration.reset();
+    dropEmptySensors(p);
+    return rig::rigStateIdOf(p);
+}
+
+// The placement's entry in `s`, made with no role when it has none.
+rig::SensorSetup &sensorEntryOf(rig::RigState &s, const rig::PlacementKey &key)
+{
+    for (rig::SensorSetup &x : s.sensors)
+        if (x.key == key) return x;
+    rig::SensorSetup x;
+    x.key = key;
+    s.sensors.append(x);
+    return s.sensors.last();
+}
+
 // The map today's rule answered, back into the state: one placement per key, its role by its settings name. Each
 // placement's alignment record is carried over; a placement whose role went but which holds a record stays, with no
 // role (the record is the Rig's for the run, rig_design.md §4.2); dropEmptySensors then drops the rest.
@@ -209,10 +231,14 @@ template <typename Change> void Rig::changeState(Change change)
     dropEmptySensors(next);
     const RigStateId id = rig::rigStateIdOf(next);
     if (id == m_stateId) return;   // the same set-up: nothing saved, nothing emitted
+    // What rig.json holds of the state changed, or an earlier save failed (P4): save. A change to the sensors'
+    // alignment records alone writes nothing (they are never saved; rig_design.md §4.2).
+    const bool persistedChanged = persistedDigestOf(next) != persistedDigestOf(m_parts.state);
     next.sinceUtc = QDateTime::currentDateTimeUtc();
     m_parts.state = std::move(next);
     m_stateId     = id;
-    save();                         // a failure is logged; the new state stands and the next command saves again
+    if (persistedChanged || m_unsaved)
+        save();                     // a failure is logged; the new state stands and the next command saves again
     emit rigChanged(ref());
 }
 
@@ -278,6 +304,35 @@ rig::RoleClaim Rig::claim(const rig::DeviceKey &sensor, const QString &roleName,
     // they were makes the same digest, so changeState saves and emits nothing for it either.
     if (r.ok) changeState([&](rig::RigState &s) { setSensorsFromRoles(s, r.roles); });
     return out;
+}
+
+void Rig::commitCalibration(const rig::CalibrationRecord &record)
+{
+    const auto *sensor = std::get_if<rig::PlacementKey>(&record.subject);
+    if (!sensor || sensor->isNull() || record.kind != rig::CalibrationKind::SensorAlignment
+        || !std::holds_alternative<rig::SensorAlignmentParameters>(record.parameters)) {
+        // Stage C takes a worn sensor's alignment only; a camera's record is #74's (rig_calibration_sink.h).
+        ppWarn() << "[Rig] a calibration record that is not a sensor's alignment changes nothing:"
+                 << rig::calibrationKindName(record.kind) << rig::calibrationMethodName(record.method);
+        return;
+    }
+    const RigStateId before = m_stateId;
+    changeState([&](rig::RigState &s) { sensorEntryOf(s, *sensor).calibration = record; });
+    if (m_stateId != before)   // one line per change, so a run's log shows each sensor's record come and go
+        ppInfo() << "[Rig] a sensor's alignment recorded:" << sensor->persisted()
+                 << rig::calibrationMethodName(record.method) << "state" << m_stateId.toString();
+}
+
+void Rig::clearCalibration(const rig::PlacementKey &subject, rig::CalibrationKind kind)
+{
+    if (subject.isNull()) return;
+    const RigStateId before = m_stateId;
+    changeState([&](rig::RigState &s) {
+        for (rig::SensorSetup &x : s.sensors)
+            if (x.key == subject && x.calibration && x.calibration->kind == kind) x.calibration.reset();
+    });
+    if (m_stateId != before)
+        ppInfo() << "[Rig] a sensor's alignment cleared:" << subject.persisted() << "state" << m_stateId.toString();
 }
 
 void Rig::setAlias(const rig::DeviceKey &device, const QString &alias)

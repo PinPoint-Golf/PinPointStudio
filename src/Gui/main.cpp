@@ -414,6 +414,7 @@ int main(int argc, char *argv[])
                          imuManager.rigLabelChanged(rig.parts(), device, which);
                      });
     imuManager.attachRig(&rig, &rig, rig.parts());
+    imuManager.attachCalibrationSink(&rig);   // each sensor's object reports its own alignment (C-6b.2; decision 4)
     // `app.rig`: the cameras' and the sensors' set-up, read and written. Made here, before the camera manager's
     // connections, so a view hears a camera change before the manager rebuilds its camera list, as it heard
     // AppSettings' change before.

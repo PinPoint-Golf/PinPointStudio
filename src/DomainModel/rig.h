@@ -25,7 +25,16 @@
 // by its commands (rig_commands.h, the contract its callers are handed: the camera commands, C-5a.1, which the camera
 // manager and app.rig call since C-5b; learnClubLength, which the capture service calls since C-7; the sensor commands,
 // claimRole and releaseRole, C-6a.2, which ImuManager calls since the sensors' cut-over, C-6b.1, and app.rig's sensor
-// members read).
+// members read). It also takes each worn sensor's alignment record, through its calibration sink
+// (rig_calibration_sink.h, since C-6b.2), which the sensors' live objects call.
+//
+// THE SENSORS' ALIGNMENT RECORDS (rig_design.md §4.2, §4.8; rig_design_addendum.md decision 4). The record follows the
+// live sensor's alignment: a device object commits one whenever its A and M are set or changed, and clears it whenever
+// that alignment ends. Each commit or clear that changes the state is one new rig state and one RigChanged, by the
+// versioned rule (rig_commands.h); one that changes nothing emits nothing. A record is in the state and its digest and
+// is never saved: a change to the alignment records alone writes nothing to rig.json, and the state loaded at launch
+// holds none. A placement keeps its record through a role released or moved (decision 4.6), so an entry with a record
+// and no role is kept; it is never written to rig.json (its role is the only fact the file would hold of it).
 //
 // THE SENSORS' ROLES (invariant 2, one claim per role; rig_design.md §4.1, §4.3). The rig state holds each sensor
 // placement's role. A claim is decided by today's rule, imu_roles::claimRole, over the roles as today's imu/roles map
@@ -56,10 +65,11 @@
 //
 // WHO INCLUDES THIS HEADER: only the composition root (src/Gui/main.cpp, src/App), app.rig (src/Gui/app/rig_presenter)
 // and the Rig's store (lint A10; rig_design.md §6 rule 8). It includes only the Vocabulary's Rig and Identity areas,
-// Platform, its repository and its commands' contract, and (rig.cpp only) the pure role rule src/IMU/imu_role_map.h, of
+// Platform, its repository, its commands' contract and its calibration sink's, and (rig.cpp only) the pure role rule src/IMU/imu_role_map.h, of
 // the Rules ring (§6 rule 4, ruled by the Solution Architect, 27 Nov 2026); never Gui, Buffer, any other file of src/IMU
 // or app_settings.h (§6 rule 5).
 
+#include "rig_calibration_sink.h"
 #include "rig_commands.h"
 #include "rig_repository.h"
 #include "../Vocabulary/Identity/identity.h"
@@ -70,7 +80,11 @@
 
 namespace pinpoint {
 
-class Rig : public QObject, public RigCameraCommands, public RigSensorCommands, public RigLearningCommands
+class Rig : public QObject,
+            public RigCameraCommands,
+            public RigSensorCommands,
+            public RigLearningCommands,
+            public RigCalibrationSink
 {
     Q_OBJECT
 public:
@@ -115,6 +129,15 @@ public:
     // ── The learned prior (RigLearningCommands; rig_commands.h): saved, no event ──
     void learnClubLength(const rig::ClubLengthPriorKey &key, const QVariantMap &learned) override;
 
+    // ── A sensor's alignment record (RigCalibrationSink; rig_calibration_sink.h says what each does) ──
+    // A sensorAlignment record on a PlacementKey becomes that placement's record (the placement's entry made, with no
+    // role, when it has none); any other record changes nothing. The clear removes the placement's record of `kind`.
+    // Versioned, never saved: no rig.json write when only an alignment changed.
+    void commitCalibration(const rig::CalibrationRecord &record);
+    void clearCalibration(const rig::PlacementKey &subject, rig::CalibrationKind kind);
+    void commit(const rig::CalibrationRecord &record) override { commitCalibration(record); }
+    void clear(const rig::PlacementKey &subject, rig::CalibrationKind kind) override { clearCalibration(subject, kind); }
+
 signals:
     // EVT-15: the versioned part changed. Once per command, after the save; never for the state loaded at launch.
     void rigChanged(const pinpoint::RigRef &ref);
@@ -124,7 +147,9 @@ signals:
 
 private:
     bool save();
-    // A versioned command: `change` edits a copy of the state; a new digest makes it the state in force.
+    // A versioned command: `change` edits a copy of the state; a new digest makes it the state in force. It is saved
+    // when what rig.json holds of it changed (the state without its sensors' alignment records), or when an earlier
+    // save failed (P4); RigChanged follows either way.
     template <typename Change> void changeState(Change change);
     // One claim through today's rule: `roleName` is the role's settings name, "" to release.
     rig::RoleClaim claim(const rig::DeviceKey &sensor, const QString &roleName, const rig::SensorFactsTable &facts);

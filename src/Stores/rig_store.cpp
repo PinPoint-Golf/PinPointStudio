@@ -311,9 +311,13 @@ QJsonArray withUnreadCameras(QJsonArray cameras, const Unread &unread)
 QJsonArray sensorsToJson(const QList<SensorSetup> &sensors)
 {
     QJsonArray out;
-    for (const SensorSetup &s : sensors)   // the role only: an alignment is never saved (rig_design.md §4.2)
+    for (const SensorSetup &s : sensors) {   // the role only: an alignment is never saved (rig_design.md §4.2)
+        // A placement with no role holds nothing the file keeps: it is in the state only for its alignment record
+        // (kept through a role released, rig_design_addendum.md decision 4), so it is not written.
+        if (s.role == analysis::SegmentRole::Unknown) continue;
         out.append(QJsonObject{ { QStringLiteral("placement"), s.key.persisted() },
                                 { QStringLiteral("role"), analysis::placementRoleName(s.role) } });
+    }
     return out;
 }
 QList<SensorSetup> sensorsFromJson(const QJsonArray &a, Unread &unread)
@@ -331,6 +335,14 @@ QList<SensorSetup> sensorsFromJson(const QJsonArray &a, Unread &unread)
             ppWarn() << "[RigStore] a sensor entry this build cannot read is kept as read, outside the rig state:"
                      << o.value(QStringLiteral("placement")).toString() << role;
             unread.sensors.append(v);
+            continue;
+        }
+        // No role, and no record (none is ever read): an empty entry, which the state does not hold (rig_commands.h),
+        // so the next command does not drop it and save for nothing (Step 11's review, E2). One that holds a member
+        // this build does not know is kept as read instead, outside the state (P2), so the member is never lost.
+        if (s.role == analysis::SegmentRole::Unknown) {
+            const bool onlyKnown = o.size() == 2 && o.contains(QStringLiteral("placement")) && o.contains(QStringLiteral("role"));
+            if (!onlyKnown) unread.sensors.append(v);
             continue;
         }
         out.append(s);

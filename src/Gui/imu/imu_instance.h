@@ -340,6 +340,20 @@ signals:
     void impactDetected(qint64 estImpactUs, float confidence);
 
 private:
+    // The test's seam (imu_instance_rig_test): it reaches the BLE driver to feed it a device's frames, so the trunk
+    // solve's valid exit runs on recorded-like samples. Nothing in the app uses it.
+    friend struct ImuInstanceTestAccess;
+
+    // THE RIG'S RECORD OF THIS SENSOR'S ALIGNMENT (ImuDeviceBase::setCalibrationSink; rig_design_addendum.md decision
+    // 4). Called last, after every path that sets or clears the anatomical half (A, M, the flag and its time, the two
+    // mount checks, the trunk provenance): calibrated, it commits a `sensorAlignment` record of what this instance now
+    // holds; not calibrated, it clears the record. The older half (setCalibration, clearCalibration) is not the Rig's
+    // record and reports nothing. The record: subject this sensor's PlacementKey (its bare id); method `solved` (A and
+    // M are worked out here, from the sensor's own poses); the role the trunk solve was asked for when A and M are its,
+    // else the role the placement holds now; A, M, both mount checks and the trunk provenance as held; uncertainty not
+    // known; observed at the calibration's own time (calibratedAtUtc). Never re-derived: copied.
+    void reportAlignmentToRig();
+
     static QString timestamp();
     void appendLog(const QString &text);
     void setStateLabel(const QString &s);

@@ -31,6 +31,7 @@
 //   - a sensor's alias and the disabled list, read from the two parts by their own spellings;
 //   - what the manager does when an enabled flag changes: decision 8's row, today's behaviour;
 //   - the manager's writers as requests: each turns what Settings or the set-up asked for into one Rig command;
+//   - the role a sensor's alignment record names, which the manager hands each sensor object with the Rig's sink;
 //   - the two automatic role writers (a HackMotion's bare pin migrated, a found HackMotion taking the arm), which decide
 //     by today's rules (imu_roles::migrateBareHackMotion, imu_roles::claimArmForUnassignedHackMotion) and write the map
 //     they decided through claimRole, only when claimRole gives exactly that map (requestHackMotionMap, below).
@@ -102,6 +103,13 @@ void requestAlias(pinpoint::RigCameraCommands &rig, const QString &aliasKey, con
 bool requestAliasSeed(pinpoint::RigCameraCommands &rig, const RigParts &parts, const DeviceKey &sensor);
 // The Enable switch: a machine-wide preference that seeds each session. A sensor's flag is keyed by its bare id.
 void requestEnabled(pinpoint::RigCameraCommands &rig, const QString &deviceId, bool enabled);
+
+// ── The role a sensor's alignment record names (C-6b.2; rig_design_addendum.md decision 4) ──
+//
+// The role the placement holds in the rig state's roles (today's imu/roles map, rolesMapOf), by the placement key's own
+// spelling: what ImuManager hands each sensor object with the Rig's calibration sink, so the record names the role it
+// was solved for. Unknown when the placement holds none (a HackMotion still on its old bare pin holds none per lane).
+pinpoint::analysis::SegmentRole roleOfPlacement(const QVariantMap &roles, const pinpoint::rig::PlacementKey &placement);
 
 // ── The two automatic role writers (RR8, RR9: today's rules decide, claimRole writes) ──
 //

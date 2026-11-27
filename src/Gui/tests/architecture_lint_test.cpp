@@ -84,7 +84,7 @@
 //       IM §4.1's Context column (dirContexts(), fileContexts() below, read like the ring tables), when
 //       (1) an earlier context includes a later one (the order is Acquisition → Diagnostics → Coaching);
 //       (2) a context includes a Domain + Application header that is not one of the hub's contracts
-//           (hubContracts(): R13's five and the Rig's commands, each with why it meets Q26's test: only interfaces and value types,
+//           (hubContracts(): R13's five, the Rig's commands and its calibration sink, each with why it meets Q26's test: only interfaces and value types,
 //           no owner class or service; a header joins by a ruling, when a context first needs it); or
 //       (3) a Shared Vocabulary file (or a Platform file) includes any context's file (Q27).
 //       Allowed: the hub including every context (it composes them), any include of Platform or Shared, a
@@ -421,8 +421,9 @@ int contextOf(const QString &rel)
 }
 
 // The hub's contracts: the Domain model headers a context may include (R-CTX-1; Q26, "contracts, not owners"; R13's
-// five, ruled by the Solution Architect, 24 Nov 2026; and rig_commands.h, by the Rig design addendum's decision 1,
-// ruled 25 Nov 2026). Q26's test for each: it declares only interfaces and value types, and no owner class or service.
+// five, ruled by the Solution Architect, 24 Nov 2026; rig_commands.h, by the Rig design addendum's decision 1,
+// ruled 25 Nov 2026; and rig_calibration_sink.h, by the Rig design's §6 rule 3, PR-35). Q26's test for each: it
+// declares only interfaces and value types, and no owner class or service.
 // Any other header joins by a ruling, when a context first needs it.
 struct HubContract {
     const char *stem;
@@ -438,6 +439,8 @@ const QVector<HubContract> &hubContracts()
         { "DomainModel/session_input", "the session's typed input, value types (DeclaredFocus, IntentRun, SessionInput)" },
         // Joined by the Rig design addendum's decision 1 (the Solution Architect, 25 Nov 2026; platform refactor C-5a.1).
         { "DomainModel/rig_commands", "the Rig's commands: interfaces the Rig implements (RigCameraCommands, RigSensorCommands, RigLearningCommands), and a value type (RigDeviceLabel); it includes only Vocabulary/Rig (the sensor commands' SensorFactsTable and RoleClaim among them), Vocabulary/Common/segment_role.h for the role type, Identity and Qt" },
+        // Joined by the Rig design's §6 rule 3 (the Solution Architect, 24 Nov 2026, PR-35; platform refactor C-6b.2).
+        { "DomainModel/rig_calibration_sink", "the Rig's calibration sink: one interface the Rig implements (RigCalibrationSink: commit a record, clear one), which the sensors' device objects call; it includes only Vocabulary/Rig" },
     };
     return t;
 }
@@ -941,7 +944,7 @@ void selfTest()
                            "Core/pp_settings.h", "Vocabulary/Recording/recording.h", "Vocabulary/Common/figure_format.h",
                            "Vocabulary/Analysis/phase_grid.h", "DomainModel/session.h", "DomainModel/recording_source.h",
                            "Coaching/plan.h", "IMU/imu_base.h", "DomainModel/rig.h", "DomainModel/rig_repository.h",
-                           "DomainModel/rig_commands.h" }) {
+                           "DomainModel/rig_commands.h", "DomainModel/rig_calibration_sink.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
     }
@@ -1124,6 +1127,8 @@ void selfTest()
     check(countRule(a9("Video/x.cpp", "#include \"../DomainModel/rig_commands.h\"\n"), "A9") == 0
               && countRule(a9("Video/x.cpp", "#include \"../DomainModel/rig.h\"\n"), "A9") == 1,
           QStringLiteral("A9 passes a context including the Rig's commands (a contract, decision 1), and catches one including rig.h"));
+    check(countRule(a9("Video/x.cpp", "#include \"../DomainModel/rig_calibration_sink.h\"\n"), "A9") == 0,
+          QStringLiteral("A9 passes a context including the Rig's calibration sink (a contract, the Rig design's §6 rule 3)"));
     check(countRule(a9("Analysis/x.cpp", "#include \"../DomainModel/recording_source.h\"\n"), "A9") == 0
               && countRule(a9("Gui/x/y.cpp", "#include \"../../Diagnostics/derived/shot_factors.h\"\n"
                                              "#include \"../../IMU/imu_base.h\"\n#include \"../../Coaching/plan.h\"\n"), "A9") == 0,

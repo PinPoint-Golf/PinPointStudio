@@ -315,7 +315,8 @@ pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role
 # error, and L1, the displacement of an absent holder, pinned); the two automatic role writers (a HackMotion's bare pin
 # migrated, a found HackMotion taking the arm) leaving the Rig with exactly the map today's rules decide, L2 and E3
 # pinned; app.rig's sensor members and their notifiers (imu_role_map_test's A2-A4, re-pointed); and the copy at launch
-# from a machine whose imu/placement move never ran, writing nothing to settings (A1, A5, re-pointed). Hand-rolled main.
+# from a machine whose imu/placement move never ran, writing nothing to settings (A1, A5, re-pointed); and the role a
+# sensor's alignment record names (C-6b.2). Hand-rolled main.
 pp_add_test(imu_rig_link_test
     SOURCES imu_rig_link_test.cpp
             ${GUI}/imu/imu_rig_link.cpp ${GUI}/imu/imu_rig_link.h
@@ -328,6 +329,39 @@ pp_add_test(imu_rig_link_test
     INCLUDE ${SRC}/Video
     AUTOMOC)
 pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17 CTL-AD-10)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
+
+# The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
+# step 1; rig_design_addendum.md decision 4; the set and clear lists of
+# docs/implementation/platform_refactor/duties/DUTIES-sensor-properties.md §2 and §3): a real ImuInstance and a real
+# HmInstance, made with no I/O thread, no EventBuffer registration and no link, handed a real Rig over an in-memory
+# repository as their calibration sink. Every set path and every clear path is run on the live object and the Rig's
+# record compared with what it holds; the trunk solve's valid exit runs on frames fed through the device's own driver.
+# The real driver, transport, worker and fusion sources, as the app builds them, and libwrist for the HackMotion; no
+# device is opened. Hand-rolled main.
+find_package(Qt6 REQUIRED COMPONENTS Bluetooth)
+pp_find_eigen(EIGEN_DIR)
+pp_require_wrist()
+if(NOT TARGET pinpoint_buffer)
+    add_subdirectory(${SRC}/Buffer ${CMAKE_BINARY_DIR}/_gui_buffer)
+endif()
+pp_add_test(imu_instance_rig_test
+    SOURCES imu_instance_rig_test.cpp
+            ${GUI}/imu/imu_instance.cpp ${GUI}/imu/imu_instance.h
+            ${GUI}/imu/hm_instance.cpp ${GUI}/imu/hm_instance.h
+            ${GUI}/imu/imu_device.h   # Q_OBJECT with no .cpp of its own: listed so AUTOMOC sees it (as the app does)
+            ${SRC}/Core/device_enumerator.cpp
+            ${SRC}/IMU/imu_base.cpp ${SRC}/IMU/wt9011dcl_base.cpp ${SRC}/IMU/wt9011dcl_ble.cpp
+            ${SRC}/IMU/ble_imu_transport.cpp ${SRC}/IMU/ble_adapter_pool.cpp ${SRC}/IMU/imu_io_worker.cpp
+            ${SRC}/IMU/eskf_orientation_filter.cpp ${SRC}/IMU/hm_session_worker.cpp
+            ${SRC}/IMU/imu_role_map.cpp ${GUI}/imu/imu_rig_link.cpp   # the role lookup ImuManager hands with the sink
+            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
+            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${GUI}/imu ${SRC}/IMU ${SRC}/Core ${SRC}/Video
+            ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
+    LINK    pinpoint_buffer wrist Qt6::Bluetooth
+    STD 20  AUTOMOC)
+pp_requirement(imu_instance_rig_test REQ-DEV-17)   # supports: the bay's set-up holds each worn sensor's alignment exactly as the sensor applies it, for the run only (still planned, #74)
 
 # The one battery rule (src/Vocabulary/Rig/battery_band.h; IM §6.1 NOTDOM-6): every band edge (100, 50, 49, 21, 20,
 # 0), charging at each level, no reading, the spelling the screens read, and the worst of several devices. The

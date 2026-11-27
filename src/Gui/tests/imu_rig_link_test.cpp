@@ -46,6 +46,8 @@
 //       move gives them, imu/placement untouched, and NOTHING written to settings (neither imu/roles nor the marker,
 //       which AppSettings used to write: the Rig's copy is the one reader); everything released, then a relaunch:
 //       empty, no copy again
+//   I8  the role a sensor's alignment record names (C-6b.2): the placement's role in the roles map, by its own key; a
+//       placement with none, and a HackMotion lane under an old bare pin, read Unknown
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -421,6 +423,24 @@ int main(int argc, char **argv)
                   "I7d (A5) empty after unassigning survives a relaunch: no copy again, the derived view empty");
             check(readAll() == before, "I7e ... and still nothing written to settings");
         }
+    }
+
+    std::printf("\nI8 the role a sensor's alignment record names (C-6b.2)\n");
+    {
+        using pinpoint::analysis::SegmentRole;
+        using pinpoint::rig::PlacementKey;
+        const QString hm = QStringLiteral("{0d7a1c2e-0000-4000-8000-0000000000a1}");
+        const QVariantMap roles{ { "W1", "pelvis" }, { hm + "#lowerArm", "leadForearm" }, { hm + "#palm", "leadHand" } };
+        const PlacementKey w1(DeviceKey::fromPersistedId(u"W1"));
+        const PlacementKey lower(DeviceKey::fromPersistedId(hm), PlacementKey::Lane::LowerArm);
+        const PlacementKey palm(DeviceKey::fromPersistedId(hm), PlacementKey::Lane::Palm);
+        check(pp_imurig::roleOfPlacement(roles, w1) == SegmentRole::Pelvis
+                  && pp_imurig::roleOfPlacement(roles, lower) == SegmentRole::LeadForearm
+                  && pp_imurig::roleOfPlacement(roles, palm) == SegmentRole::LeadHand,
+              "I8a a Witmotion's role by its bare id, and each HackMotion lane's by its own key");
+        check(pp_imurig::roleOfPlacement(roles, PlacementKey(DeviceKey::fromPersistedId(u"W9"))) == SegmentRole::Unknown
+                  && pp_imurig::roleOfPlacement(QVariantMap{ { hm, "leadForearm" } }, lower) == SegmentRole::Unknown,
+              "I8b a placement with no role reads Unknown; a HackMotion on its old bare pin holds none per lane (EDGE)");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

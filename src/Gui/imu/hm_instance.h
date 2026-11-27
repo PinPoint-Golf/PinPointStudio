@@ -270,6 +270,14 @@ private:
 //     nothing (see invalidateCalibration()), and there is deliberately NO
 //     persistence of any of it — see the comment on that function.
 //
+// THE RIG'S RECORDS (rig_design_addendum.md decision 4; ImuDeviceBase::setCalibrationSink). The Rig holds a
+// `deviceHeld` record for each of the device's two placements (the lower-arm and palm lanes) while the device reads
+// "calibrated" (fullyCalibrated()), and none otherwise. One place compares "calibrated" before and after every write of
+// the state (reportCalibrationToRig, on calibrationStateChanged, which every write emits), so the Rig follows the five
+// writers alike: the routine's phase events, the presence measured or not measured, a state refresh, and
+// invalidateCalibration (a lost link, a restarted stream). The object's teardown clears them too. Nothing is stored:
+// the records are the Rig's for the run, never saved, never handed back.
+//
 // What is still absent is an anatomical frame (Phase D) and the deferred
 // history pull (Phase E).
 class HmInstance : public ImuDeviceBase
@@ -597,6 +605,18 @@ signals:
     void mtuRejected(int negotiated, int required);
 
 private:
+    // The test's seam (imu_instance_rig_test): it reaches the session worker to raise the library's calibration
+    // signals, as the I/O thread does. Nothing in the app uses it.
+    friend struct HmInstanceTestAccess;
+
+    // The one place the Rig hears of this device's calibration (see the class comment): on a change of
+    // fullyCalibrated(), commits a `deviceHeld` record on each lane's PlacementKey (A identity, M the host's fixed
+    // frame for the unit, hm_frame::mountM(), as each shot's binding records them; the mount checks 0, as there is no
+    // mount solve; the role the lane holds now; uncertainty not known; observed when the change was seen), or clears
+    // both. A write that leaves "calibrated" as it was reports nothing.
+    void reportCalibrationToRig();
+    bool m_rigHoldsCalibration = false;   // what was last reported: the Rig holds the two records
+
     static QString timestamp();
     void appendLog(const QString &text);
     void setStateLabel(const QString &s);

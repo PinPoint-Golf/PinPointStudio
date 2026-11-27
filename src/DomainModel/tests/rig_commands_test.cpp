@@ -17,8 +17,9 @@
  */
 
 // rig_commands_test: the Rig's camera commands (src/DomainModel/rig.*, rig_commands.h; docs/design/rig_design.md §4.1,
-// §4.2; rig_design_addendum.md decisions 1, 8 and 9). Most cases run over an in-memory repository that counts saves
-// and can fail; K8 and K9 run over the real store in a temporary folder. IsolatedStores is made first (#187).
+// §4.2; rig_design_addendum.md decisions 1, 8 and 9), its sensor commands, and its calibration sink
+// (rig_calibration_sink.h; decision 4). Most cases run over an in-memory repository that counts saves
+// and can fail; K8, K9, K17, K22 and K23 run over the real store in a temporary folder. IsolatedStores is made first (#187).
 //
 //   K1  each versioned command makes a new state: one save, then one RigChanged with the new RigRef
 //   K2  Impact is exclusive across three cameras, through the commands; the camera that loses it becomes None
@@ -67,6 +68,19 @@
 //       is lost, and the entry is written back as read (the EDGE in NOTES-C-6a.2)
 //   K18 the facts table: a device it does not hold reads as today's facts function answers for an unlisted id
 //   K19 the placement view (today's imuPlacement): derived from the roles, the arm roles as A, B, C, the trunk left out
+//
+// The calibration sink (commit, clear; RigCalibrationSink, C-6b.2; rig_design_addendum.md decision 4):
+//   K20 a commit: the placement holds the record beside its role, one new state, one RigChanged, nothing saved; an equal
+//       commit and a clear of nothing emit nothing; a clear gives the earlier RigStateId back; a commit on a placement
+//       with no entry makes a record-only entry, which a claim or its own release keeps (Step 11's E9) and its clear
+//       drops; a role released keeps the record, naming the role it was solved for (decision 4.6); a camera's record,
+//       or a sensor record of another kind, changes nothing
+//   K21 P4 through the sink: a role whose save failed is written again by the next commit; with nothing unsaved, none
+//   K22 through the real store: commits and clears leave rig.json's bytes unchanged; a save while records are held
+//       writes the roles only (no alignment record, no record-only entry); after a relaunch the Rig holds no record
+//   K23 Step 11's E2: an entry rig.json holds with no role and nothing else is not in the state, so the next no-op
+//       command saves and emits nothing, and the next save drops it; one with a member this build does not know is
+//       kept as read (P2)
 
 #include "../../Core/tests/isolated_stores.h"
 
@@ -1038,6 +1052,195 @@ int main(int argc, char **argv)
         const QVariantMap view = imu_roles::placementViewOf(s);
         check(view == QVariantMap{ { "W3", "C" }, { h1Lower, "A" }, { h1Palm, "B" } },
               "K19 the arm roles as A, B, C under the same keys, the trunk roles left out (derived, never stored)");
+    }
+
+    // ── The calibration sink (C-6b.2; rig_calibration_sink.h; rig_design_addendum.md decision 4) ──────────────────────
+    // A Witmotion's alignment record, as a device object builds it: A, M, the two mount checks, a role, a time observed.
+    const auto alignment = [](const QString &id, float ax, qint64 ms, SegmentRole role = SegmentRole::Pelvis) {
+        SensorAlignmentParameters p;
+        p.role      = role;
+        p.alignment = SensorAlignment{ QQuaternion(1.f, ax, 0.f, 0.f).normalized(), QQuaternion(0.5f, 0.5f, 0.5f, 0.5f), 3.0, 4.0 };
+        return CalibrationRecord::forSensor(PlacementKey(DeviceKey::fromPersistedId(id)), CalibrationMethod::Solved, p,
+                                            Uncertainty::notKnown(), QDateTime::fromMSecsSinceEpoch(ms, QTimeZone::UTC));
+    };
+    const auto readBytes = [](const QString &path) {
+        QFile in(path);
+        return in.open(QIODevice::ReadOnly) ? in.readAll() : QByteArray();
+    };
+
+    std::printf("\nK20 the calibration sink: a commit or a clear is one new state and one RigChanged, and saves nothing\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        SensorFactsTable table;
+        for (const QString &id : { "W1", "W2", "W9" }) table.set(sensor(id), on);
+        rig.claimRole(sensor("W1"), SegmentRole::Pelvis, table);
+        const RigStateId roleOnly = rig.stateId();
+        const int savesBefore = repo.saves;
+        Events ev(rig, &repo);
+        RigCalibrationSink &sink = rig;   // the contract the device objects are handed
+        const CalibrationRecord r1 = alignment("W1", 0.1f, 1764230400000);
+        sink.commit(r1);
+        const SensorSetup *w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(ev.changed.size() == 1 && ev.changed.first() == rig.ref() && rig.stateId() != roleOnly && w1 && w1->calibration
+                  && rigStateIdOf(RigState{ {}, { SensorSetup{ w1->key, SegmentRole::Pelvis, r1 } }, {} }) == rig.stateId()
+                  && w1->role == SegmentRole::Pelvis && ev.labels.isEmpty(),
+              "K20a a commit: the placement holds the record beside its role, one new state, one RigChanged with its RigRef");
+        check(repo.saves == savesBefore, "K20b the commit wrote nothing to the repository (an alignment is never saved)");
+        ev.clear();
+        sink.commit(r1);
+        check(ev.changed.isEmpty() && repo.saves == savesBefore, "K20c a commit equal to what is held: no event, no save");
+        const CalibrationRecord r2 = alignment("W1", 0.2f, 1764230401000);
+        sink.commit(r2);
+        w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(ev.changed.size() == 1 && w1 && w1->calibration && w1->calibration->observedAtUtc == r2.observedAtUtc
+                  && repo.saves == savesBefore,
+              "K20d a changed record replaces the held one: one RigChanged, no save");
+        ev.clear();
+        sink.clear(PlacementKey(sensor("W1")), CalibrationKind::SensorAlignment);
+        w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        check(ev.changed.size() == 1 && w1 && !w1->calibration && w1->role == SegmentRole::Pelvis && rig.stateId() == roleOnly
+                  && repo.saves == savesBefore,
+              "K20e a clear: the record goes, the role stays, the earlier RigStateId is back, one RigChanged, no save");
+        ev.clear();
+        sink.clear(PlacementKey(sensor("W1")), CalibrationKind::SensorAlignment);
+        sink.clear(PlacementKey(sensor("W2")), CalibrationKind::SensorAlignment);
+        check(ev.changed.isEmpty() && rig.stateId() == roleOnly, "K20f a clear of nothing: no event");
+
+        // The record-only entry (Step 11's E9 carried): a sensor with no role holds a record, and keeps it.
+        sink.commit(alignment("W9", 0.3f, 1764230402000, SegmentRole::Unknown));
+        const SensorSetup *w9 = sensorOf(rig, PlacementKey(sensor("W9")));
+        check(ev.changed.size() == 1 && w9 && w9->role == SegmentRole::Unknown && w9->calibration,
+              "K20g a commit on a placement with no entry makes one, with no role, holding the record");
+        rig.claimRole(sensor("W2"), SegmentRole::Thorax, table);
+        rig.releaseRole(sensor("W9"));
+        w9 = sensorOf(rig, PlacementKey(sensor("W9")));
+        check(w9 && w9->calibration && w9->role == SegmentRole::Unknown,
+              "K20h an entry with a record and no role is not empty: another claim and its own release leave it");
+        ev.clear();
+        sink.clear(PlacementKey(sensor("W9")), CalibrationKind::SensorAlignment);
+        check(!sensorOf(rig, PlacementKey(sensor("W9"))) && ev.changed.size() == 1,
+              "K20i its record cleared, the entry is empty and is no entry");
+
+        // A role released leaves the record where it is (decision 4.6): the alignment is still applied.
+        sink.commit(alignment("W1", 0.4f, 1764230403000));
+        rig.releaseRole(sensor("W1"));
+        w1 = sensorOf(rig, PlacementKey(sensor("W1")));
+        const auto *solvedFor = w1 && w1->calibration ? std::get_if<SensorAlignmentParameters>(&w1->calibration->parameters) : nullptr;
+        check(w1 && w1->role == SegmentRole::Unknown && solvedFor && solvedFor->role == SegmentRole::Pelvis,
+              "K20j a role released: the placement keeps its record, which names the role it was solved for (decision 4.6)");
+
+        // Only a sensor's alignment is taken (Stage C).
+        ev.clear();
+        const RigStateId held = rig.stateId();
+        sink.commit(CalibrationRecord::forCamera(camA, CalibrationKind::Extrinsics, CalibrationMethod::Solved,
+                                                 NamedValues{ { "yawDeg", 1.0 } }, Uncertainty::notKnown(), QDateTime()));
+        CalibrationRecord wrongKind = alignment("W2", 0.5f, 1764230404000);
+        wrongKind.kind = CalibrationKind::Extrinsics;
+        sink.commit(wrongKind);
+        check(ev.changed.isEmpty() && rig.stateId() == held, "K20k a camera's record, or a sensor record of another kind, changes nothing");
+    }
+
+    std::printf("\nK21 a change whose save failed is saved again at the next commit (P4)\n");
+    {
+        MemoryRepository repo;
+        Rig              rig(repo);
+        rig.load();
+        SensorFactsTable table;
+        table.set(sensor("W1"), on);
+        repo.fail = true;
+        rig.claimRole(sensor("W1"), SegmentRole::Pelvis, table);   // the role's save fails
+        repo.fail = false;
+        const int saves = repo.saves;
+        rig.commit(alignment("W1", 0.1f, 1764230400000));
+        check(repo.saves == saves + 1 && !rig.hasUnsavedChange() && rolesOfSensors(repo.savedParts.state.sensors)
+                                                                        == QVariantMap{ { "W1", "pelvis" } },
+              "K21 the role's failed save is written again by the next commit; nothing is unsaved after it");
+        const int after = repo.saves;
+        rig.commit(alignment("W1", 0.2f, 1764230401000));
+        check(repo.saves == after, "K21b with nothing unsaved, the next commit writes nothing");
+    }
+
+    std::printf("\nK22 rig.json through the real store: no alignment, no write for one, none after a relaunch\n");
+    {
+        const QString f = stores.path() + "/k22/rig";
+        QDir().mkpath(f);
+        SensorFactsTable table;
+        for (const QString &id : { "W1", "W2", "W9" }) table.set(sensor(id), on);
+        RigStateId rolesOnly;
+        {
+            RigStore store(f);
+            Rig      rig(store);
+            rig.load();
+            rig.claimRole(sensor("W1"), SegmentRole::Pelvis, table);
+            rolesOnly = rig.stateId();
+            const QByteArray before = readBytes(f + "/rig.json");
+            Events ev(rig);
+            rig.commit(alignment("W1", 0.1f, 1764230400000));
+            rig.commit(alignment("W9", 0.2f, 1764230401000, SegmentRole::Unknown));   // a record-only entry
+            rig.clear(PlacementKey(sensor("W1")), CalibrationKind::SensorAlignment);
+            rig.commit(alignment("W1", 0.3f, 1764230402000));
+            check(ev.changed.size() == 4 && !before.isEmpty() && readBytes(f + "/rig.json") == before,
+                  "K22a four commits and clears, four RigChanged: rig.json's bytes are unchanged (it was not written)");
+            rig.claimRole(sensor("W2"), SegmentRole::Thorax, table);   // a real save while two records are held
+            const QByteArray saved = readBytes(f + "/rig.json");
+            const QJsonArray sensors = QJsonDocument::fromJson(saved).object().value("state").toObject().value("sensors").toArray();
+            QStringList placements;
+            for (const QJsonValue &v : sensors) placements << v.toObject().value("placement").toString();
+            check(saved != before && placements == QStringList{ "W1", "W2" } && !saved.contains("sensorAlignment")
+                      && !saved.contains("calibration\"") && !saved.contains("\"W9\""),
+                  "K22b a role saved while records are held: rig.json holds the roles only, no alignment record (0), and "
+                  "no entry for the record-only placement");
+        }
+        {
+            RigStore store(f);
+            Rig      rig(store);
+            Events   ev(rig);
+            rig.load();
+            int records = 0;
+            for (const SensorSetup &x : rig.parts().state.sensors) records += x.calibration ? 1 : 0;
+            check(records == 0 && rolesOfSensors(rig.parts().state.sensors) == QVariantMap{ { "W1", "pelvis" }, { "W2", "thorax" } }
+                      && rig.parts().state.sensors.size() == 2 && ev.changed.isEmpty(),
+                  "K22c after a relaunch the Rig holds no alignment record, only the roles; the load emits nothing");
+            (void)rolesOnly;
+        }
+    }
+
+    std::printf("\nK23 an empty sensor entry in rig.json (Step 11's E2): not in the state, and no save for nothing\n");
+    {
+        const QString f = stores.path() + "/k23/rig";
+        QDir().mkpath(f);
+        const QJsonObject empty{ { "placement", "W9" }, { "role", "" } };
+        const QJsonObject emptyWithMore{ { "placement", "W8" }, { "role", "" }, { "note", "a later build's" } };
+        const QJsonObject file{ { "schema", "pinpoint.rig/1" }, { "rigId", RigId::create().toString() },
+                                { "state", QJsonObject{ { "cameras", QJsonArray() },
+                                                        { "sensors", QJsonArray{ empty, emptyWithMore,
+                                                                                 QJsonObject{ { "placement", "W1" }, { "role", "pelvis" } } } } } },
+                                { "other", QJsonObject() } };
+        {
+            QFile out(f + "/rig.json");
+            if (out.open(QIODevice::WriteOnly)) out.write(QJsonDocument(file).toJson());
+        }
+        const QByteArray asWritten = readBytes(f + "/rig.json");
+        RigStore store(f);
+        Rig      rig(store);
+        rig.load();
+        Events ev(rig);
+        check(!sensorOf(rig, PlacementKey(sensor("W9"))) && !sensorOf(rig, PlacementKey(sensor("W8")))
+                  && rig.parts().state.sensors.size() == 1,
+              "K23a the load holds neither entry with no role: the state is W1's role alone");
+        rig.releaseRole(sensor("W2"));   // a no-op command: W2 holds nothing
+        check(ev.changed.isEmpty() && readBytes(f + "/rig.json") == asWritten,
+              "K23b the next no-op command saves nothing and emits nothing (the E2 pin: it saved once before)");
+        SensorFactsTable table;
+        table.set(sensor("W2"), on);
+        rig.claimRole(sensor("W2"), SegmentRole::Thorax, table);
+        const QJsonArray written = QJsonDocument::fromJson(readBytes(f + "/rig.json")).object().value("state").toObject()
+                                       .value("sensors").toArray();
+        check(written.contains(emptyWithMore) && !written.contains(empty) && written.size() == 3,
+              "K23c at the next save the empty entry is gone and the one holding a member this build does not know is "
+              "written back as read (P2)");
     }
 
     std::printf(g_fail ? "\nFAILURES: %d\n" : "\nALL PASS\n", g_fail);

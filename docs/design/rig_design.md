@@ -70,7 +70,7 @@ Facts, counted at `a5089848`. Each row's evidence is the named file or Appendix 
 | What "excluded" means (table A2) | `camera/excluded` and `imu/excluded` are machine-wide switches. Each session is seeded from them and then decides for itself which devices it captures with; its own choice is never written back | 2 |
 | `ppcp/*` | `studioName`, `pairings` (SET-09)[^dec140]; also `phoneAlias`, `phoneNames`, `torchDuringCapture`, which SET-09 does not name. `ppcp/pairings/<id>` holds each pairing's key material and nothing else ("the 32 raw bytes of PRK as hex", `ppcp_pairing_store.cpp`). None of the five is an `AppSettings` property | 5 |
 | SET-05 | `analysis/clubLenPrior`, keyed `athlete uuid + "\|" + club + "\|" + face-on camera key`, read only for a fixed face-on camera, written on the live path after the analysis by `ShotProcessor` through `AppSettings`[^dec153] (table A2) | 1 |
-| A worn sensor's alignment | A and M live on the sensor's live object for the run of the app. Nothing restores them at launch. The live object clears them itself (`zeroOrientation`[^zero], the routines' resets), and a HackMotion's calibration dies with its link (table A2)[^code-hm] | per sensor |
+| A worn sensor's alignment | A and M live on the sensor's live object for the run of the app. Nothing restores them at launch. The live object clears them itself (the routines' resets; `zeroOrientation`[^zero] clears only the older `calibrated` flag and leaves A and M applied)[^add4], and a HackMotion's calibration dies with its link (table A2)[^code-hm] | per sensor |
 | FILE-SESS-11 | `<session>/trunk_ceremony.json`: the raw samples of every sensor in the ceremony, the step boundaries and each step's result, so the solve replays offline. Written by `TrunkCeremonyRecorder` on a pool thread[^code-cer][^trunk]. **No real file exists**: 0 on the share and 0 on the Mac; the test builds a synthetic one (table A3) | 1 writer; A5 ×7, A6 ×2; 0 files |
 | Open-coded device keys (table A1) | `camera_instance.cpp` ×2, `camera_manager.cpp` ×1, `camera_manager.h` ×1, `imu_role_map.h` ×1, `resource_monitor_controller.cpp` ×2, `shot_processor.cpp` ×1. The plan counts 7[^c-key]; `camera_manager.h:216` is the eighth | 8 |
 | Places that know a key's shape without building it (table A1) | `camera_manager.cpp:85`, `imu_manager.cpp:183`, `imu_role_map.h:110`, `camera_roi.h:47` (`<cameraKey>#impact`), `capture_context.cpp:348`, `tst_setup_sensors.qml:313` | 6 |
@@ -181,15 +181,13 @@ A change to an alias or an enabled flag emits a second event (placeholder name `
 after the save. It carries the device key and which of the two changed. It recomputes nothing and makes no new rig
 state. A learned prior emits nothing[^add8].
 
-A worn sensor is calibrated at each wearing, so a session will usually begin with one or two `RigChanged` events.
+A worn sensor is calibrated at each wearing, so a session will usually begin with several `RigChanged` events: one for each change of each sensor's alignment[^add4].
 That is intended: the alignment in force is part of the state the shots were captured with.
 
 **A worn sensor's alignment lasts exactly as long as it does today.** It is a `sensorAlignment` record in the
 current rig state and in every Recording captured under it. It is **not** saved to `rig.json` and never re-applied
 at launch, because nothing restores one today (table A2) and restoring it onto a re-strapped sensor would be a
-behaviour change. **Every path that clears a sensor's calibration today calls `Rig::clearCalibration`**:
-`ImuInstance::zeroOrientation`[^zero], the routines' reset paths, and a HackMotion's link loss or "calibration invalidated"
-signal. The sensors' duties inventory lists each one. So the Rig's record and the live sensor never disagree.
+behaviour change. **The Rig's record follows the live sensor's alignment, whatever changed it.** The device object commits a record whenever its anatomical alignment (A and M) is set or changes, and clears it whenever that alignment ends: a clear of it, the device object's teardown, or a HackMotion leaving its "calibrated" state for any reason. `ImuInstance::clearCalibration` and `zeroOrientation`[^zero] touch only the older `calibrated` flag and leave A and M applied, so they clear nothing in the Rig. So the Rig's record and the live sensor never disagree[^add4].
 
 A hitting-area or perspective edit is a command at the end of the edit, never per mouse move.
 
@@ -453,8 +451,7 @@ CalibrationRecord {
 ```
 
 `assumed` and `deviceHeld` are additions to the camera design's five methods, and C-3 defines every kind and method Stage C writes, both of these included. `assumed` is RP-8. `deviceHeld` is the
-HackMotion: its calibration lives in the device, is never persisted and dies with the link[^code-hm], so its record
-says that the device reported "calibrated" and when, and holds no A or M.
+HackMotion: its calibration lives in the device, is never persisted and dies with the link[^code-hm], so its record says that the device reported "calibrated" and when. Its A and M are the host's fixed frame for that unit (A = identity, M = the unit's mount), as each shot's `streams[].device` records them; they are not a solved alignment[^add4].
 
 `evidence` is best-effort. When one calibration serves two sessions in a run, the second session's shots point at a
 ceremony file in the first session's folder, and the pointer dangles if that session is trashed. A reader treats a
@@ -465,20 +462,12 @@ Stage C produces records of kind `sensorAlignment` and `extrinsics` with method 
 
 **How a result commits, in two steps of the build.**
 
-1. *From the sensors cut-over (C-6b), before any procedure moves.* Every path that sets a calibration on the live
-   sensor commits a record to the Rig: `ImuInstance::setCalibration`, `setFunctionalCalibration`,
-   `setNominalCalibration`, `refineMountAboutLongAxis` (which changes A again after a commit, on two branches) and
-   `calibrateTrunk`; and the HackMotion reporting "calibrated", as a `deviceHeld` record. Every clear path clears
-   it: `clearCalibration`, `clearFunctionalCalibration`, `zeroOrientation`[^zero], and the HackMotion's link loss
-   (Appendix A, table A2). The sensors' duties inventory, which comes before C-6a, is the authority for both lists. So the Rig's records are complete and true from the first build that has
+1. *From the sensors cut-over (C-6b), before any procedure moves.* Every path that sets or changes a live sensor's anatomical alignment commits a record to the Rig: `ImuInstance::setFunctionalCalibration`, `setNominalCalibration`, `refineMountAboutLongAxis` (which changes A again after a commit, on two branches) and a valid `calibrateTrunk`; and a HackMotion entering its "calibrated" state, as a `deviceHeld` record for each of its two placement keys. Everything that ends that alignment clears it: `clearFunctionalCalibration`, the device object's teardown, and a HackMotion leaving "calibrated". `setCalibration`, `clearCalibration` and `zeroOrientation`[^zero] do neither: they touch only the older `calibrated` flag[^add4]. The sensors' duties inventory, which comes before C-6a, is the authority for both lists. So the Rig's records are complete and true from the first build that has
    them, whoever runs the procedure.
-2. *When each procedure moves to C++ (C-11 to C-13; deferred to #291[^c-v1]).* Its driver commits the record the step machine returned, and
-   the live sensor is handed its alignment from the new rig state, as typed input. Which of today's duties on
-   `ImuInstance` (solve, apply) moves where is settled by the duties inventory, not here.
+2. *When each procedure moves to C++ (C-11 to C-13; deferred to #291[^c-v1]).* Its driver performs the step machine's requests on the device object, whose own paths go on committing and clearing as in step 1, so each change on a sensor commits once. The driver never calls the sink. The record the step machine returns is the run's outcome, and the equivalence test checks it against the record the Rig holds. No alignment is handed from the rig state to a sensor in Stage C. The solve stays in `src/IMU` and applying stays on `ImuInstance`[^add4].
 
 **The sink.** `RigCalibrationSink` is a two-method interface among the Domain model's contracts (`commit`, `clear`);
-`Rig` implements it; the composition root joins them. **Only the drivers and the device objects, which are in the
-Adapters ring, call it.** A step machine is in the Rules ring, returns a record and includes nothing of the Domain
+`Rig` implements it; the composition root joins them. **Only the device objects, which are in the Adapters ring, call it.**[^add4] A step machine is in the Rules ring, returns a record and includes nothing of the Domain
 model (§6 rule 3)[^rctx][^ring].
 
 **The shape of a procedure.** Each routine becomes two pieces:
@@ -486,7 +475,7 @@ model (§6 rule 3)[^rctx][^ring].
 | Piece | Ring, context | Does |
 |---|---|---|
 | A step machine: `TrunkProcedure`, `WitmotionArmProcedure`, `HackMotionArmProcedure` (`src/IMU/calibration/`) | Rules, Acquisition | Takes events: a tick with its elapsed time, a sensor summary (gyro rate, tilt, heading, link up or down), "the guide finished", "speech finished", the HackMotion's own phase. Returns its stage, progress, reason codes, cue codes, and requests (start a step, solve now, check the turn, clear the sensors' calibration, apply or refine an alignment, open or close the recording, attach a result, close a step, and each call a HackMotion's own calibration needs)[^add1]. Ends with a `CalibrationRecord` or a failure code. It holds every threshold and every transition. It has no clock, no timer and no sentence |
-| A driver per procedure (`src/Gui/imu/` until Stage D) | Adapters | Owns the timers and the sensor taps, feeds the machine, calls the sink, and exposes the machine's state to QML as typed properties under the names the QML reads today |
+| A driver per procedure (`src/Gui/imu/` until Stage D) | Adapters | Owns the timers and the sensor taps, feeds the machine, performs its requests on the device objects, and exposes the machine's state to QML as typed properties under the names the QML reads today[^add4] |
 
 Because time is an input, a recorded run replays to the same answer. The Rules ring holds no golfer-facing
 sentence[^ring]: the machine returns codes and the words stay where they are, verbatim (`spoken_instructions.js`, the
@@ -593,7 +582,7 @@ record holds, both go to `Vocabulary/Common` in Stage B, Part 1[^q27][^plan-b].
 |---|---|---|
 | 1 | `Vocabulary/Rig` includes only Platform, `Identity`, `Vocabulary/Common`, the perspective header and Qt value types. It never includes `recording.h` | `recording.h` includes `Buffer/types.h`, `Vocabulary/Analysis/swing_analysis.h` and `Vocabulary/Club/club_standards.h`, so the enum gets its own header (A5-4) |
 | 2 | `recording.h` includes `Vocabulary/Rig` (for `RigReference`); `Vocabulary/Rig` never includes `recording.h` | no cycle is made. One file under `Vocabulary/` names `Recording/` today (`analysis_versions.h`); the rig types do not include it (A5-5) |
-| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record** (when built: #291[^c-v1]). Only the drivers and device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`. The sink joins lint A9's named contract headers[^q26]. `rig_commands.h` joins lint A9's named contract headers[^add1] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
+| 3 | **The step machines (Rules) include nothing of the Domain model: they return a record** (when built: #291[^c-v1]). Only the device objects (Adapters) include `rig_calibration_sink.h`, and none includes `rig.h`[^add4]. The sink joins lint A9's named contract headers[^q26]. `rig_commands.h` joins lint A9's named contract headers[^add1] | 0 files under `src/IMU`, `src/Buffer`, `src/Video`, `Gui/imu`, `Gui/cameras` or `Gui/calibration` include `DomainModel/` today (A5-6). The check is extended to `src/IMU/calibration` and stays at 0 for `src/IMU` |
 | 4 | `rig.*` includes only `Vocabulary/Rig`, `Identity`, Platform and the pure role rule (`IMU/imu_role_map.h`, Rules). Ruled[^sa27-r4] | the Domain model's production files include `Analysis`, `Coaching`, `Core`, `Diagnostics`, `Identity`, `LaunchMonitor`, `Metrics`, `Recording` and `Vocabulary`; none includes `IMU`, `Buffer` or `Gui` (A5-7). `imu_role_map.*` includes only Qt, `segment_role.h` and `hm_unit_id.h` (A5-8), so its role rules can move to `src/IMU` and be the Domain model's first include of that directory |
 | 5 | The Rig never includes `app_settings.h`; the copies from settings are made in the Rig's store, which reads the settings store itself | `app_settings.h` is included by 18 production files and 4 tests under `src/Gui`, and 4 files under `src/Update` (allowlisted, A1), and by no inner ring (A5-9) |
 | 6 | `CameraInstance`'s enum can be deleted without touching an inner ring | `camera_instance.h` is included by 5 files, all in `Gui/cameras` and `Gui/shot` (A5-1) |
@@ -620,7 +609,7 @@ re-runs table A5 on Stage B's closing commit before C-1 is briefed, and the rule
 | The placement view (`imuPlacement` today) | derived | `Rig`; application | n/a | inputs: the roles; no rule version; changes with them | not persisted | adapter (`app.rig`) | `app.rig` |
 | SET-05, the club-length prior | learned rig state[^dec153] | `Rig`; application, per machine | `Rig::learnClubLength`, called by the capture service after a live shot's analysis | n/a (learned, not re-derivable) | `rig.json`; `Rig` (today `ShotProcessor` through `AppSettings`) | n/a | not shown |
 | FILE-SESS-11, the raw ceremony | source (a calibration's evidence) | recommended: the `Session`; session (today: Studio/Rig, outside the aggregate) | handed to the session that starts after it; ends with the session | n/a | the session folder, unchanged format; recommended writer: `Session`, through `SessionRepository` | adapter | not shown; tools replay it |
-| A calibration result | source | `Rig`; application | `commitCalibration`; replaced by the next of its subject and kind; ended by `clearCalibration`; a `sensorAlignment` also ends with the run of the app | n/a | in the rig state, and so in each Recording; in `rig.json` but for `sensorAlignment` | vocabulary (`CalibrationRecord`) | `app.rig` |
+| A calibration result | source | `Rig`; application | `commitCalibration`; replaced by the next of its subject and kind; ended by `clearCalibration`; a `sensorAlignment` also ends with its live device object, and so with the run of the app[^add4] | n/a | in the rig state, and so in each Recording; in `rig.json` but for `sensorAlignment` | vocabulary (`CalibrationRecord`) | `app.rig` |
 | A procedure's running state (until #291, in the QML routine[^c-v1]) | application state | its driver; application | the composition root; reset at each run | n/a | not persisted | rules (machine), adapter (driver) | `app.calibration` |
 | `DeviceKey`, `PlacementKey` | identity | n/a: values | built from a device's own facts | n/a | wherever a device is named; each map's spelling unchanged | vocabulary | as text, through a model |
 | `recording::Perspective` (A-13) | vocabulary | n/a | n/a | n/a | codes unchanged in settings and swings | vocabulary | `Perspective.*` in QML |
@@ -691,8 +680,7 @@ unless an item reports that it cannot keep a page's look (§4.9).
 
 One agent per item. Every item is independently reviewed[^plan-c]. Items that share a file run in sequence. **The
 `rig` block (C-8) is switched on only after every record it holds has a producer** (RP-10): the assumed records
-(C-7b) and today's alignment results and clears, the HackMotion's `deviceHeld` record among them (C-6b). The procedures' move to C++ (C-11 to C-13) changes who
-commits a record, not what the block holds, so it may follow C-8.
+(C-7b) and today's alignment results and clears, the HackMotion's `deviceHeld` record among them (C-6b). The procedures' move to C++ (C-11 to C-13) changes who decides a run's steps, not who commits a record or what the block holds, so it may follow C-8[^add4].
 
 | Item | What | Needs | Its test |
 |---|---|---|---|
@@ -704,16 +692,16 @@ commits a record, not what the block holds, so it may follow C-8.
 | C-5a | The camera half of the Rig in C++: the copy with its fingerprint, the commands, Impact exclusive, `RigChanged`, the unknown code kept | C-4; the duties inventory of the 6 camera properties first | `rig_commands_test`; `rig_import_test`: a settings fixture copies to the same values; keys untouched; no second copy; a key changed after the copy is copied again and logged; a `rig.json` with a newer schema is never saved over; **the no-rig machine with keys, and with none** |
 | C-5b | The cameras cut over: `CameraManager`, `CameraInstance`, `migrateImpactRoi` and the QML use the Rig; 6 `AppSettings` properties go | C-5a | the camera tests re-pointed; grep 0 for each removed property in QML; a before/after sheet of each page |
 | C-6a | The sensor half in C++: the role rules of `imu_role_map.*` moved to `src/IMU`, the two display-label functions left in the Adapters ring; the copy through `loadRoles`; `claimRole` with facts handed in; the enabled flag; the placement view | C-5b; the sensors' duties inventory first | the same two suites, for sensors: a second claim of a role is refused, as today; a HackMotion holds two roles; an un-migrated machine copies correctly |
-| C-6b | The sensors cut over: `ImuManager` and the QML use the Rig; **today's calibrate paths commit to the Rig (the HackMotion's `deviceHeld` record included) and every clear path clears it**; 6 `AppSettings` properties go (3 moved, 2 unused, 1 derived) | C-6a | `tst_setup_sensors` re-pointed; each set path and each clear path of the inventory is run, and after each the Rig's record equals the live sensor's state; **a HackMotion reports calibrated and the Rig holds a `deviceHeld` record; its link is lost and the record is cleared**; no alignment at launch; grep 0 in QML; a before/after sheet |
+| C-6b | The sensors cut over: `ImuManager` and the QML use the Rig; **every change of a live sensor's alignment commits to the Rig (the HackMotion's `deviceHeld` records included), and everything that ends one clears it, a teardown included**[^add4]; 6 `AppSettings` properties go (3 moved, 2 unused, 1 derived) | C-6a | `tst_setup_sensors` re-pointed; each set path and each clear path of the inventory is run, and after each the Rig's record equals the live sensor's state; **a HackMotion reports calibrated and the Rig holds a `deviceHeld` record; its link is lost and the record is cleared**; no alignment at launch; grep 0 in QML; a before/after sheet |
 | C-7 | SET-05 becomes `Rig::learnClubLength`: copied and marked taken in this item | C-4 | the prior round-trips under its typed key with today's spelling; no event; the capture-side snapshot reads the same value; a prior learned on the shot before the cut-over is in the copy |
 | C-7b | The two assumptions as `assumed` records | C-5b | the records appear for a fixed camera and for an uncalibrated down-the-line camera; the analysis output of a fixture swing is byte-identical |
 | C-8 | The `rig` block: writer, reader, `Recording::rig`; the schema reference. No libppswing change (table A4) | C-6b, C-7b | `rig_reference_test`. **Scratch: a swing with no rig reference** reads `Unknown`; `None` and `Known` round-trip; a newer tag reads `Unknown` and is kept. The block's per-camera set-up and per-sensor calibration equal `streams[].setup` and `streams[].device` of the same shot. **The block's entries match the shot's rig-device streams one to one**: a camera the session switched off has no entry, and neither has a camera that is enabled but absent (disconnected, or no frames in the window). **Two Recordings either side of a calibration change** hold two ids and the earlier is byte-identical afterwards. The block passes untouched through `writeDocument` (live and write-back), `editReview`, `updateStreamOrigin`, `updateLaunchMonitor`, `recordBackfilledContext`, `writeArchiveStub` and `writeOutsideLibrary`. The input stamp of a fixture swing is byte-identical with and without the block. libppswing's Python reader reads both kinds (a fixture check) |
 | C-10 | The duties inventories of §4.8 (documents; the coordinator checks them) | none | a scripted count: every function, timer, `readonly property` number, call out, and set or clear path of a calibration that a grep finds in each file has a line in its inventory; every test that covers each file is listed |
 | C-9 | Golden traces of the three routines as they are now, the trunk included, before any QML changes | C-10 | the fixtures; each run twice gives the same projection; every transition and threshold in C-10's inventories is reached; the three existing set-up test files extended (no new QML test file) |
 | C-11a (deferred, #291[^c-v1]) | `TrunkProcedure` in C++ with its record | C-9 | the equivalence test on C-9's trunk trace |
-| C-11b (deferred, #291[^c-v1]) | The trunk driver, the sink call, `TrunkRoutine.qml` as bindings | C-11a, C-6b | `tst_setup_trunk` re-pointed; a before/after sheet |
+| C-11b (deferred, #291[^c-v1]) | The trunk driver, `TrunkRoutine.qml` as bindings[^add4] | C-11a, C-6b | `tst_setup_trunk` re-pointed; a before/after sheet |
 | C-12 (deferred, #291[^c-v1]) | `WitmotionArmProcedure` and its driver | C-11b | the equivalence test on C-9's trace; `tst_setup_calib_witmotion` re-pointed; a sheet |
-| C-13 (deferred, #291[^c-v1]) | `HackMotionArmProcedure` and its driver; the driver commits the `deviceHeld` record that C-6b's path committed until now | C-12 | the equivalence test, each abort reason included; `tst_setup_calib_hackmotion` re-pointed; a sheet |
+| C-13 (deferred, #291[^c-v1]) | `HackMotionArmProcedure` and its driver[^add4] | C-12 | the equivalence test, each abort reason included; `tst_setup_calib_hackmotion` re-pointed; a sheet |
 | C-14 | The ceremony file behind its door; the pool-thread write and the `trunkCeremony` global go (re-scoped: the file write only, with #265's fix; the global stays[^c-v1]) | C-11b; open question 5 (C-11b deferred: C-14 follows C-6b[^c-v1]) | `ceremony_store_test`: the same bytes as today for a synthetic fixture ceremony; an earlier ceremony kept aside; the three "dropped" cases; a test for each of #265's loss paths[^c-v1]; A5 ×7 at 0, the A6 ×2 as §4.8 says[^c-v1] |
 | C-16 | The close: the counts of §4.3, §4.6 and §4.7; IM §11; the written procedure for the cabin visit, with its trunk-recording step; an installer | all above | both lints; the full suite on the cabin PC |
 | C-17 (deferred, #291[^c-v1]) | After the visit: the three real ceremonies become fixtures | the cabin visit | the lanes replay through `TrunkProcedure` to the file's step sequence, verdicts and stand-tall A and M |
@@ -785,7 +773,7 @@ otherwise; tests are counted apart.
 | `imu/alias` | `description\|deviceId` → label (`imu_role_map.h:80–83`), seeded on discovery (`imu_manager.cpp:178–184`) |
 | `analysis/clubLenPrior` | key `athlete.uuid\|sessionClub\|faceOnCameraKey`, read only for a fixed face-on camera (`capture_context.cpp:343–349`); written on the live path only, by read-modify-write of the whole map (`shot_processor.cpp:1594–1619`) |
 | Setting a calibration | `ImuInstance::setCalibration`; `setFunctionalCalibration` (`imu_instance.cpp:765`); `setNominalCalibration` (`:801`); `refineMountAboutLongAxis` (`:840`, changing A on two branches, `:855` and `:874`); `calibrateTrunk`; the HackMotion's own calibrated state |
-| Clearing a calibration | `clearCalibration` (`imu_instance.cpp:755`); `clearFunctionalCalibration` (`:891`); `zeroOrientation` calls `clearCalibration()` (`:581–584`)[^zero]; the routines' `_reset` paths call both clears; a HackMotion's calibration dies with its link |
+| Clearing a calibration | `clearCalibration` (`imu_instance.cpp:755`); `clearFunctionalCalibration` (`:891`); `zeroOrientation` calls `clearCalibration()` (`:581–584`)[^zero], which clears only the older flag[^add4]; the routines' `_reset` paths call both clears; a HackMotion's calibration dies with its link |
 | `ppcp/pairings/<id>` | "the 32 raw bytes of PRK as hex. Nothing else" (`ppcp_pairing_store.cpp:155–157`) |
 
 **A3. Real trunk ceremonies.** A read-only `find` for `trunk_ceremony*.json` over the share found 0, on a walk that
@@ -877,6 +865,7 @@ directory.
 [^code-hm]: The header of `src/Gui/calibration/HackMotionArmRoutine.qml`: "Nothing about the HackMotion calibration is persisted, ever".
 [^code-test]: `src/Gui/tests/setup/support/CalibDriver.qml`; `tst_setup_trunk.qml`, `tst_setup_calib_witmotion.qml`, `tst_setup_calib_hackmotion.qml`.
 [^add1]: The Rig design addendum (`docs/design/rig_design_addendum.md`), decision 1, ruled as recommended by the Solution Architect, 25 Nov 2026; its "Becomes" texts written in by the platform refactor's C-5a.1, which declares `rig_commands.h` with the camera commands.
+[^add4]: The same addendum, decision 4, ruled as recommended by the Solution Architect, 25 Nov 2026 ("the record follows the live sensor's alignment, whatever changed it; the device object is the only caller of the sink"); its "Becomes" texts written in by the platform refactor's C-6b.2, which builds step 1.
 [^add8]: The same addendum, decision 8, ruled as recommended by the Solution Architect, 25 Nov 2026; written in by C-5a.1, which emits the second event from the Rig's camera commands.
 [^add9]: The same addendum, decision 9, ruled as recommended by the Solution Architect, 25 Nov 2026 (built by C-1c and C-3); written in by C-5a.2.
 [^add10]: The same addendum, decision 10, ruled as recommended by the Solution Architect, 25 Nov 2026; written in by C-5a.2, whose copy keeps such entries in `rig.json` (`keptFromSettings`), beside the two parts.

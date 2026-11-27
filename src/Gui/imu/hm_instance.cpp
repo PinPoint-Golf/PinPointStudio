@@ -413,6 +413,11 @@ HmInstance::HmInstance(const Device &device,
         invalidateCalibration(libraryState, why);
     });
 
+    // The Rig's records follow "calibrated" (the class comment): every write of the state above, and
+    // invalidateCalibration's, emits calibrationStateChanged after the state is set, so this one connection — made
+    // here, before any listener outside the object — sees each of them first, with the device as it now is.
+    connect(this, &HmInstance::calibrationStateChanged, this, &HmInstance::reportCalibrationToRig);
+
     connect(m_worker, &HmSessionWorker::calibrationCallRefused, this,
             [this](int status, const QString &call) {
         // ⚠ THE THREE REACHABLE REFUSALS WANT THREE DIFFERENT THINGS FROM THE COACH,
@@ -760,6 +765,15 @@ HmInstance::HmInstance(const Device &device,
 
 HmInstance::~HmInstance()
 {
+    // The device's calibration dies with the object (rig_design_addendum.md decision 4, "what ends a record"), and so
+    // do the Rig's two records. At the manager's own teardown the sink is detached first, so nothing is sent.
+    if (pinpoint::RigCalibrationSink *const sink = calibrationSink(); sink && m_rigHoldsCalibration) {
+        m_rigHoldsCalibration = false;
+        for (const auto lane : { pinpoint::rig::PlacementKey::Lane::LowerArm, pinpoint::rig::PlacementKey::Lane::Palm })
+            sink->clear(pinpoint::rig::PlacementKey(pinpoint::rig::DeviceKey::fromPersistedId(m_deviceId), lane),
+                        pinpoint::rig::CalibrationKind::SensorAlignment);
+    }
+
     m_retryTimer.stop();
     m_logTimer.stop();
     m_displayTimer.stop();
@@ -1019,6 +1033,30 @@ void HmInstance::clearPresenceSurface()
     m_presenceSamplesUsed = 0;
     m_presenceNotMeasured = false;
     m_anchor = ReferenceAnchor{};
+}
+
+void HmInstance::reportCalibrationToRig()
+{
+    const bool calibrated = fullyCalibrated();
+    if (calibrated == m_rigHoldsCalibration) return;   // a write that changed nothing the Rig holds
+    m_rigHoldsCalibration = calibrated;
+    pinpoint::RigCalibrationSink *const sink = calibrationSink();
+    if (!sink) return;
+    namespace rig = pinpoint::rig;
+    const rig::DeviceKey   device = rig::DeviceKey::fromPersistedId(m_deviceId);
+    const QDateTime        seenAt = QDateTime::currentDateTimeUtc();   // one moment, for both lanes
+    for (const auto lane : { rig::PlacementKey::Lane::LowerArm, rig::PlacementKey::Lane::Palm }) {
+        const rig::PlacementKey key(device, lane);
+        if (!calibrated) {
+            sink->clear(key, rig::CalibrationKind::SensorAlignment);
+            continue;
+        }
+        rig::SensorAlignmentParameters p;
+        p.role      = roleOf(key);
+        p.alignment = rig::SensorAlignment{ QQuaternion(), pinpoint::hm_frame::mountM(), 0.0, 0.0 };
+        sink->commit(rig::CalibrationRecord::forSensor(key, rig::CalibrationMethod::DeviceHeld, std::move(p),
+                                                       rig::Uncertainty::notKnown(), seenAt));
+    }
 }
 
 void HmInstance::invalidateCalibration(int libraryState, const QString &why)

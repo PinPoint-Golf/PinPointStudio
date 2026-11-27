@@ -1,6 +1,6 @@
 # The Rig and calibration: addendum 1, the questions the inventories found
 
-**Status: proposed, for the Solution Architect, 25 Nov 2026. Nothing on this page is ruled.** It adds to `docs/design/rig_design.md`, which is approved[^sa24]. Five inventories of today's code (the three calibration ones, the camera properties and the sensor properties) and the first build item found questions that design does not answer[^inv]. This page puts every one of them as **eleven decisions**, so they can be ruled once.
+**Status: ruled as recommended by the Solution Architect, 25 Nov 2026: all eleven decisions**[^ruled]. The "(proposed, for the Solution Architect)" line under each section, and the wording below, are kept as the page was put for that ruling. It adds to `docs/design/rig_design.md`, which is approved[^sa24]. Five inventories of today's code (the three calibration ones, the camera properties and the sensor properties) and the first build item found questions that design does not answer[^inv]. This page puts every one of them as **eleven decisions**, so they can be ruled once.
 
 **How to read it.** A sentence with a footnote states something already ruled, already in the approved design, or a call the coordinator has logged. A line of evidence names the file and line it was read from. Every other sentence on this page is design or this page's own reading, proposed for the Solution Architect: that covers the table below, the two paragraphs after it and the last section. Each numbered section says so again in its first line. Names of new types, events and functions are placeholders.
 
@@ -556,6 +556,7 @@ The calls logged in PR-36, PR-45, PR-48, PR-50, PR-51, PR-52 and PR-53 were read
 ## Notes
 
 [^sa24]: The Solution Architect, 24 Nov 2026: "approve as recommended", the design, its information-model changes and all 19 answers of §9 (the platform refactor's judgement calls, PR-35; `docs/design/rig_design.md`, Status).
+[^ruled]: The Solution Architect, 25 Nov 2026: the eleven decisions ruled as recommended (`governance/artefacts/information_model.md`, footnote `sa25-add4`; decision 4's texts written into `docs/design/rig_design.md` by the platform refactor's C-6b.2). The Product Owner, 27 Nov 2026, on what decision 4's record means for a Witmotion: a sensor is calibrated only by a successful ceremony, both phases and every strap check passed; today's code counts arms-down alone as calibrated, filed as #417 (issue #403).
 [^inv]: The platform refactor's Stage C working notes, not committed: the duties inventories C-10a, C-10b, C-10c, C-5i and C-6i, and the notes of C-1a. What this page relies on from them is copied into each section's evidence, with the file and line each fact was read from.
 [^pr36]: The platform refactor's judgement calls, PR-36 (24 Nov 2026): C-12 and C-13 are for the Solution Architect; the briefs route the managers' requests through the composition root until then.
 [^pr45]: The same, PR-45: of C-10a's thirteen findings, F4, F5, F6, F7 and F8 are for the Solution Architect. The coordinator's calls: speech and the guide stay in the QML views (F1, F2); the entry points are placed by C-11b's briefs (F12).

@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <functional>
+#include <utility>
 #include <vector>
 
 #include <QObject>
@@ -25,7 +27,10 @@
 #include <QStringList>
 
 #include "types.h"
+#include "../../DomainModel/rig_calibration_sink.h"   // the Rig's calibration sink, a contract (never rig.h: lint A10)
+#include "../../Vocabulary/Common/segment_role.h"
 #include "../../Vocabulary/Rig/battery_band.h"
+#include "../../Vocabulary/Rig/device_key.h"
 
 // The device-kind-agnostic slice of an IMU device, as ImuManager uses it.
 //
@@ -123,6 +128,34 @@ public:
     // string). ImuManager::saveLog() calls this generically across every
     // active instance — one call site, either device kind.
     virtual QString saveLog() = 0;
+
+    // ── The Rig's calibration sink (rig_calibration_sink.h; rig_design_addendum.md decision 4) ──
+    //
+    // The Rig's record of this device's alignment follows the live alignment: the concrete class commits a record
+    // whenever its anatomical alignment is set or changes, and clears it whenever that alignment ends (a clear of it,
+    // a HackMotion leaving "calibrated", the object's own teardown). It is the only caller of the sink. ImuManager
+    // hands the sink over as it makes the object, with `roleOf`, the role each of the device's placements holds now in
+    // the rig state (the record names the role it was solved for). Without a sink (a test, or after detach) nothing is
+    // reported. detachCalibrationSink() is the manager's at its own teardown: the end of the run ends the record, and
+    // no clear is sent into a Rig whose listeners are being destroyed.
+    using RoleOfPlacement = std::function<pinpoint::analysis::SegmentRole(const pinpoint::rig::PlacementKey &)>;
+    void setCalibrationSink(pinpoint::RigCalibrationSink *sink, RoleOfPlacement roleOf = {})
+    {
+        m_calibrationSink = sink;
+        m_roleOf          = std::move(roleOf);
+    }
+    void detachCalibrationSink() { setCalibrationSink(nullptr); }
+
+protected:
+    pinpoint::RigCalibrationSink *calibrationSink() const { return m_calibrationSink; }
+    pinpoint::analysis::SegmentRole roleOf(const pinpoint::rig::PlacementKey &placement) const
+    {
+        return m_roleOf ? m_roleOf(placement) : pinpoint::analysis::SegmentRole::Unknown;
+    }
+
+private:
+    pinpoint::RigCalibrationSink *m_calibrationSink = nullptr;
+    RoleOfPlacement               m_roleOf;
 
 signals:
     void stateLabelChanged();

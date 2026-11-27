@@ -814,6 +814,7 @@ qt_add_executable(PinPointStudio
     # its repository and the one store behind it (rig/rig.json), and `app.rig`, its read-only presenter.
     src/DomainModel/rig.h                    src/DomainModel/rig.cpp
     src/DomainModel/rig_repository.h
+    src/DomainModel/rig_calibration_sink.h   # the Rig's calibration sink, which the sensors' objects call (C-6b.2)
     src/Stores/rig_store.h                   src/Stores/rig_store.cpp
     src/Gui/app/rig_presenter.h              src/Gui/app/rig_presenter.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)

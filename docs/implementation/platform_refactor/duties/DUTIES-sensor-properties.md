@@ -2,6 +2,8 @@
 
 **Updated 27 Nov (C-6b.1, the sensors' cut-over): every §1 row now has the home built for it; the duties list, with where each went, is in C-6b.1's notes and its commit. One hit the ledger missed, added here: DK2, `src/Gui/tests/device_key_test.cpp` (the three sensor setters and getters in C-1a's key-spelling fixture, re-pointed to raw `ppSettings()` writes and reads, as Step 8 did for the cameras' DK1).**
 
+**Updated 27 Nov (C-6b.2, every way a sensor is calibrated or cleared updates the Rig): the "Goes" of §2 and §3 is settled by the Rig design addendum's decision 4 (ruled 25 Nov 2026: the record follows the live sensor's alignment; the device object is the only caller of the sink), which answers F34, F35 and F36. Built: SE2, SE3, SE4a, SE4b and SE5's valid exit commit a `sensorAlignment` record (method `solved`) from `ImuInstance`; SE6 commits a `deviceHeld` record on each of the HackMotion's two lanes from `HmInstance`'s one before-and-after compare; CL2 and CL4 (through CL2) clear it; CL5 and CL6 (HM5, HM7, HM8 and the invalidation) clear both lanes through the same compare; CL7, the object's teardown, clears it. SE1 and CL1 touch only the older flag, so they commit and clear nothing (decision 4.2). CL8, a role released or moved, ends nothing (decision 4.6): the record stays. NC1 to NC5 are unchanged. Each path is tested in `imu_instance_rig_test`; where each went, with file and line, is in C-6b.2's notes and its commit.**
+
 Taken at `cc756cfa` (main, after `git pull --ff-only`). C-6i; a document, read and not run: no code, no build, no IM edit.
 
 # Duties of the six sensor properties, and of every path that sets or clears a sensor's calibration

@@ -689,7 +689,10 @@ pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept pe
 # (imu_roles::claimRole), the Rig's answer and state equal to the rule's on every case, each change one save then one
 # RigChanged; claim then release gives the earlier RigStateId; an alignment record kept with its placement; a sensor's
 # alias and enabled flag by their spellings; the entries the store keeps outside the state neither replaced nor lost;
-# the facts table's default; the derived placement view. Hand-rolled main.
+# the facts table's default; the derived placement view; the calibration sink (commit, clear; C-6b.2): one new state
+# and one RigChanged per change and none for a no-op, nothing saved for an alignment alone (rig.json's bytes unchanged,
+# no record in it, none after a relaunch), a record-only entry kept, a role released keeping its record, P4's retry,
+# and an empty entry read from rig.json no longer saving for nothing (Step 11's E2). Hand-rolled main.
 pp_add_test(rig_commands_test
     SOURCES ${SRC}/DomainModel/tests/rig_commands_test.cpp
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
@@ -698,7 +701,7 @@ pp_add_test(rig_commands_test
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     AUTOMOC)
-pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17 CTL-AD-10)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports
+pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17 CTL-AD-10)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports, the sensors' alignment records (K20-K23) among it
 # rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
 # the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
 # byte; no second copy when nothing changed; the four downgrade cases (the older build runs; it changes a key; rig.json

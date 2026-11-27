@@ -89,6 +89,11 @@ void requestEnabled(pinpoint::RigCameraCommands &rig, const QString &deviceId, b
     rig.setEnabledOnThisMachine(DeviceKey::fromPersistedId(deviceId), enabled);
 }
 
+pinpoint::analysis::SegmentRole roleOfPlacement(const QVariantMap &roles, const pinpoint::rig::PlacementKey &placement)
+{
+    return pinpoint::analysis::segmentRoleForPlacementRole(roles.value(placement.persisted()).toString());
+}
+
 SensorFactsTable sparingFacts(const QVariantMap &roles, const QString &deviceId, const SensorFactsTable &actual)
 {
     SensorFactsTable t;

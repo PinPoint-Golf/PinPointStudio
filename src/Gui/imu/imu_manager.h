@@ -29,6 +29,7 @@
 #include "app_settings.h"
 #include "device_enumerator.h"
 #include "imu_device.h"
+#include "../../DomainModel/rig_calibration_sink.h"   // the Rig's calibration sink, a contract (never rig.h: lint A10)
 #include "../../DomainModel/rig_commands.h"   // the Rig's commands, as a contract (never rig.h: lint A10)
 #include "../../IMU/imu_role_map.h"
 #include "../../Vocabulary/Rig/rig_state.h"   // the Rig's two parts, handed in as a value
@@ -55,7 +56,9 @@ class ShotProcessor;
 // the interface that declares setAlias and setEnabledOnThisMachine) and its two parts as a value, and tells it of every
 // change (rigStateChanged, rigLabelChanged). It reads the roles, aliases and the disabled list from the parts it holds,
 // asks the Rig for every change, and applies to its live sensors only what changed. Its rules live in imu_rig_link.h,
-// tested without a sensor. It never includes rig.h (lint A10).
+// tested without a sensor. It never includes rig.h (lint A10). Since C-6b.2 it also hands each live sensor object the
+// Rig's calibration sink (attachCalibrationSink), through which the object reports its own alignment; a RigChanged that
+// follows touches no sensor's A and M, role, alias or enabled flag.
 class ImuManager : public QObject
 {
     Q_OBJECT
@@ -121,6 +124,12 @@ public:
     // the manager alone) the roles are empty and every write is refused with a ppWarn.
     void attachRig(pinpoint::RigSensorCommands *roles, pinpoint::RigCameraCommands *labels,
                    const pinpoint::rig::RigParts &parts);
+    // Once, by the composition root, beside attachRig: the Rig's calibration sink (rig_calibration_sink.h; C-6b.2,
+    // rig_design_addendum.md decision 4), handed to each sensor's live object as it is made, with the role each of its
+    // placements holds in the rig state. The device objects are its only callers; this manager never calls it. At the
+    // manager's own teardown every object is detached first (the end of the run ends each record, with no clear). The
+    // sink must outlive the manager.
+    void attachCalibrationSink(pinpoint::RigCalibrationSink *sink) { m_calibrationSink = sink; }
     // The Rig's state changed (RigChanged): the roles are read again and the role views recomputed (decision 8's row:
     // a sensor's role; A and M on the live sensors are not touched). Connected BEFORE app.rig's own connection, so a
     // view that re-reads this manager on app.rig's notifier reads the new roles.
@@ -423,6 +432,7 @@ private:
     // The Rig (C-6b.1): its commands, and its two parts as last handed in, with the roles map read from them.
     pinpoint::RigSensorCommands *m_rigRoles  = nullptr;
     pinpoint::RigCameraCommands *m_rigLabels = nullptr;
+    pinpoint::RigCalibrationSink *m_calibrationSink = nullptr;   // handed to each device object (attachCalibrationSink)
     pinpoint::rig::RigParts      m_parts;
     QVariantMap                  m_roles;
     // The machine-wide disabled list changed: today's diff, applied one turn later (rigLabelChanged).

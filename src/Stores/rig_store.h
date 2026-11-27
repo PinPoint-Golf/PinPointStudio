@@ -31,7 +31,9 @@
 //   schema, rigId;
 //   state:  sinceUtc; cameras[] (key, perspective as its integer code, mirrored, fixedInPlace, hittingArea, the
 //           calibration records); sensors[] (placement key and role; never an alignment: a worn sensor's alignment is
-//           held for the run only, rig_design.md §4.2);
+//           held for the run only, rig_design.md §4.2, so a placement the state holds only for its alignment record,
+//           with no role, is not written, and an entry read with no role and nothing else is no entry, as the Rig's
+//           empty-entry rule says; one with no role and a member this build does not know is kept as read, P2);
 //   other:  aliases[], enabledOnThisMachine[], clubLengthPriors[] (each by its device's own spelling: a camera's
 //           camera key, a sensor's key with its description);
 //   groupsTaken, keptFromSettings: the store's own (the copy from settings, C-5a.2), written back on every save.

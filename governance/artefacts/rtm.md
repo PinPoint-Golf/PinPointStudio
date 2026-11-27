@@ -236,7 +236,7 @@ Each row: its id and Requirement sentence; its status in requirements.md, releas
 - **REQ-DEV-17**: The app shall keep the calibration and set-up of each studio bay and load it, so a fixed studio calibrates once.
   - Status: planned (#74 (Camera calibration programme)); release v2; Must; use cases UC-8 ; UC-18.
   - Evidence: an automated test of the logic (E1), and an automated screen test (E4); never seen at the rig or in a corpus swing (E6).
-  - Tests: `camera_rig_link_test`, `imu_rig_link_test`, `qml_ui.tst_ppcp_pair_dialog`, `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
+  - Tests: `camera_rig_link_test`, `imu_instance_rig_test`, `imu_rig_link_test`, `qml_ui.tst_ppcp_pair_dialog`, `rig_commands_test`, `rig_import_test`, `rig_state_test`, `rig_store_test`.
   - Open issues: #74 (Camera calibration programme).
 - **REQ-DEV-18**: The app shall show when a camera's focus lock has failed, and restore the camera's focus.
   - Status: planned (#74 (Camera calibration programme)); release v2; Should; use cases UC-4.
@@ -1205,7 +1205,7 @@ Printed by every mode; they never fail the check.
 
 ## Labelled tests
 
-445 tests are registered in the source; 23 carry a requirement or control label. Gate lists: the platform lists that hold the test.
+446 tests are registered in the source; 24 carry a requirement or control label. Gate lists: the platform lists that hold the test.
 
 | Test | Kind | Labels | Gate lists | Registered in |
 |---|---|---|---|---|
@@ -1214,6 +1214,7 @@ Printed by every mode; they never fail the check.
 | `club_length_prior_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Analysis/tests/CMakeLists.txt` |
 | `device_key_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `diagnostics_dir_order_check` | an automated test of the logic (E1) | CTL-BT-40 (A test shown unable to fail must be strengthened or retired; it …) | macos | `src/Gui/tests/CMakeLists.txt` |
+| `imu_instance_rig_test` | an automated test of the logic (E1) | REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `imu_rig_link_test` | an automated test of the logic (E1) | CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …); REQ-DEV-17 (The app shall keep the calibration and set-up of each studio bay …); REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `imu_role_map_test` | an automated test of the logic (E1) | CTL-AD-10 (The HackMotion and the Witmotion sensors must never be worn on the …); CTL-AD-52 (A rule must be built in C++, never in QML: a threshold …) | macos | `src/Gui/tests/CMakeLists.txt` |
 | `migrate_step2_test` | an automated test of the logic (E1) | REQ-INST-17 (Every update shall keep the studio's settings, each bay's calibration and set-up …) | macos | `src/Analysis/tests/CMakeLists.txt` |
