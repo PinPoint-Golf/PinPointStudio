@@ -30,18 +30,21 @@
 # THE APP'S ENVIRONMENT is exactly this, through /usr/bin/env -i, each one a separate argument:
 #   PINPOINT_HEADLESS_PROBE=1 QT_QPA_PLATFORM=offscreen PINPOINT_LOG_STDERR=1 HOME CFFIXED_USER_HOME XDG_CONFIG_HOME
 #   PINPOINT_DIAGNOSTICS_DIR=<home>/diagnostics PINPOINT_RIG_DIR=<home>/rig (the machine's rig, rig.json) TMPDIR=<home>/tmp
+#   PINPOINT_NO_SYSTEM_TRASH=1 (a discard goes to the scratch library's own trash, never the machine's Trash)
 #   PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=en_US.UTF-8
 #   plus each --env.
 #
 # THE CHECK. Within 1 s of the launch the running process's own environment is read (macOS: ps -E; Linux:
-# /proc/<pid>/environ). Unless it holds PINPOINT_HEADLESS_PROBE=1 and HOME=<the scratch home> as whole entries, the
+# /proc/<pid>/environ). Unless it holds PINPOINT_HEADLESS_PROBE=1, PINPOINT_NO_SYSTEM_TRASH=1 and HOME=<the scratch home>
+# as whole entries, the
 # process is killed at once (SIGKILL). An environment that cannot be read in that second (a hardened binary that hides
 # it) is killed too: the check fails closed.
 #
 # EXIT. 2: refused, nothing launched. 3: the check failed, the process was killed. 124: the timeout stopped the app.
 # Otherwise the app's own exit code (128+n for a signal). Every exit says why on stderr, prefixed "run_headless:".
 #
-# TEST HOOKS (run_headless_selftest.sh only): --_test_drop_switch leaves PINPOINT_HEADLESS_PROBE out, and
+# TEST HOOKS (run_headless_selftest.sh only): --_test_drop_switch leaves PINPOINT_HEADLESS_PROBE out, --_test_drop_trash
+# leaves PINPOINT_NO_SYSTEM_TRASH out, and
 # --_test_wrong_home gives the app HOME=<home>/elsewhere, so the kill path can be proved. They are refused for any binary
 # named PinPointStudio or carrying the switch's log text: a test hook never launches the real app without the switch.
 
@@ -113,7 +116,7 @@ must_scratch() {
 }
 
 # ---- arguments ---------------------------------------------------------------------------------------------------
-APP="" HOME_ARG="" SETTINGS_ARG="" PROBE="" TIMEOUT=120 LOG_ARG="" DROP_SWITCH=0 WRONG_HOME=0
+APP="" HOME_ARG="" SETTINGS_ARG="" PROBE="" TIMEOUT=120 LOG_ARG="" DROP_SWITCH=0 WRONG_HOME=0 DROP_TRASH=0
 EXTRA_ENV=() APP_ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -126,6 +129,7 @@ while [ $# -gt 0 ]; do
         --env)      [ $# -ge 2 ] || refuse "--env needs a value";      EXTRA_ENV+=("$2"); shift 2 ;;
         --_test_drop_switch) DROP_SWITCH=1; shift ;;
         --_test_wrong_home)  WRONG_HOME=1; shift ;;
+        --_test_drop_trash)  DROP_TRASH=1; shift ;;
         --) shift; APP_ARGS=("$@"); break ;;
         -h|--help) sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) refuse "unknown argument '$1' (app arguments go after --)" ;;
@@ -143,7 +147,7 @@ case "$APP_NAME" in [Pp]in[Pp]oint[Ss]tudio*) IS_REAL_APP=1 ;; esac
 if [ $IS_REAL_APP = 1 ] && [ $HAS_SWITCH = 0 ]; then
     refuse "--app '$APP' does not carry PINPOINT_HEADLESS_PROBE (built before refactor 4-c?): rebuild it"
 fi
-if [ $DROP_SWITCH = 1 ] || [ $WRONG_HOME = 1 ]; then
+if [ $DROP_SWITCH = 1 ] || [ $WRONG_HOME = 1 ] || [ $DROP_TRASH = 1 ]; then
     [ $IS_REAL_APP = 0 ] || refuse "a --_test_* hook is for the self-test's stand-in only, never for the app ('$APP')"
 fi
 
@@ -198,7 +202,7 @@ case "$TIMEOUT" in ''|*[!0-9]*) refuse "--timeout '$TIMEOUT' is not a whole numb
 [ -n "$LOG_ARG" ] || LOG_ARG="$HOME_DIR/run_headless-$(date +%Y%m%d-%H%M%S)-$$.log"
 LOG=$(must_scratch "--log" "$LOG_ARG") || exit 2
 
-RESERVED=" PINPOINT_HEADLESS_PROBE PINPOINT_LOG_STDERR PINPOINT_DIAGNOSTICS_DIR PINPOINT_RIG_DIR QT_QPA_PLATFORM HOME CFFIXED_USER_HOME XDG_CONFIG_HOME TMPDIR PATH LANG "
+RESERVED=" PINPOINT_HEADLESS_PROBE PINPOINT_LOG_STDERR PINPOINT_DIAGNOSTICS_DIR PINPOINT_RIG_DIR PINPOINT_NO_SYSTEM_TRASH QT_QPA_PLATFORM HOME CFFIXED_USER_HOME XDG_CONFIG_HOME TMPDIR PATH LANG "
 for kv in ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"}; do
     name="${kv%%=*}"; value="${kv#*=}"
     [ "$name" != "$kv" ] || refuse "--env '$kv' is not NAME=value"
@@ -221,6 +225,7 @@ ENVV+=("QT_QPA_PLATFORM=offscreen" "PINPOINT_LOG_STDERR=1"
        "HOME=$APP_HOME" "CFFIXED_USER_HOME=$APP_HOME" "XDG_CONFIG_HOME=$CONFIG_HOME"
        "PINPOINT_DIAGNOSTICS_DIR=$HOME_DIR/diagnostics" "PINPOINT_RIG_DIR=$HOME_DIR/rig" "TMPDIR=$HOME_DIR/tmp"
        "PATH=/usr/bin:/bin:/usr/sbin:/sbin" "LANG=en_US.UTF-8")
+[ $DROP_TRASH = 1 ] || ENVV+=("PINPOINT_NO_SYSTEM_TRASH=1")
 ENVV+=(${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"})
 
 say "log: $LOG"
@@ -277,6 +282,7 @@ while :; do
     ENV_NOW=$(read_env "$PID")
     if [ -n "$ENV_NOW" ] && ! printf '%s\n' "$ENV_NOW" | grep -qxF "PP_RUN_HEADLESS_NONCE=$PP_RUN_HEADLESS_NONCE"; then
         if ! printf '%s\n' "$ENV_NOW" | grep -qxF "PINPOINT_HEADLESS_PROBE=1"; then VERDICT="noswitch"
+        elif ! printf '%s\n' "$ENV_NOW" | grep -qxF "PINPOINT_NO_SYSTEM_TRASH=1"; then VERDICT="notrash"
         elif ! printf '%s\n' "$ENV_NOW" | grep -qxF "HOME=$HOME_DIR"; then VERDICT="nohome"
         else VERDICT="ok"; fi
         break
@@ -286,7 +292,8 @@ while :; do
 done
 kill "$DEADLINE_PID" 2>/dev/null; wait "$DEADLINE_PID" 2>/dev/null
 case "$VERDICT" in
-    ok)       say "checked: pid $PID runs with PINPOINT_HEADLESS_PROBE=1 and HOME=$HOME_DIR" ;;
+    ok)       say "checked: pid $PID runs with PINPOINT_HEADLESS_PROBE=1, PINPOINT_NO_SYSTEM_TRASH=1 and HOME=$HOME_DIR" ;;
+    notrash)  kill_now "pid $PID is running WITHOUT PINPOINT_NO_SYSTEM_TRASH=1 in its environment" ;;
     noswitch) kill_now "pid $PID is running WITHOUT PINPOINT_HEADLESS_PROBE=1 in its environment" ;;
     nohome)   kill_now "pid $PID is running with a HOME other than $HOME_DIR ($(printf '%s\n' "$ENV_NOW" | grep '^HOME=' | head -1))" ;;
     unread)   kill_now "pid $PID's environment could not be read within 1 s, so the switch could not be confirmed" ;;
