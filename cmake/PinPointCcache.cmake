@@ -10,7 +10,8 @@ option(PP_CCACHE "Compile through ccache when it is installed" ON)
 # gets the cache: its release builds must not.
 if(PP_CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER AND NOT CMAKE_BUILD_TYPE MATCHES "^(Release|RelWithDebInfo|MinSizeRel)$"
    AND NOT CMAKE_GENERATOR MATCHES "Xcode|Visual Studio|Multi-Config")
-    find_program(PP_CCACHE_PROGRAM ccache)
+    # Homebrew's folders as hints: an app started from the Dock (Qt Creator) has no Homebrew on PATH.
+    find_program(PP_CCACHE_PROGRAM ccache HINTS /opt/homebrew/bin /usr/local/bin)
     if(PP_CCACHE_PROGRAM)
         foreach(_pp_lang C CXX OBJC OBJCXX)
             set(CMAKE_${_pp_lang}_COMPILER_LAUNCHER "${PP_CCACHE_PROGRAM}")

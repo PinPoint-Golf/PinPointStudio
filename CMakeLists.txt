@@ -292,6 +292,11 @@ FetchContent_Declare(
 set(WHISPER_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS      OFF CACHE BOOL "" FORCE)
+# ggml's own ccache switch sets a global launcher of a bare `ccache` for every target and build type. A build
+# run without Homebrew on PATH (Qt Creator started from the Dock) then fails with "ccache: command not found",
+# and Release builds would go through the cache that cmake/PinPointCcache.cmake keeps them out of. Ours covers
+# every target with ccache's full path, so ggml's is off.
+set(WHISPER_CCACHE         OFF CACHE BOOL "" FORCE)
 
 # ── GPU acceleration for whisper.cpp (Linux / Windows) ─────────────────────
 # Vulkan works on NVIDIA, AMD, and Intel without proprietary drivers.
