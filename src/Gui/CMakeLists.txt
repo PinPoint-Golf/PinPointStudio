@@ -68,11 +68,6 @@ else()
         ${CMAKE_CURRENT_SOURCE_DIR}/app/app_settings.cpp
         # Beyond the module's own SOURCES: the link closure those types reach into. Every one of
         # these is already compiled by another suite in this umbrella, so nothing new is dragged in.
-        ${PP_ROOT}/src/Vocabulary/Metrics/metric_catalogue.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/metric_resolver.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/metric_providers.cpp
-        ${PP_ROOT}/src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         ${PP_ROOT}/src/LaunchMonitor/launch_monitor_base.cpp
         ${PP_ROOT}/src/LaunchMonitor/launch_monitor_factory.cpp
         ${PP_ROOT}/src/LaunchMonitor/gcquad_monitor.cpp
@@ -97,10 +92,6 @@ else()
         # the variability grader: the façade (variability/variability_facade.cpp) needs only variability_result.cpp
         # (its basis strings); the other three are here for the presenters that will grade. variability_grader_test
         # compiles the same four
-        ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_result.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_grader.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
-        ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
         # the charts' one idiom (charts_work.cpp: ChartsLane on the one WorkPool) and the ★ label's store (refactor 5.5a)
         ${PP_ROOT}/src/Stores/series_store.cpp)
 
@@ -172,7 +163,7 @@ else()
     # Quick3D: SwingHullGeometry (swing3d/) is a QQuick3DGeometry, compiled here with the module's
     # other C++ types.
     find_package(Qt6 REQUIRED COMPONENTS Network Quick3D)
-    target_link_libraries(qml_ui_test PRIVATE pp_platform
+    target_link_libraries(qml_ui_test PRIVATE pp_vocabulary pp_platform
         Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
         Qt6::Network Qt6::Quick3D gspro pinpoint_swingstore)
 
@@ -272,11 +263,6 @@ else()
         qt_add_executable(session_setup_ui_test
             tests/setup/session_setup_ui_test.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/app/app_settings.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/metric_catalogue.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/metric_resolver.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/metric_providers.cpp
-            ${PP_ROOT}/src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${PP_ROOT}/src/LaunchMonitor/launch_monitor_base.cpp
             ${PP_ROOT}/src/LaunchMonitor/launch_monitor_factory.cpp
             ${PP_ROOT}/src/LaunchMonitor/gcquad_monitor.cpp
@@ -293,10 +279,6 @@ else()
             ${PP_ROOT}/src/Stores/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp   # step 2.5
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_result.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
-            ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
             ${PP_ROOT}/src/Stores/series_store.cpp   # refactor 5.5a
             )
 
@@ -374,7 +356,7 @@ else()
         # tree, so editing them needs no rebuild.
         target_compile_definitions(session_setup_ui_test PRIVATE
             QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/setup")
-        target_link_libraries(session_setup_ui_test PRIVATE
+        target_link_libraries(session_setup_ui_test PRIVATE pp_vocabulary pp_platform
             Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
             Qt6::Network Qt6::Quick3D gspro pinpoint_swingstore)
 

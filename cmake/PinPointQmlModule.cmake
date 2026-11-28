@@ -709,10 +709,9 @@ set(PP_QML_SOURCES
     src/Gui/variability/variability_geometry.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
-    # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so
-    # every consumer of this module (the app and both QML suites) gets it with one line.
+    # metric_catalog.cpp's setupSummary(): setup_capability.cpp is pp_vocabulary's, which every consumer of this
+    # module links.
     src/Vocabulary/Metrics/setup_capability.h
-    src/Vocabulary/Metrics/setup_capability.cpp
     src/Gui/launchmonitor/lm_session_model.h
     src/Gui/launchmonitor/lm_session_model.cpp
     # The panel's vendored art (qrc:/lm/…, src/Gui/resources/lm/) — a C++ QML singleton.

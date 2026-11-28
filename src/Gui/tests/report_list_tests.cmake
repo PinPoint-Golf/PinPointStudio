@@ -28,11 +28,9 @@ pp_add_test(report_list_test
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/session_archiver.cpp
             ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${GUI} ${GUI}/report ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Analysis   # metric_descriptor.h names the bare "swing_analysis.h" (reached through session_diagnostics_files.h since a6220739)
-    LINK pp_platform    Qt6::Network
+    LINK pp_vocabulary pp_platform    Qt6::Network
     AUTOMOC)
 set_tests_properties(report_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

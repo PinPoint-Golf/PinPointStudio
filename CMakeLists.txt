@@ -884,7 +884,7 @@ qt_add_executable(PinPointStudio
     src/IMU/imu_io_worker.h   src/IMU/imu_io_worker.cpp
     src/IMU/hm_session_types.h
     src/IMU/hm_session_worker.h  src/IMU/hm_session_worker.cpp
-    src/Vocabulary/LaunchMonitor/launch_monitor_reading.h   src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
+    src/Vocabulary/LaunchMonitor/launch_monitor_reading.h
     src/LaunchMonitor/launch_monitor_base.h      src/LaunchMonitor/launch_monitor_base.cpp
     src/LaunchMonitor/launch_monitor_factory.h   src/LaunchMonitor/launch_monitor_factory.cpp
     src/LaunchMonitor/inferred/shot_pairing.h
@@ -1042,7 +1042,8 @@ set(PP_RING_DEFINITIONS
 # pool) are the pp_platform library (cmake/rings/platform/). pp_debug.cpp stays here: it includes whisper.h,
 # ggml.h and QMediaPlayer, so it cannot go in a library that links only Qt Core and the system.
 pp_require_ring(platform)
-target_link_libraries(PinPointStudio PRIVATE pp_platform)
+pp_require_ring(vocabulary)   # the metric catalogue, the variability grader, the launch monitor's reading (cmake/rings/vocabulary/)
+target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary)
 
 target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Common/figure_format.h
@@ -3038,7 +3039,6 @@ target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Recording/capture_time_types.h
     # The identity types (refactor step 2.1; Vocabulary, DEC-148) and the session's identity
     # (Domain model): AthleteId, SessionId, ShotRef; SessionIdentity (D3's legacy id, n-of-day).
-    src/Vocabulary/Identity/identity.h
     src/DomainModel/session_identity.h
     src/DomainModel/session_identity.cpp
     src/DomainModel/session_repository.h
@@ -3122,22 +3122,14 @@ target_sources(PinPointStudio PRIVATE
     # through src/Gui/variability/variability_facade.h.
     src/Vocabulary/Metrics/variability/variability_constants.h
     src/Vocabulary/Metrics/variability/variability_result.h
-    src/Vocabulary/Metrics/variability/variability_result.cpp
     src/Vocabulary/Metrics/variability/variability_grader.h
-    src/Vocabulary/Metrics/variability/variability_grader.cpp
     src/Vocabulary/Metrics/variability/variability_typicality.h
     src/Vocabulary/Metrics/variability/variability_outcome.h
-    src/Vocabulary/Metrics/variability/variability_typicality.cpp
     src/Vocabulary/Metrics/variability/variability_trend.h
-    src/Vocabulary/Metrics/variability/variability_trend.cpp
     src/Vocabulary/Metrics/metric_provider.h
     src/Vocabulary/Metrics/metric_catalogue.h
-    src/Vocabulary/Metrics/metric_catalogue.cpp
     src/Vocabulary/Metrics/metric_resolver.h
-    src/Vocabulary/Metrics/metric_resolver.cpp
-    src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
     src/Vocabulary/Metrics/metric_providers.h
-    src/Vocabulary/Metrics/metric_providers.cpp
 )
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -3378,7 +3370,6 @@ if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
         src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
-        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
@@ -3386,7 +3377,6 @@ if(PINPOINT_BUILD_LM_REPAIR)
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Stores/swing_paths.cpp
-        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # NOT src/Core/pp_debug.cpp — it includes whisper.h and would pull ggml and FFmpeg
         # into a tool that rewrites one JSON file. lm_repair.cpp provides PpLogStream itself
         # and routes it to stderr; see the note there. It links pp_platform for the folder lock
@@ -3395,7 +3385,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
 
@@ -3408,19 +3398,16 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
         src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
-        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
-        src/Stores/swing_paths.cpp
-        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    )
+        src/Stores/swing_paths.cpp)
     target_include_directories(pps_convert_library PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
     # The real log (pp_platform): swing_paths reports through ppWarn, and a line a conversion says on the way past
     # must reach whoever runs it.
-    target_link_libraries(pps_convert_library PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
     # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
@@ -3430,17 +3417,14 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(backfill_analysis_context
         tools/migrate/backfill_analysis_context.cpp
         src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
-        src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
-        src/Stores/swing_paths.cpp
-        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    )
+        src/Stores/swing_paths.cpp)
     target_include_directories(backfill_analysis_context PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(backfill_analysis_context PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
     # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
@@ -3453,18 +3437,16 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Stores/athlete_store.cpp   # AthleteRecord
         src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
         src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
-        src/Vocabulary/Identity/identity.h
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
         src/Stores/swing_paths.cpp
         src/Stores/rig_store.cpp   # a write is refused once the Rig keeps the learned club lengths
-        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     )
     target_include_directories(pps_migrate_step2 PRIVATE
         src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
-    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
@@ -3574,10 +3556,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Ball/ball_position.cpp
         src/Timeline/tempo_metrics.cpp
         src/Wrist/pose_wrist_angle_source.cpp
-        src/Vocabulary/Metrics/metric_catalogue.cpp
-        src/Vocabulary/Metrics/metric_resolver.cpp
-        src/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-        src/Vocabulary/Metrics/metric_providers.cpp
         src/Vocabulary/Recording/frame_decode.cpp
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3588,7 +3566,6 @@ if(PINPOINT_BUILD_TOOLS)
         # so the offline tools need the table itself, not just its header. The
         # PARSER and the monitor stay out: an offline tool replays a recorded
         # swing.json, it never reads a LastShot.CSV or talks to a device.
-        src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         src/Pose/pose_estimator_base.cpp
         src/Pose/pose_estimator_vitpose.cpp
         # The pose estimators' one execution-provider cascade (platform refactor A7).
@@ -3637,7 +3614,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pp_platform pinpoint_buffer pinpoint_swingstore whisper
+            pp_platform pp_vocabulary pinpoint_buffer pinpoint_swingstore whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the

@@ -47,10 +47,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)      # CHARTS_NORM
 set(CONSISTENCY_ENV_SOURCES
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/consistency_env.cpp
-    ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-    ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-    ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-    ${SRC}/Vocabulary/Metrics/metric_providers.cpp
     ${SRC}/Wrist/reference_bands.cpp
     ${SRC}/Diagnostics/model/norm.cpp
     ${SRC}/Diagnostics/content/norm_pack.cpp
@@ -74,7 +70,7 @@ pp_add_test(consistency_env_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -84,7 +80,7 @@ set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 pp_add_test(variability_env_test
     SOURCES variability_env_test.cpp ${GUI}/charts/variability_env.cpp ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -101,7 +97,7 @@ pp_add_test(session_consistency_test
     SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -112,9 +108,8 @@ set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTE
 pp_add_test(variability_clubs_test
     SOURCES variability_clubs_test.cpp ${SRC}/Diagnostics/derived/series/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
             ${CONSISTENCY_ENV_SOURCES}
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 
 
@@ -127,10 +122,8 @@ add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/var
     ${GUI}/variability/variability_facade.cpp
     ${SRC}/Diagnostics/derived/series/session_sequence.cpp
     ${GUI}/charts/session_sequence_words.cpp
-    ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-    ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp ${SRC}/Vocabulary/Metrics/variability/variability_trend.cpp
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
 target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
 target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
-target_link_libraries(variability_calibrate PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(variability_calibrate PRIVATE pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(variability_calibrate PROPERTIES AUTOMOC ON)

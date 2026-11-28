@@ -41,8 +41,6 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/content/gate_words_pack.cpp
             # The report's variability marks (report/report_variability.h, R2a R4b R10): the grader, its result, and
             # the within-club pooling over the Consistency maths' centring (variability_clubs.cpp needs those four).
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
             ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${SRC}/Diagnostics/derived/series/session_curves.cpp
@@ -52,7 +50,7 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/derived/series/session_warp.cpp
             ${SRC}/Diagnostics/derived/series/session_traces.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    AUTOMOC LINK pp_platform)
+    AUTOMOC LINK pp_vocabulary pp_platform)
 set_tests_properties(report_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${_pp_report_diag}/core.json;PINPOINT_CORE_DRILLS=${_pp_report_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_report_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_report_diag}/references.json")
 
@@ -63,7 +61,7 @@ set_tests_properties(report_model_test PROPERTIES
 pp_add_test(report_lm_test
     SOURCES report_lm_test.cpp ${GUI}/report/report_lm.cpp ${PP_LM_BOARD_SOURCES}
     INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report ${SRC}/Stores/tests
-    LINK pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     # Z: a real launch-monitor swing document (the fixture the diagnostics tests read).
     COMPILE_OPTIONS -DPP_LM_SWING_FIXTURE="${SRC}/Diagnostics/tests/data/live_swings/lm_7iron/swing.json")
 set_tests_properties(report_lm_test PROPERTIES

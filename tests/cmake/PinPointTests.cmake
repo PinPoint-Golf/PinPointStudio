@@ -475,3 +475,4 @@ endfunction()
 # or under the umbrella, links them by name (LINK pp_platform) and lists none of their sources.
 include(${PP_REPO_ROOT}/cmake/PinPointRings.cmake)
 pp_require_ring(platform)
+pp_require_ring(vocabulary)

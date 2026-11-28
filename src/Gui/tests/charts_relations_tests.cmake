@@ -14,9 +14,6 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/charts/charts_relations_presenter.cpp
             # R8 typicality (Apart, Readings, the key figures, Replay's "now"): the session window and the façade's payload
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
             ${SRC}/Diagnostics/derived/series/session_curves.cpp
@@ -29,10 +26,6 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
@@ -51,7 +44,7 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_relations_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -69,9 +62,6 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
             ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
@@ -85,10 +75,6 @@ pp_add_test(charts_consistency_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
@@ -107,7 +93,7 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_consistency_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

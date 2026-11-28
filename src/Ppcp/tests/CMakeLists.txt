@@ -218,7 +218,6 @@ pp_add_test(ppcp_clip_filer_test
             ${PP_SRC}/Stores/swing_doc_analysis.cpp
             ${PP_SRC}/Stores/recording_header.cpp ${PP_SRC}/Analysis/effective_context.cpp
             ${PP_SRC}/Stores/swing_paths.cpp    # swing_doc reaches SwingPaths::sanitise
-            ${PP_SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${PP_SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${PPCP}/ppcp_import_ledger.cpp
             ${PPCP}/ppcp_import_sink.cpp
@@ -227,7 +226,7 @@ pp_add_test(ppcp_clip_filer_test
             ${PPCP}/ppcp_ingest_policy.cpp
             ${PPCP}/ppcp_source_declaration.cpp
     INCLUDE ${PPCP} ${PP_SRC} ${PP_SRC}/Video ${PP_SRC}/Core ${PP_SRC}/LaunchMonitor
-    LINK pp_platform    ppcp Qt6::Multimedia Qt6::Qml
+    LINK pp_vocabulary pp_platform    ppcp Qt6::Multimedia Qt6::Qml
     STD 20
     AUTOMOC)
 

@@ -38,9 +38,8 @@ find_package(Qt6 REQUIRED COMPONENTS Test Network)
 pp_add_test(gcquad_csv_parser_test
     SOURCES gcquad_csv_parser_test.cpp
             ${LM}/gcquad_csv_parser.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
-    GTEST)
+    GTEST LINK pp_vocabulary)
 
 # --- Whether a reading nothing else saw becomes a shot of its own ----------------
 # Pure decision logic, split out of the controller precisely so it can be tested without
@@ -62,11 +61,10 @@ pp_add_test(gcquad_pairing_test
             ${LM}/gcquad_monitor.cpp
             ${LM}/launch_monitor_base.cpp
             ${LM}/gcquad_csv_parser.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${LM}/gcquad_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
-    LINK pp_platform    Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
 
 # --- libgspro links, and its headers match its archive ---------------------------
@@ -105,9 +103,8 @@ pp_add_test(lm_device_test
 pp_add_test(gspro_reading_test
     SOURCES gspro_reading_test.cpp
             ${LM}/gspro_reading.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
-    LINK    gspro
+    LINK pp_vocabulary    gspro
     GTEST)
 
 # --- The listener, over a real loopback socket -----------------------------------
@@ -120,11 +117,10 @@ pp_add_test(gspro_monitor_test
             ${LM}/gspro_monitor.cpp
             ${LM}/gspro_reading.cpp
             ${LM}/launch_monitor_base.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${LM}/gspro_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
-    LINK pp_platform    gspro Qt6::Network Qt6::Test
+    LINK pp_vocabulary pp_platform    gspro Qt6::Network Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
 
 # --- Foresight Premier: the session files → readings -----------------------------
@@ -138,10 +134,9 @@ set(PREMIER_FIXTURES ${CMAKE_CURRENT_SOURCE_DIR}/data/premier)
 pp_add_test(premier_session_parser_test
     SOURCES premier_session_parser_test.cpp
             ${LM}/premier_session_parser.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${LM}
     DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
-    GTEST)
+    GTEST LINK pp_vocabulary)
 
 # The monitor over the captured write sequences: one reading per shot, its club data a shot
 # later, the queue read only while a shot waits on it. A QObject with a QTimer, so AUTOMOC and
@@ -151,10 +146,9 @@ pp_add_test(premier_monitor_test
             ${LM}/premier_monitor.cpp
             ${LM}/premier_session_parser.cpp
             ${LM}/launch_monitor_base.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${LM}/premier_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
     DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
-    LINK pp_platform    Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Test
     GTEST_NO_MAIN AUTOMOC)

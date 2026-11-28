@@ -23,7 +23,6 @@ set(ATHLETE_TEST_SOURCES
     ${SRC}/Stores/athlete_store.cpp
     ${SRC}/Stores/session_store.cpp
     ${SRC}/DomainModel/session_identity.cpp
-    ${SRC}/Vocabulary/Identity/identity.h
     ${SRC}/Stores/swing_paths.cpp
     ${SRC}/Diagnostics/model/norm.cpp
     ${SRC}/Diagnostics/content/norm_pack.cpp
@@ -41,14 +40,14 @@ set(ATHLETE_TEST_SOURCES
     ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
     ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
-    ${SRC}/Stores/session_archiver.cpp ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp)
+    ${SRC}/Stores/session_archiver.cpp)
 pp_add_test(athlete_session_guard_test
     SOURCES athlete_session_guard_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_platform    Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)
 pp_add_test(athlete_repository_test
     SOURCES athlete_repository_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_platform    Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)

@@ -26,18 +26,11 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${SRC}/Kinematics/gap_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/trust/trust_types.h      # thisShot.trust is a list of its readings (refactor 5.5c): moc'd here
             ${GUI}/review/chart_metrics.cpp
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/model/norm.cpp
             ${SRC}/Diagnostics/content/norm_pack.cpp
@@ -56,7 +49,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_traces_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_MEASURE_OUT=${CMAKE_BINARY_DIR}/charts_traces_measure.txt"

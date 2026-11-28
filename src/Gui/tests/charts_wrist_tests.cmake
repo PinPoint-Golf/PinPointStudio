@@ -22,21 +22,14 @@ pp_add_test(charts_wrist_presenter_test
             # the session's consistency grades (R2b, R7): one window per club, the grader, the `variabilityResult` type
             ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${GUI}/trust/trust_readings.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_wrist_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

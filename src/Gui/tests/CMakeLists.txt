@@ -76,10 +76,6 @@ pp_add_test(chart_metrics_test
             # segments()/nearestPhase() ask TimelineLabels which phases are P-positions, so
             # the chips can never be labelled "→P2" from an untagged endpoint.
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/model/norm.cpp
             ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
@@ -91,7 +87,7 @@ pp_add_test(chart_metrics_test
             ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK pp_vocabulary    Qt6::Qml  AUTOMOC)
 
 # The Charts panel's session half (src/Gui/charts/): the session series model and the session maths.
 include(${CMAKE_CURRENT_LIST_DIR}/folder_series_tests.cmake OPTIONAL)
@@ -156,9 +152,8 @@ pp_add_test(shot_list_model_test
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Stores ${SRC}/Stores/tests
-    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
 # The controller's worker body (reanalyzeShot, through the shot's RecordingSource) is satisfied
@@ -202,11 +197,8 @@ pp_add_test(navigation_controller_test
 pp_add_test(variability_facade_test
     SOURCES variability_facade_test.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
     INCLUDE ${GUI} ${GUI}/variability ${SRC}
-    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_vocabulary    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # The variability geometry provider (variability/variability_geometry.h, spec §4.4 – §4.7, §11): the §4
 # tables spot-checked, the grade ladder (spread never grows, grade 5 converges, grade 0 is the neutral
@@ -286,9 +278,8 @@ pp_add_test(camera_rig_link_test
             ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
-            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
     INCLUDE ${SRC}/Video
-    AUTOMOC LINK pp_platform)
+    AUTOMOC LINK pp_vocabulary pp_platform)
 pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role and set-up held and applied as today; REQ-DEV-17 supports
 
 # The sensor manager's link to the Rig (imu/imu_rig_link.*; rig_design.md §4.1, §4.3; rig_design_addendum.md decisions 1
@@ -307,9 +298,8 @@ pp_add_test(imu_rig_link_test
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/IMU/imu_role_map.cpp
-            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
     INCLUDE ${SRC}/Video
-    AUTOMOC LINK pp_platform)
+    AUTOMOC LINK pp_vocabulary pp_platform)
 pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
@@ -337,10 +327,9 @@ pp_add_test(imu_instance_rig_test
             ${SRC}/IMU/eskf_orientation_filter.cpp ${SRC}/IMU/hm_session_worker.cpp
             ${SRC}/IMU/imu_role_map.cpp ${GUI}/imu/imu_rig_link.cpp   # the role lookup ImuManager hands with the sink
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
-            ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
     INCLUDE ${GUI}/imu ${SRC}/IMU ${SRC}/Core ${SRC}/Video
             ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
-    LINK pp_platform    pinpoint_buffer wrist Qt6::Bluetooth
+    LINK pp_vocabulary pp_platform    pinpoint_buffer wrist Qt6::Bluetooth
     STD 20  AUTOMOC)
 pp_requirement(imu_instance_rig_test REQ-DEV-17)   # supports: the bay's set-up holds each worn sensor's alignment exactly as the sensor applies it, for the run only (still planned, #74)
 
@@ -401,12 +390,10 @@ pp_add_test(shot_ledger_test
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Stores/session_store.cpp            # the one swing allocator (step 2.2)
             ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Stores ${SRC}/Stores/tests
-    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
 # latest unread with nothing picked, and a session with none, each its own sentence; graphics.sessionHas
@@ -427,7 +414,6 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp
             ${SRC}/LaunchMonitor/launch_monitor_factory.cpp
             ${SRC}/LaunchMonitor/gcquad_monitor.cpp
@@ -454,13 +440,6 @@ set(PP_LM_BOARD_SOURCES
             # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
             # from the manifest: the catalogue chain chart_metrics_test links
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp
-            ${SRC}/Vocabulary/Metrics/variability/variability_typicality.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
-            ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
-            ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
-            ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
 )
 set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core
@@ -474,10 +453,9 @@ pp_add_test(lm_session_model_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
-    LINK pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${SRC}/Diagnostics/tests/data/live_swings")
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -524,9 +502,8 @@ pp_add_test(missed_swing_notice_test
     SOURCES missed_swing_notice_test.cpp
             ${GUI}/launchmonitor/missed_swing_notice.cpp
             ${GUI}/app/notification_center.cpp
-            ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK pp_platform    Qt6::Qml  AUTOMOC)
+    LINK pp_vocabulary pp_platform    Qt6::Qml  AUTOMOC)
 
 # markup_truth — the Markup panel's ground-truth sidecars: which camera a swing's
 # swing.json offers (face-on / down-the-line), and the two files those views write.

@@ -89,5 +89,5 @@ add_executable(day_readings_dump
 target_include_directories(day_readings_dump PRIVATE ${PP_BUFFER} ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis
                                                      ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 pp_require_swingstore()
-target_link_libraries(day_readings_dump PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(day_readings_dump PRIVATE pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(day_readings_dump PROPERTIES AUTOMOC ON)
