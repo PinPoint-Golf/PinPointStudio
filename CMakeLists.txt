@@ -1049,7 +1049,7 @@ set(PP_RINGS_EIGEN ${eigen_SOURCE_DIR})
 pp_require_ring(rules)        # the diagnostics engine, the wrist assessment, the body and phase maths (cmake/rings/rules/)
 pp_require_ring(domain)       # the athlete, the session and its shots, the Rig, the rule data (cmake/rings/domain/)
 pp_require_ring(stores)       # the stores and file doors (cmake/rings/stores/)
-target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores)
+target_link_libraries(PinPointStudio PRIVATE pp_stores)
 
 target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Common/figure_format.h
@@ -3345,7 +3345,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(lm_repair PRIVATE pp_stores Qt6::Core Qt6::Gui)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
 
@@ -3361,7 +3361,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Buffer src/Stores src/LaunchMonitor src/Core)
     # The real log (pp_platform): swing_paths reports through ppWarn, and a line a conversion says on the way past
     # must reach whoever runs it.
-    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_convert_library PRIVATE pp_stores Qt6::Core Qt6::Gui)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
     # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
@@ -3372,7 +3372,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         tools/migrate/backfill_analysis_context.cpp)
     target_include_directories(backfill_analysis_context PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(backfill_analysis_context PRIVATE pp_stores Qt6::Core Qt6::Gui)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
     # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
@@ -3384,7 +3384,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h)
     target_include_directories(pps_migrate_step2 PRIVATE
         src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
-    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_migrate_step2 PRIVATE pp_stores Qt6::Core Qt6::Gui)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
@@ -3507,7 +3507,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pp_platform pp_vocabulary pp_rules pp_domain pp_stores pinpoint_buffer pinpoint_swingstore whisper
+            pp_stores pinpoint_buffer whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the
