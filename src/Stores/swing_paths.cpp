@@ -198,7 +198,7 @@ bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
         if (const AtomicWriteResult w = SessionFiles::raiseSwingHighWater(parent, swingNumberOf(name)); !w.ok)
             ppWarn() << "[SwingExport] could not record the last swing number in" << parent << "-" << w.detail;
     }
-    if (useOsTrash && QFile::moveToTrash(path)) {
+    if (useOsTrash && systemTrashAllowed() && QFile::moveToTrash(path)) {
         if (where) *where = QStringLiteral("the system trash");
         return true;
     }

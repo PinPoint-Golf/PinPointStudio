@@ -558,6 +558,7 @@ What it does, against one fresh `QTemporaryDir` per process, so two runs at once
   - `PINPOINT_STUDIO_DIR=<tmp>/studio` is the studio profile's folder.
   - `PINPOINT_RIG_DIR=<tmp>/rig` is the Rig's folder (`RigStore::defaultFolder()`, `rig.json`, FILE-APP-07).
   - A suite that sets one afterwards wins (`report_studio_test`).
+- **No system trash.** `PINPOINT_NO_SYSTEM_TRASH=1`: the stores' one seam (`SwingPaths::systemTrashAllowed()`, asked by `SwingPaths::trashPath` and the athlete store's trash) then sends every discarded session, swing or athlete to the library's own `.pinpoint-trash`, as on a volume with no trash. The temporary directory is on the boot volume, so without it a discard reached the machine's Trash (#394, 27 Nov 2026).
 - **The library.** `libraryRoot()` is `<tmp>/library`, for a suite to hand to a store. The stores' no-root fallback (`AppDataLocation/swings`) has no seam; under the helper it is the test folder.
 - **Checking a path.** `contains(path)` says whether a path lies inside the temporary directory. Both sides are canonicalised (macOS `/var` and `/private/var`, Windows case), and a path not yet written counts too.
 - **No restore.** It never restores anything when it is destroyed. If no temporary directory can be made, it stops the run (`qFatal`) rather than fall back to a real store.
@@ -567,7 +568,8 @@ A suite that wants a finer store of its own (one settings file per test, `ppcp_*
 **`isolated_stores_test`** (Core suite) proves the redirections through the app's own path helpers, so a renamed seam fails there. With the helper on:
 
 - `ppSettings().fileName()`, a value written through it, `diagnosticsDataDir()`, `StudioProfile::studioDir()` and `libraryRoot()` lie inside the temporary directory;
-- the app-data, cache and config locations, and the library's fallback, are not the real ones.
+- the app-data, cache and config locations, and the library's fallback, are not the real ones;
+- the system trash is off, and a session discarded with it asked for lands in the library's own trash (run only once the switch is seen, so a failing run never reaches the real Trash).
 
 It prints where Home, Documents and the Desktop point.
 
@@ -687,7 +689,7 @@ What the launcher sets up, by hand (for reading, not for launching): a probe run
 
 ### The capture test rig — `capture_rig_test`
 
-**What it is** (#394; `docs/implementation/platform_d_capture_seam.md`, T1). The real `ShotProcessor`, driven by synthetic streams on a real event buffer, with no device and a scratch library: main.cpp's composition cut to what a shot passes through (the buffer, the settings, the session, swing and athlete stores, the Rig, both device managers under `PINPOINT_HEADLESS_PROBE=1`, the carousel model), wired as main.cpp wires it, on `IsolatedStores`, with both stores' system trash turned off (`setOsTrashForTest(false)`: the scratch library is on the boot volume, so a discarded session would otherwise land in the machine's Trash). Its cases are named in `docs/implementation/platform_refactor/duties/DUTIES-shot_processor.md`.
+**What it is** (#394; `docs/implementation/platform_d_capture_seam.md`, T1). The real `ShotProcessor`, driven by synthetic streams on a real event buffer, with no device and a scratch library: main.cpp's composition cut to what a shot passes through (the buffer, the settings, the session, swing and athlete stores, the Rig, both device managers under `PINPOINT_HEADLESS_PROBE=1`, the carousel model), wired as main.cpp wires it, on `IsolatedStores`, which turns the system trash off for the process; the rig also turns each store's off (`setOsTrashForTest(false)`). Its cases are named in `docs/implementation/platform_refactor/duties/DUTIES-shot_processor.md`.
 
 **Where it builds.** The test tree cannot link FFmpeg, ONNX Runtime or the camera back-ends, so the rig is an app-tree target that compiles the app's own sources a second time (`cmake/PinPointCaptureRig.cmake`, read from the app target at the end of the root `CMakeLists.txt`; the app's own link is untouched). It is off by default and refused outside a single-configuration Debug tree, and excluded from `all`, so the app's build never builds it. In a Debug tree that already built the app, ccache makes its first build a matter of minutes.
 

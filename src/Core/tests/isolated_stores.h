@@ -48,6 +48,9 @@
 //       PINPOINT_STUDIO_DIR      = <tmp>/studio        (StudioProfileStore::studioDir(): the report's logo and photo)
 //       PINPOINT_RIG_DIR         = <tmp>/rig           (RigStore::defaultFolder(): the machine's rig, rig.json)
 //     A suite that sets one again afterwards (report_studio_test does) wins.
+//   - PINPOINT_NO_SYSTEM_TRASH = 1: the stores never use the system trash (SwingPaths::systemTrashAllowed). The
+//     temporary directory is on the boot volume, so without it a discarded session, swing or athlete would land in the
+//     machine's Trash; with it, each goes to the library's own .pinpoint-trash, as on a volume with no trash.
 //   - libraryRoot() is <tmp>/library, made, for a suite to hand to a store as its library root. The stores' own
 //     fallback when no root is set (AppDataLocation + "/swings", athlete_store.cpp, session_store.cpp) has no seam:
 //     under this helper it is the test location above, never the real one.
@@ -96,6 +99,8 @@ public:
         qputenv("PINPOINT_DIAGNOSTICS_DIR", QDir::toNativeSeparators(diagnosticsDir()).toLocal8Bit());
         qputenv("PINPOINT_STUDIO_DIR", QDir::toNativeSeparators(studioDir()).toLocal8Bit());
         qputenv("PINPOINT_RIG_DIR", QDir::toNativeSeparators(rigDir()).toLocal8Bit());
+        // No system trash: a discard goes to the library's own trash (SwingPaths::systemTrashAllowed).
+        qputenv("PINPOINT_NO_SYSTEM_TRASH", "1");
     }
 
     IsolatedStores(const IsolatedStores &)            = delete;

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
@@ -105,6 +106,11 @@ public:
     // `useOsTrash` false skips the OS trash and goes straight to the library-local one: a test's seam
     // (SessionStore::setOsTrashForTest), so a suite's trashes stay inside its temporary folder.
     static bool trashPath(const QString& path, QString* where = nullptr, bool useOsTrash = true);
+    // Whether a discard may go to the system trash at all: false when PINPOINT_NO_SYSTEM_TRASH=1, which the test
+    // stores' helper (src/Core/tests/isolated_stores.h) sets for its whole process, so no test reaches the machine's
+    // Trash. Then every discard goes to the library's own trash, as on a volume with none. The one seam: trashPath
+    // below and AthleteStore's trash both ask it before QFile::moveToTrash.
+    static bool systemTrashAllowed() { return qgetenv("PINPOINT_NO_SYSTEM_TRASH") != QByteArrayLiteral("1"); }
     // THE NAME OF THE LIBRARY'S OWN TRASH FOLDER, spelled once: ".pinpoint-trash", directly under the library root.
     // trashPath, trashEntries and AthleteStore's trash build their paths from it.
     static QString trashFolderName();

@@ -458,7 +458,7 @@ WriteResult AthleteStore::save(Athlete &athlete, const AthleteRecord &record)
 
 bool AthleteStore::trashPath(const QString &path, const QString &athleteDir, QString *where, QString *why) const
 {
-    if (m_osTrash && QFile::moveToTrash(path)) {
+    if (m_osTrash && SwingPaths::systemTrashAllowed() && QFile::moveToTrash(path)) {
         *where = QStringLiteral("the system trash");
         return true;
     }

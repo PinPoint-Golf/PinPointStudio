@@ -28,6 +28,7 @@
 #include "../../App/studio_profile.h"
 #include "../../Stores/studio_profile_store.h"
 #include "../../Stores/rig_store.h"
+#include "../../Stores/swing_paths.h"
 #include "../../Diagnostics/model/pack_io.h"
 
 #include <QCoreApplication>
@@ -79,6 +80,7 @@ int main(int argc, char **argv)
     qunsetenv("PINPOINT_DIAGNOSTICS_DIR");
     qunsetenv("PINPOINT_STUDIO_DIR");
     qunsetenv("PINPOINT_RIG_DIR");
+    qunsetenv("PINPOINT_NO_SYSTEM_TRASH");
     QCoreApplication app(argc, argv);
     QString real[std::size(kMoved)];
     for (size_t i = 0; i < std::size(kMoved); ++i) real[i] = QStandardPaths::writableLocation(kMoved[i].type);
@@ -155,6 +157,31 @@ int main(int argc, char **argv)
         const QString now = QStandardPaths::writableLocation(kReported[i].type);
         std::printf("  %-22s %s  (real: %s)%s\n", kReported[i].name, qPrintable(now), qPrintable(realReported[i]),
                     QDir::cleanPath(now) == QDir::cleanPath(realReported[i]) ? "  NOT MOVED by test mode" : "");
+    }
+
+    std::printf("\nthe system trash (a discard reaches the machine's Trash where the volume has one)\n");
+    {
+        // ⚠ THE BUG THIS PINS (#394, 27 Nov 2026): the stores move a discarded session, swing or athlete to the system
+        // trash when its volume has one, and the temporary directory is on the boot volume, so a test that discarded an
+        // empty session put it in the machine's Trash unless it remembered to turn each store's off. The helper turns it
+        // off for the whole process, through the stores' one seam.
+        const bool off = qgetenv("PINPOINT_NO_SYSTEM_TRASH") == QByteArrayLiteral("1");
+        check(off, "T1 the helper turns the system trash off for the process (PINPOINT_NO_SYSTEM_TRASH=1)");
+        check(!pinpoint::SwingPaths::systemTrashAllowed(), "T2 the stores' seam reads it: no system trash");
+        // Only with the switch seen, so a failing run never reaches the real Trash itself.
+        if (off && !pinpoint::SwingPaths::systemTrashAllowed()) {
+            const QString athlete = stores.libraryRoot() + QStringLiteral("/an-athlete");
+            const QString session = athlete + QStringLiteral("/2026-11-28_session_01");
+            QDir().mkpath(session);
+            QString where;
+            const bool moved = pinpoint::SwingPaths::trashPath(session, &where, /*useOsTrash=*/true);
+            std::printf("  a session asked for the system trash went to: %s\n", qPrintable(where));
+            check(moved && where != QStringLiteral("the system trash") && stores.contains(where)
+                      && where.contains(pinpoint::SwingPaths::trashFolderName()) && !QFileInfo::exists(session),
+                  "T3 a session discarded with the system trash asked for goes to the library's own trash instead");
+        } else {
+            check(false, "T3 not run: it would reach the machine's Trash");
+        }
     }
 
     std::printf("\ncontains()\n");
