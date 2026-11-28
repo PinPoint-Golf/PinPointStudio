@@ -9,10 +9,11 @@ analysis. It brings together high-speed cameras, phones, wearable sensors and la
 measures the swing with on-device computer vision, and explains what it found — without
 sending your data anywhere unless you choose to.
 
-It is built for golfers, coaches and researchers, and runs on Windows, macOS and Linux.
+It runs on Windows, macOS and Linux, and is built as a personal, non-commercial project for
+a single home studio rather than as a consumer product.
 
-> **Status:** beta (v0.1). Capture, analysis, review and diagnostics work end to end; the
-> ground-forces and AI-coach sessions are still in development.
+> **Status:** active personal project (v0.1 beta). Capture, analysis, review and diagnostics
+> work end to end; ground-forces and AI-coach sessions are still in development.
 
 <img width="2560" height="1440" alt="beta3-screenshot" src="https://github.com/user-attachments/assets/c060ba3b-2927-4380-8c58-a34cc4c424a2" />
 
@@ -31,8 +32,8 @@ It is built for golfers, coaches and researchers, and runs on Windows, macOS and
   trusted.
 - **Diagnostics** — swing faults and strengths are named against normative ranges, with the
   likely causes and drills, for each shot and across a session.
-- **Wrist analysis** — Witmotion IMUs, or a HackMotion wG3 sensor, for lead-wrist flexion,
-  extension and cocking through the swing.
+- **Wrist analysis** — wearable BLE motion sensors (including Witmotion IMUs) for lead-wrist
+  flexion, extension and cocking through the swing.
 - **Launch monitors** — Foresight GCQuad (via FSX2020), plus any device that has a GSPro Open
   Connect bridge (Garmin R10, Rapsodo MLM2PRO, SkyTrak+ and others). Readings are paired to the
   swing that produced them.
@@ -54,6 +55,24 @@ Installers are published on the
 [Releases page](https://github.com/PinPoint-Golf/PinPointStudio/releases). To build from source,
 see **[BUILDING.md](BUILDING.md)**.
 
+## A note on support and intended audience
+
+PinPoint Studio is a personal, non-commercial project built for the enjoyment of engineering
+it and using it in one studio bay. The source code and releases are shared openly in the
+spirit of open source, strictly as-is.
+
+A few things to know before you try it:
+
+- **Not a consumer app.** PinPoint Studio is an instrumented biomechanics and diagnostics
+  tool, not a general swing-tip app. Making good use of its output assumes familiarity with
+  golf biomechanics, camera setup, and how to interpret noisy measurements.
+- **No general user or hardware support.** It is built and tested against one studio's
+  cameras, sensors and launch monitor. I am not able to troubleshoot other hardware setups,
+  lighting environments or operating-system configurations, and issues or feature requests
+  outside my own use may be closed without action.
+- **No roadmap commitments.** Work happens at whatever pace is enjoyable, driven by what is
+  useful in my own bay.
+
 ## Repository layout
 
 | Path | What's there |
@@ -65,7 +84,7 @@ see **[BUILDING.md](BUILDING.md)**.
 | `cmake/` | Build modules: Qt discovery, the QML module, fonts, OpenSSL, code signing |
 | `third_party/` | Small vendored sources (the ESKF orientation filter) |
 | `docs/` | Documentation, organised by audience (see below) |
-| `governance/` | The project's rules: policies, controls by stage of work, procedures (including the release runbooks and capture protocols), guidance, and who approves what. Read it before changing anything ([`CONTRIBUTING.md`](CONTRIBUTING.md); agents start at [`AGENTS.md`](AGENTS.md)) |
+| `governance/` | The project's working contract (`governance/AGENTS.md`), area rules, governing reference documents, procedures (including release runbooks and capture protocols) and guidance. Read it before changing anything ([`CONTRIBUTING.md`](CONTRIBUTING.md); agents start at [`AGENTS.md`](AGENTS.md)) |
 | `.github/` | Continuous-integration workflows (release binaries are built locally, not by CI) |
 
 Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary, Rules, Domain model, Application, Adapters), whose authority is the information model's §4 ([`governance/artefacts/information_model.md`](governance/artefacts/information_model.md)); the platform refactor is still moving files between them.
@@ -99,7 +118,7 @@ Inside `src/`. The folders follow the architecture's rings (Platform, Vocabulary
 | [`docs/validation/`](docs/validation), [`docs/research/`](docs/research) | Validation reports, corpus results and research notes (the collection protocols are in [`governance/procedures/`](governance/procedures)) |
 | [`docs/conformance/`](docs/conformance) | The phone link's conformance claim and its test bundles |
 | `docs/implementation/` | Working plans and implementation records (the release runbooks are in [`governance/procedures/`](governance/procedures)) |
-| [`governance/`](governance/README.md) | The project's policies, controls, procedures and guidance, and who approves what |
+| [`governance/`](governance/README.md) | The working contract, area rules, governing artefacts, procedures and guidance |
 
 ## Related projects
 
@@ -107,7 +126,7 @@ These sister repositories are used as dependencies:
 
 - [libppcp](https://github.com/PinPoint-Golf/libppcp) — the PinPoint Capture Protocol, shared with the phone app
 - [PinPoint Capture](https://github.com/PinPoint-Golf/PinPointCapture) — the iPhone capture app
-- [libwrist](https://github.com/PinPoint-Golf/libwrist) — HackMotion wG3 sensor driver
+- [libwrist](https://github.com/PinPoint-Golf/libwrist) — wearable wrist-sensor driver
 - [libgspro](https://github.com/PinPoint-Golf/libgspro) — GSPro Open Connect server
 
 ## Licence
