@@ -39,7 +39,7 @@ set(SRC ${GUI}/..)                         # src
 # provider from a file by path, links these. With what they read: the registries, the pack and norm
 # providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
 set(RULE_DATA_SOURCES
-    ${SRC}/DomainModel/rule_data.cpp ${SRC}/Stores/rule_data_store.cpp
+    ${SRC}/Stores/rule_data_store.cpp
     ${SRC}/Stores/rule_data_reads.cpp)
 
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
@@ -255,9 +255,9 @@ pp_add_test(camera_rig_link_test
     SOURCES camera_rig_link_test.cpp
             ${GUI}/cameras/camera_rig_link.cpp ${GUI}/cameras/camera_rig_link.h
             ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
-            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/DomainModel/rig_commands.h
     INCLUDE ${SRC}/Video
-    AUTOMOC LINK pp_rules pp_vocabulary pp_platform)
+    AUTOMOC LINK pp_domain pp_rules pp_vocabulary pp_platform)
 pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role and set-up held and applied as today; REQ-DEV-17 supports
 
 # The sensor manager's link to the Rig (imu/imu_rig_link.*; rig_design.md §4.1, §4.3; rig_design_addendum.md decisions 1
@@ -273,10 +273,10 @@ pp_add_test(imu_rig_link_test
     SOURCES imu_rig_link_test.cpp
             ${GUI}/imu/imu_rig_link.cpp ${GUI}/imu/imu_rig_link.h
             ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
-            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
+            ${SRC}/DomainModel/rig_commands.h
             ${SRC}/Stores/rig_store.cpp
     INCLUDE ${SRC}/Video
-    AUTOMOC LINK pp_rules pp_vocabulary pp_platform)
+    AUTOMOC LINK pp_domain pp_rules pp_vocabulary pp_platform)
 pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
@@ -303,10 +303,9 @@ pp_add_test(imu_instance_rig_test
             ${SRC}/IMU/ble_imu_transport.cpp ${SRC}/IMU/ble_adapter_pool.cpp ${SRC}/IMU/imu_io_worker.cpp
             ${SRC}/IMU/hm_session_worker.cpp
             ${GUI}/imu/imu_rig_link.cpp   # the role lookup ImuManager hands with the sink
-            ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
     INCLUDE ${GUI}/imu ${SRC}/IMU ${SRC}/Core ${SRC}/Video
             ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
-    LINK pp_rules pp_vocabulary pp_platform    pinpoint_buffer wrist Qt6::Bluetooth
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    pinpoint_buffer wrist Qt6::Bluetooth
     STD 20  AUTOMOC)
 pp_requirement(imu_instance_rig_test REQ-DEV-17)   # supports: the bay's set-up holds each worn sensor's alignment exactly as the sensor applies it, for the run only (still planned, #74)
 
@@ -366,11 +365,10 @@ pp_add_test(shot_ledger_test
             ${SRC}/Stores/recording_header.cpp
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Stores/session_store.cpp            # the one swing allocator (step 2.2)
-            ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Stores ${SRC}/Stores/tests
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
 # latest unread with nothing picked, and a session with none, each its own sentence; graphics.sessionHas
@@ -409,13 +407,11 @@ set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts $
 pp_add_test(lm_session_model_test
     SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Stores/athlete_store.cpp
-            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
-            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
-            ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Stores/athlete_store.cpp
+            ${SRC}/Stores/session_store.cpp
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${SRC}/Diagnostics/tests/data/live_swings")
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

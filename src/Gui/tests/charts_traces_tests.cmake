@@ -25,7 +25,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_traces_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_MEASURE_OUT=${CMAKE_BINARY_DIR}/charts_traces_measure.txt"

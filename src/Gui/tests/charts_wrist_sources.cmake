@@ -16,7 +16,7 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Stores/rule_data_reads.cpp
     # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
     # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
-    ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Stores/swing_paths.cpp
+    ${SRC}/Stores/session_store.cpp ${SRC}/Stores/swing_paths.cpp
     # The charts' one threading idiom and the series' pure half (refactor 5.5a): every presenter's lane is a ChartsLane on
     # the one WorkPool (charts_work.h; SeriesSource there too), every snapshot shot is extractShot's, and the ★ label is
     # the series store's (seriesSwingLabelOf).

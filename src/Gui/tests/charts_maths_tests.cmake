@@ -46,7 +46,7 @@ pp_add_test(consistency_env_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -56,7 +56,7 @@ set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 pp_add_test(variability_env_test
     SOURCES variability_env_test.cpp ${GUI}/charts/variability_env.cpp ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -69,7 +69,7 @@ pp_add_test(session_consistency_test
     SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -81,7 +81,7 @@ pp_add_test(variability_clubs_test
     SOURCES variability_clubs_test.cpp ${CONSISTENCY_MATHS_SOURCES}
             ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 
 
@@ -96,5 +96,5 @@ add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/var
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
 target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
 target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
-target_link_libraries(variability_calibrate PRIVATE pp_rules pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(variability_calibrate PRIVATE pp_domain pp_rules pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(variability_calibrate PROPERTIES AUTOMOC ON)

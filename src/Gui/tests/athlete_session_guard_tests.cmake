@@ -17,12 +17,8 @@
 set(ATHLETE_TEST_SOURCES
     ${GUI}/athlete/athlete_controller.cpp
     ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp   # the switch rule (R-APP-1; step 4-a)
-    ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
-    ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
-    ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     ${SRC}/Stores/athlete_store.cpp
     ${SRC}/Stores/session_store.cpp
-    ${SRC}/DomainModel/session_identity.cpp
     ${SRC}/Stores/swing_paths.cpp
     # The one session list: the controller's activity is its rows' (refactor step 5.7b).
     ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
@@ -35,10 +31,10 @@ set(ATHLETE_TEST_SOURCES
 pp_add_test(athlete_session_guard_test
     SOURCES athlete_session_guard_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)
 pp_add_test(athlete_repository_test
     SOURCES athlete_repository_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)

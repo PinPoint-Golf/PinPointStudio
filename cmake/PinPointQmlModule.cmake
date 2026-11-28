@@ -755,8 +755,6 @@ set(PP_QML_SOURCES
     # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository
     # interface, and the store that is the one door to their files.
     src/DomainModel/rule_data_repository.h
-    src/DomainModel/rule_data.h
-    src/DomainModel/rule_data.cpp
     src/Stores/rule_data_store.h
     src/Stores/rule_data_store.cpp
     src/Stores/rule_data_install.h
