@@ -3,7 +3,7 @@ rem studio-build.cmd - the ONE way to build on GOLFSIMPC from the Mac. Lives in 
 rem is never retyped through ssh quoting. ASCII ONLY: a multi-byte character (an em dash on line 2,
 rem 11 Oct) makes cmd misread the lines after it under a UTF-8 console, so the cd into the Release
 rem tree failed and cmake configured in-source in the repo root. Run it by file:
-rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy|migrate|tests|build] [pull|nopull]"
+rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy|migrate|tests|build|release] [pull|nopull]"
 rem "migrate" builds only pps_migrate_step2 (refactor step 2.8a, the step-2 migrations) in the same tree, in a mode
 rem of its own, so a failure there can never fail "tool" or "both". Log: migrate_build.log; exit 6 on failure.
 rem "tests" is the Windows test lane (platform refactor B0.2). It REFUSES (exit 10) while PinPointStudio.exe
@@ -51,6 +51,13 @@ rem never exits 12 to 15. It is what tools/method/build_times.sh times: 45 s whe
 rem (measured on a7a6b4b2: cmake 34 s, jom 10 s), e.g. studio-build.cmd build pull jobs 16
 rem FIRST RUN AFTER THE COMMIT THAT ADDS "build": the cabin's older copy refuses it with exit 8 before it pulls,
 rem so pull by hand first (git pull --ff-only in the checkout), or let build_times.sh's wrapper, which pulls first.
+rem "release" is the Release link check with nothing installed (platform refactor B2.1, #424): the same idle guard
+rem as "build" (exit 10), the same patch handling and restore, then in build\Release-Installer cmake . (log
+rem release_cmake.log) and jom -j16 or "jobs N" of PinPointStudio and swinglab_run only (release_build.log; exit 5
+rem on a configure or build failure), with "release:" lines in tests_summary.log. Nothing is copied over the
+rem installed app and no installer is made, so the studio's own PinPoint Studio is never touched. The tree keeps
+rem the exe it built (a patched one with a patch), so a later "deploy" would copy that one: run "app" or "both"
+rem before a deploy. tools/method/cabin_run.sh runs it as: cabin_run.sh <worktree> mode release
 rem Defaults: both, pull. Pulls origin/main fast-forward (refuses on a dirty tree) and builds in
 rem build\Release-Installer, the studio's one Release tree: the app (cmake . first so the embedded
 rem sha is HEAD's), copied over the installed PinPointStudio.exe so the Start menu runs it, and
@@ -78,8 +85,8 @@ rem (exit 9) means the tree was not left clean. If the run is killed mid-build t
 rem patched and the next run refuses as dirty: on the cabin, git checkout -- . and delete the
 rem files listed in C:\PinPointStudio\scratch\studio-build\patch_created.txt.
 rem The app embeds HEAD's sha, so a patched exe reports HEAD: the PATCHED BUILD line ties it to the
-rem patch. Exit codes: 3 dirty, 4 pull, 5 app build, 6 tool build, 7 deploy, 8 patch, 9 restore,
-rem 10 tests or build refused (studio busy; for tests also APPDATA or TEMP unset), 11 tests or build: the test
+rem patch. Exit codes: 3 dirty, 4 pull, 5 app build (and release: its cmake or build), 6 tool build, 7 deploy, 8 patch, 9 restore,
+rem 10 tests, build or release refused (studio busy; for tests also APPDATA or TEMP unset), 11 tests or build: the test
 rem tree's configure or build failed, 12 a test failed, 13 a real store
 rem changed, 14 a test hit its timeout, 15 a changed settings file could not be kept (nothing put back).
 rem Ranks in the tests mode: 15 > 13 > 10 > 14 > 12. Any other mode name is refused with exit 8.
@@ -98,7 +105,7 @@ rem After mode and pull|nopull come optional pairs: patch <file>, and (tests and
 if "%~3"=="" goto argsdone
 if "%~3"=="patch" goto argpatch
 if "%~3"=="jobs" goto argjobs
-echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build] [pull^|nopull] [patch C:\...\wip.patch] [jobs N]
+echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build^|release] [pull^|nopull] [patch C:\...\wip.patch] [jobs N]
 exit /b 8
 :argpatch
 if "%~4"=="" ( echo PATCH: no patch file given & exit /b 8 )
@@ -108,7 +115,7 @@ shift /3
 shift /3
 goto argloop
 :argjobs
-if not "%WHAT%"=="tests" if not "%WHAT%"=="build" ( echo JOBS: only the tests and build modes take a job count & exit /b 8 )
+if not "%WHAT%"=="tests" if not "%WHAT%"=="build" if not "%WHAT%"=="release" ( echo JOBS: only the tests, build and release modes take a job count & exit /b 8 )
 if "%~4"=="" ( echo JOBS: no job count given & exit /b 8 )
 set TJN=
 set /a TJN=%~4 2>nul
@@ -120,8 +127,8 @@ shift /3
 shift /3
 goto argloop
 :argsdone
-for %%m in (app tool both deploy migrate tests build) do if "%WHAT%"=="%%m" goto modeok
-echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build] - "%WHAT%" is not a mode
+for %%m in (app tool both deploy migrate tests build release) do if "%WHAT%"=="%%m" goto modeok
+echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate^|tests^|build^|release] - "%WHAT%" is not a mode
 exit /b 8
 :modeok
 set EXITRC=0
@@ -136,6 +143,7 @@ set TB=%REPO%\build\tests-vs18
 set TSUM=%LOGS%\tests_summary.log
 if "%WHAT%"=="tests" goto busycheck
 if "%WHAT%"=="build" goto busycheck
+if "%WHAT%"=="release" goto busycheck
 goto busydone
 :busycheck
 if exist "%TSUM%" del /f /q "%TSUM%"
@@ -143,6 +151,8 @@ call :say tests: start %DATE% %TIME%
 rem The build mode takes no settings snapshot, so it needs neither APPDATA nor TEMP.
 if "%WHAT%"=="build" call :say tests: build only - build\tests-vs18 is built, and no ctest pass is run
 if "%WHAT%"=="build" goto busyguard
+if "%WHAT%"=="release" call :say release: the Release link check - PinPointStudio and swinglab_run are built in build\Release-Installer, nothing is deployed or installed
+if "%WHAT%"=="release" goto busyguard
 if not defined APPDATA ( call :say tests: REFUSED - APPDATA is not set, so the real-store check cannot see & exit /b 10 )
 if not defined TEMP ( call :say tests: REFUSED - TEMP is not set, so the settings cannot be copied first & exit /b 10 )
 :busyguard
@@ -193,6 +203,7 @@ if "%WHAT%"=="tool" goto tool
 if "%WHAT%"=="migrate" goto migrate
 if "%WHAT%"=="tests" goto tests
 if "%WHAT%"=="build" goto tests
+if "%WHAT%"=="release" goto release
 echo app: cmake %TIME%
 cd /d "%RI%"
 C:\Qt\Tools\CMake_64\bin\cmake.exe . > "%LOGS%\app_cmake.log" 2>&1
@@ -293,6 +304,20 @@ if defined THUNG if not "%EXITRC%"=="10" set EXITRC=14
 if defined STORECHANGED set EXITRC=13
 if defined KEEPFAIL set EXITRC=15
 call :say tests: end %DATE% %TIME% - exit %EXITRC%
+goto done
+:release
+rem The Release link check. Never the deploy step: the installed app is left as it is.
+call :say release: cmake %TIME%
+cd /d "%RI%"
+C:\Qt\Tools\CMake_64\bin\cmake.exe . > "%LOGS%\release_cmake.log" 2>&1
+set RC=%ERRORLEVEL%
+if not "%RC%"=="0" ( call :say release: cmake FAILED, exit %RC%, see release_cmake.log & type "%LOGS%\release_cmake.log" | findstr /i "error" & set "EXITRC=5" & goto fail )
+call :say release: PinPointStudio and swinglab_run; jom -j%TJ% %TIME%
+jom -j%TJ% PinPointStudio swinglab_run > "%LOGS%\release_build.log" 2>&1
+set RC=%ERRORLEVEL%
+call :say release: build exit %RC% %TIME%
+if not "%RC%"=="0" ( type "%LOGS%\release_build.log" | findstr /i /c:": error" /c:": fatal error" & set "EXITRC=5" & goto fail )
+call :say release: linked, nothing deployed or installed - end %DATE% %TIME% - exit %EXITRC%
 goto done
 :builtonly
 call :say tests: built only, no ctest pass run and no real store checked - end %DATE% %TIME% - exit %EXITRC%

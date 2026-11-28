@@ -3,7 +3,11 @@
 # time, and prints a short summary. The Mac builds the item and runs its own suites and the lints; the full suite, both
 # passes, runs here on the cabin's 24 cores (tools/studio/studio-build.cmd's "tests" mode, jom -j16).
 #
-#   tools/method/cabin_run.sh <worktree> [jobs N] [--wait]    N = the cabin's jom job count, 1 to 24, default 16
+#   tools/method/cabin_run.sh <worktree> [mode M] [jobs N] [--wait]
+#                                     M = tests (default: build\tests-vs18 and both ctest passes), build (that tree's
+#                                     build only, no ctest) or release (the Release link check: build\Release-Installer's
+#                                     PinPointStudio and swinglab_run, nothing deployed or installed); studio-build.cmd's
+#                                     modes of those names. N = the cabin's jom job count, 1 to 24, default 16
 #   tools/method/cabin_run.sh --self-test                     proves the runner against a fake cabin in a temporary
 #                                                             directory; never the real share, ssh or cabin
 #
@@ -33,7 +37,7 @@
 #     count is exit 22 (fail closed). It never kills anything.
 #  4. Run: a fresh run dir /mnt/swingdata/scratch/cabin-<lane>-<stamp>/ (on the cabin C:\PinPointStudio\scratch\...)
 #     holds wip.patch and run.cmd, a CRLF ASCII wrapper that pulls the checkout fast-forward FIRST (when clean), then
-#     calls "studio-build.cmd tests nopull patch <wip.patch> jobs N". Pulling first means studio-build.cmd never
+#     calls "studio-build.cmd <mode> nopull patch <wip.patch> jobs N". Pulling first means studio-build.cmd never
 #     pulls a new copy of itself underneath its own run (cmd reads a running batch file from disk). The wrapper's
 #     console goes to console.log and its exit code to rc.txt. It is launched detached, through Win32_Process Create
 #     (powershell -EncodedCommand), so a dropped ssh does not kill it. The Mac polls console.log and rc.txt through
@@ -48,8 +52,8 @@
 #  7. Clean up: on exit 0 the run dir is deleted; on any other exit it is kept for the item's NOTES. The summary is
 #     always written to <worktree>/build/cabin-runs/<run>.txt. The cabin checkout is restored by the script.
 #
-# Exit: the cabin script's own codes, passed through: 0 all passed, 3 checkout dirty, 4 pull failed, 8 patch or
-# arguments refused, 9 restore incomplete, 10 refused (APPDATA/TEMP unset), 11 test build failed, 12 a test failed,
+# Exit: the cabin script's own codes, passed through: 0 all passed (or, for build and release, built), 3 checkout
+# dirty, 4 pull failed, 5 the release mode's cmake or build failed, 8 patch or arguments refused, 9 restore incomplete, 10 refused (APPDATA/TEMP unset), 11 test build failed, 12 a test failed,
 # 13 a real store changed, 14 a test hit its timeout, 15 a changed settings file could not be kept. The runner's own:
 # 2 usage, 20 BUSY, 21 refused on the Mac (base not on origin/main, local changes to tools/studio/studio-build.cmd
 # (the cabin always runs main's copy, so they could not be tested), no share), 22 ssh or launch failed,
@@ -74,11 +78,11 @@ WSHARE='C:\PinPointStudio'
 WREPO='C:\Users\developer\Projects\PinPointStudio'
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
 SHARE=$REAL_SHARE
-POLL=60 WAIT_INT=600 WAIT_MAX=14400 PRE_MAX=1800 RUN_MAX=7200 LAUNCH_GRACE=600 TESTING=0 TEST_BEFORE_MV=
+POLL=60 WAIT_INT=600 WAIT_MAX=14400 PRE_MAX=1800 RUN_MAX=7200 LAUNCH_GRACE=600 TESTING=0 TEST_BEFORE_MV= MODE=tests
 
 say()  { print -r -- "cabin_run: $*"; }
 die()  { local rc=$1; shift; print -u2 -r -- "cabin_run: $*"; exit $rc; }
-usage() { print -u2 "usage: cabin_run.sh <worktree> [jobs N] [--wait] | --self-test"; }
+usage() { print -u2 "usage: cabin_run.sh <worktree> [mode tests|build|release] [jobs N] [--wait] | --self-test"; }
 now()  { date +%s; }
 fmt_dur() { local s=${1%.*}; (( s < 0 )) && s=0
     if (( s >= 3600 )); then printf '%d h %02d min' $(( s / 3600 )) $(( s % 3600 / 60 ))
@@ -87,9 +91,10 @@ fmt_dur() { local s=${1%.*}; (( s < 0 )) && s=0
 
 code_text() {
     case $1 in
-        0) print "all tests passed" ;;
+        0) case $MODE in build) print "the test tree built (no ctest pass run)" ;; release) print "the Release app and swinglab_run linked (nothing installed)" ;; *) print "all tests passed" ;; esac ;;
         3) print "the cabin checkout was not clean; nothing was run" ;;
         4) print "the cabin's git pull failed; nothing was run" ;;
+        5) print "the cabin's Release build (cmake or jom) failed" ;;
         8) print "the cabin refused the patch or the arguments" ;;
         9) print "the cabin checkout was NOT restored clean" ;;
         10) print "refused by the cabin script (see its REFUSED line)" ;;
@@ -165,8 +170,8 @@ build_time() {
     LC_ALL=C awk '
     function secs(t,  p) { gsub(/^ +/, "", t); split(t, p, /[:.]/); return p[1] * 3600 + p[2] * 60 + p[3] }
     { sub(/\r$/, "") }
-    /^tests: .*; jom -j[0-9]+ / { jobs = $0; sub(/^.*jom -j/, "", jobs); sub(/ .*$/, "", jobs); t0 = secs($NF); h0 = $NF }
-    /^tests: build exit [0-9]+ / { t1 = secs($NF); h1 = $NF; brc = $4 }
+    /^(tests|release): .*; jom -j[0-9]+ / { jobs = $0; sub(/^.*jom -j/, "", jobs); sub(/ .*$/, "", jobs); t0 = secs($NF); h0 = $NF }
+    /^(tests|release): build exit [0-9]+ / { t1 = secs($NF); h1 = $NF; brc = $4 }
     END {
         if (h0 == "") { print "build: not started"; exit }
         if (h1 == "") { print "build: jom -j" jobs " started " h0 ", no end line"; exit }
@@ -344,7 +349,7 @@ goto pulled
 >> \"%RUN%\\console.log\" echo cabin_run: the checkout is not clean, so it is not pulled; studio-build.cmd refuses it
 :pulled
 for /f %%i in ('git rev-parse --short HEAD') do >> \"%RUN%\\console.log\" echo cabin_run: HEAD %%i
-call \"%REPO%\\tools\\studio\\studio-build.cmd\" tests nopull$pargs jobs $JOBS >> \"%RUN%\\console.log\" 2>&1
+call \"%REPO%\\tools\\studio\\studio-build.cmd\" $MODE nopull$pargs jobs $JOBS >> \"%RUN%\\console.log\" 2>&1
 set RC=%ERRORLEVEL%
 goto done
 :pullfail
@@ -383,7 +388,7 @@ clean_console() {
 # report <rc> <console> <logs dir> <wall s>
 report() {
     local rc=$1 con=$2 logs=$3 wall=$4 head psha
-    print -r -- "== cabin run $RUN: exit $rc, $(code_text $rc)"
+    print -r -- "== cabin run $RUN (mode $MODE): exit $rc, $(code_text $rc)"
     print -r -- "worktree $WT at $(git -C "$WT" rev-parse --short HEAD); patch ${PATCH_DESC}"
     [[ -f $con ]] || { print -r -- "no console log: the wrapper never started"; return; }
     clean_console "$con" "$con.clean"; con=$con.clean
@@ -394,13 +399,16 @@ report() {
     tr -d '\r' < "$con" | grep -E '^tests: (REFUSED|BUSY|TIMEOUT|REAL STORE CHANGED|settings|the changed settings are kept at|there was no settings file before|the qml_ui label NOT run)|^(PATCH:|TREE NOT CLEAN|PULL FAILED|RESTORE INCOMPLETE|USAGE|JOBS:|cabin_run: (PULL FAILED|the checkout is not clean))' \
         | grep -v '^PATCH: \(.*sha256\|applied\|restoring\|[0-9]* new file\)' | sed 's/^/  /'
     build_time "$con"
-    if (( rc == 11 )); then
+    if (( rc == 11 || rc == 5 )); then
         tr -d '\r' < "$con" | grep -E ': (fatal )?error|cmake FAILED' | head -10 | sed 's/^/  /'
     fi
-    if grep -q '^tests: ctest pass 1 exit' "$con"; then pass_report "$logs/tests_ctest.log" "pass 1"
-    else print -r -- "pass 1: not run"; fi
-    if grep -q '^tests: ctest pass 2 exit' "$con"; then pass_report "$logs/tests_qml_ui.log" "pass 2"
-    else print -r -- "pass 2: not run"; fi
+    if [[ $MODE != tests ]]; then print -r -- "ctest: not run (mode $MODE)"
+    else
+        if grep -q '^tests: ctest pass 1 exit' "$con"; then pass_report "$logs/tests_ctest.log" "pass 1"
+        else print -r -- "pass 1: not run"; fi
+        if grep -q '^tests: ctest pass 2 exit' "$con"; then pass_report "$logs/tests_qml_ui.log" "pass 2"
+        else print -r -- "pass 2: not run"; fi
+    fi
     if grep -q '^tests: stores after' "$con"; then
         if grep -q 'REAL STORE CHANGED' "$con"; then print -r -- "stores: CHANGED (lines above)"
         else print -r -- "stores: unchanged (settings, Recycle Bin, Credential Manager)"; fi
@@ -424,6 +432,8 @@ copy_logs() {
     grep -q '; jom -j' "$con" 2>/dev/null && cp "$src/tests_build.log" "$dst/" 2>/dev/null
     grep -q '^tests: ctest pass 1 exit' "$con" 2>/dev/null && cp "$src/tests_ctest.log" "$dst/" 2>/dev/null
     grep -q '^tests: ctest pass 2 exit' "$con" 2>/dev/null && cp "$src/tests_qml_ui.log" "$dst/" 2>/dev/null
+    grep -q '^release: cmake' "$con" 2>/dev/null && cp "$src/release_cmake.log" "$dst/" 2>/dev/null
+    grep -q '^release: .*; jom -j' "$con" 2>/dev/null && cp "$src/release_build.log" "$dst/" 2>/dev/null
     grep -q '^PATCH: ' "$con" 2>/dev/null && cp "$src/patch_created.txt" "$dst/" 2>/dev/null
     rm -f "$con"
     return 0
@@ -536,6 +546,15 @@ case $cmd in
               print '100% tests passed, 0 tests failed out of 39' > $B/tests_qml_ui.log ;;
         busy) crlf $SAMPLES/console_busy.txt > $R/console.log; rc=10 ;;
         slow) crlf $SAMPLES/console_pass.txt > $R/console.log; rc=0; sleep 2 ;;
+        release|releasefail)
+              if [[ $sc == release ]]; then end='release: build exit 0  9:12:41.50'; fin='release: linked, nothing deployed or installed - end Sat 28/11/2026  9:12:42.00 - exit 0'; rc=0
+              else end='release: build exit 2  9:03:10.00'; fin='src/x.cpp(12): error C2065: undeclared identifier'; rc=5; fi
+              printf '%s\n' 'cabin_run: HEAD a5089848' 'tests: start Sat 28/11/2026  9:00:00.00' \
+                'release: the Release link check - PinPointStudio and swinglab_run are built in build\Release-Installer, nothing is deployed or installed' \
+                'tests: studio idle - 120 processes, none PinPoint Studio, Foresight, FSX or GSPro' 'release: cmake  9:00:01.00' \
+                'release: PinPointStudio and swinglab_run; jom -j16  9:00:40.00' "$end" "$fin" '== status after' '== end' \
+                | sed 's/$/\r/' > $R/console.log
+              print 'built' > $B/release_build.log ;;
       esac
       sleep 1.2
       print -r -- "end $run" >> $T/cabin.log
@@ -736,6 +755,24 @@ printf 'lane=wt-fresh\ntoken=fresh\nstart=%s\nceiling=9600\n' \$(date +%s) > '$S
     done
     rm -rf $S/scratch/cabin.lock
 
+    # 8. The modes: a release run reaches the wrapper and is summarised as a link check; a bad mode is refused.
+    setup "idle" "releasefail"
+    out=$("$SELF" $H $W mode release jobs 12 2>&1); rc=$?
+    run=$(ls -t $S/scratch | grep '^cabin-wt-fix-' | head -1)
+    [[ $rc == 5 && $out == *"(mode release): exit 5, the cabin's Release build (cmake or jom) failed"* && $out == *"error C2065"* ]] \
+        && ok "a failed release run passes exit 5 through, with its error line" || bad "a failed release run gave exit $rc"
+    grep -q "studio-build.cmd\" release nopull patch \"%RUN%\\\\wip.patch\" jobs 12 >>" $S/scratch/$run/run.cmd \
+        && ok "run.cmd runs studio-build.cmd release nopull with the patch, jobs 12" || bad "run.cmd's release command is wrong"
+    [[ -f $S/scratch/$run/logs/release_build.log ]] && ok "a release run's build log is copied" || bad "no release_build.log in the run's logs"
+    setup "idle" "release"
+    out=$("$SELF" $H $W mode release 2>&1); rc=$?
+    [[ $rc == 0 && $out == *"exit 0, the Release app and swinglab_run linked (nothing installed)"* \
+        && $out == *"build: jom -j16, exit 0, 12 min 1 s"* && $out == *"ctest: not run (mode release)"* && $out != *"pass 1"* ]] \
+        && ok "a passing release run: linked, its build time, no ctest pass" || bad "a passing release run gave exit $rc: $(print -r -- $out | grep -m2 '^==\|^build')"
+    : > $T/ssh.log
+    out=$("$SELF" $H $W mode bogus 2>&1); rc=$?
+    [[ $rc == 2 && ! -s $T/ssh.log ]] && ok "an unknown mode is refused (2), the cabin untouched" || bad "mode bogus gave exit $rc"
+
     # 6. Refusals on the Mac: a local commit not on origin/main; and an ssh that lists nothing.
     git -C $W -c user.name=t -c user.email=t@t commit -q -am local
     setup "idle" "pass"; : > $T/ssh.log
@@ -786,11 +823,12 @@ main() {
         die 2 "--_test_ssh and --_test_before_mv need --_test_share"
     fi
 
-    WT= JOBS=16 WAIT=0
+    WT= JOBS=16 WAIT=0 MODE=tests
     while (( $# )); do
         case $1 in
             --wait) WAIT=1; shift ;;
             jobs) [[ $2 == <-> ]] && (( $2 >= 1 && $2 <= 24 )) || die 2 "jobs: '$2' is not 1 to 24"; JOBS=$2; shift 2 ;;
+            mode) [[ $2 == (tests|build|release) ]] || die 2 "mode: '$2' is not tests, build or release"; MODE=$2; shift 2 ;;
             -*) usage; exit 2 ;;
             *) [[ -z $WT ]] || { usage; exit 2; }; WT=$1; shift ;;
         esac
