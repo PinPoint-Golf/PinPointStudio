@@ -81,19 +81,10 @@ pp_add_test(update_controller_policy_test
             # sexFromName/ageBandFromName are defined in norm.cpp now (norm.h's out-of-line
             # functions), so it comes along too. norm_pack.cpp needs context_tree.cpp in turn — the
             # same pairing every other suite that compiles it uses.
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
             # The registries' shared machinery — the issue vocabulary and LoadResult<T> — so it
             # travels on every link line that compiles one of them.
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
             # characteristic_pack.cpp resolves a citation against the bibliography to decide whether
             # a peer tier rests on a book, so reference_pack.cpp comes with it on every link line.
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
             # The one session list: athlete_controller.cpp's activity is its rows' (refactor step 5.7b).
             ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
             ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
@@ -101,5 +92,5 @@ pp_add_test(update_controller_policy_test
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
             ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     GTEST_NO_MAIN  AUTOMOC)

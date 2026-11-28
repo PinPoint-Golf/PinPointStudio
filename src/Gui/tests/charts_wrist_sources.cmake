@@ -9,28 +9,11 @@
 set(CHARTS_WRIST_SRC
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/session_wrist.cpp
-    ${SRC}/Wrist/wrist_profile_assess.cpp   # the ★ reference's Δ (wristDeltasOnly) and the fixtures' profiles (3.8-ii)
     # The Posture section's core (session_posture.{h,cpp}, posture_chart_design.md stage 2a) rides with
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
     ${GUI}/charts/session_posture.cpp
-    ${SRC}/Diagnostics/model/measure_sample.cpp
     ${SRC}/Stores/phase_grid_store.cpp   # the sampler's folder-keyed reads go through the file door (P-3)
-    ${SRC}/Wrist/wrist_analysis_adapter.cpp
-    ${SRC}/Wrist/wrist_assessment_engine.cpp
-    ${SRC}/Wrist/assessment_rules.cpp
-    ${SRC}/Wrist/reference_bands.cpp
-    ${SRC}/Diagnostics/model/norm.cpp
-    ${SRC}/Diagnostics/content/norm_pack.cpp
-    ${SRC}/Diagnostics/model/context_tree.cpp
-    ${SRC}/Diagnostics/content/resource_norm_provider.cpp
-    ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-    ${SRC}/Diagnostics/model/pack_io.cpp
-    ${SRC}/Diagnostics/model/characteristic.cpp
-    ${SRC}/Diagnostics/content/characteristic_pack.cpp
-    ${SRC}/Diagnostics/content/reference_pack.cpp
-    ${SRC}/Diagnostics/model/measure_facets.cpp
-    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+    ${SRC}/Stores/rule_data_reads.cpp
     # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
     # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
     ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Stores/swing_paths.cpp

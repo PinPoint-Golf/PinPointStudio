@@ -18,18 +18,16 @@ pp_add_test(replay_score_test
             ${GUI}/review/swing_coverage_model.cpp
             ${GUI}/review/timeline_labels.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
             ${GUI}/shot/disk_replay_source.cpp
             ${GUI}/shot/replay_source.h
             ${GUI}/markup/markup_truth.cpp
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/recording_header.cpp
             ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Qml Qt6::Test
     AUTOMOC)

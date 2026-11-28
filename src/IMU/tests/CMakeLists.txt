@@ -59,11 +59,11 @@ pp_add_test(imu_io_worker_test
 # macOS).
 pp_find_eigen(EIGEN_DIR)
 pp_add_test(eskf_gyro_units_test
-    SOURCES eskf_gyro_units_test.cpp ${IMU}/eskf_orientation_filter.cpp
+    SOURCES eskf_gyro_units_test.cpp
     INCLUDE ${IMU} ${EIGEN_DIR}
             ${PP_THIRD}/imu_ekf_compat   # <Eigen.h>/<Wire.h> shims — MUST precede imu_ekf
             ${PP_THIRD}/imu_ekf          # ESKF.h, Quaternion.h
-    STD 20)
+    STD 20 LINK pp_rules)
 
 # ── libwrist link + ABI smoke test ──────────────────────────────────────
 # The dependency is linked into the app but nothing references a HackMotion
@@ -203,9 +203,8 @@ pp_add_test(wt901_config_retry_test
     SOURCES wt901_config_retry_test.cpp
             ${IMU}/wt9011dcl_base.cpp
             ${IMU}/imu_base.cpp
-            ${IMU}/eskf_orientation_filter.cpp
     INCLUDE ${IMU} ${PP_CORE} ${EIGEN_DIR}
             ${PP_THIRD}/imu_ekf_compat   # MUST precede imu_ekf (as eskf_gyro_units_test)
             ${PP_THIRD}/imu_ekf
-    LINK pp_platform    pinpoint_buffer
+    LINK pp_rules pp_platform    pinpoint_buffer
     STD 20  AUTOMOC)

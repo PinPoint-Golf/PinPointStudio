@@ -14,17 +14,10 @@
 # card read-at instants come from the fixture's readAt table.
 pp_add_test(charts_session_maths_test
     SOURCES charts_session_maths_test.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Diagnostics/derived/series/session_warp.cpp
-            ${SRC}/Diagnostics/derived/series/session_traces.cpp
-            ${SRC}/Diagnostics/derived/series/session_relations.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
-            ${SRC}/Diagnostics/derived/series/session_bridge.cpp
-            ${SRC}/Kinematics/gap_bridge.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK    Qt6::Test
+    LINK pp_rules    Qt6::Test
     AUTOMOC)
 
 # The readings a gate touched (src/Gui/trust/trust_readings.h; trust_and_gates_design.md §4.3, §7.0) — the
@@ -34,10 +27,8 @@ pp_add_test(charts_session_maths_test
 pp_add_test(trust_readings_test
     SOURCES trust_readings_test.cpp
             ${GUI}/trust/trust_readings.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core)
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core LINK pp_rules)
 
 # The Consistency env (src/Gui/charts/consistency_env.{h,cpp}): where each reading is placed and what norm it is
 # judged against, on the REAL manifest, conditions and norms, so the catalogue chain chart_metrics_test links
@@ -47,22 +38,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)      # CHARTS_NORM
 set(CONSISTENCY_ENV_SOURCES
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/consistency_env.cpp
-    ${SRC}/Wrist/reference_bands.cpp
-    ${SRC}/Diagnostics/model/norm.cpp
-    ${SRC}/Diagnostics/content/norm_pack.cpp
-    ${SRC}/Diagnostics/model/context_tree.cpp
-    ${SRC}/Diagnostics/content/resource_norm_provider.cpp
-    ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-    ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-    ${SRC}/Diagnostics/model/pack_io.cpp
-    ${SRC}/Diagnostics/model/characteristic.cpp
-    ${SRC}/Diagnostics/content/characteristic_pack.cpp
-    ${SRC}/Diagnostics/content/reference_pack.cpp
-    ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-    ${SRC}/Diagnostics/content/file_pack_provider.cpp
-    ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-    ${SRC}/Diagnostics/model/measure_facets.cpp
-    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp)
+    ${SRC}/Stores/rule_data_reads.cpp)
 set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 set(CONSISTENCY_ENV_ENV "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 pp_add_test(consistency_env_test
@@ -70,7 +46,7 @@ pp_add_test(consistency_env_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -80,7 +56,7 @@ set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 pp_add_test(variability_env_test
     SOURCES variability_env_test.cpp ${GUI}/charts/variability_env.cpp ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -88,16 +64,12 @@ set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 # env and synthetic shots, the guard and sampling on the 4 July fixture, and the 5 Oct fixture on the real env for
 # its timing and its golden stand-outs (goldens_1005_consistency.json: frozen since the matrix verdicts and the tally that
 # cut it were retired, Mark 7 Nov; its `standouts`, `flags` and shuffle figures are still the rules' own).
-set(CONSISTENCY_MATHS_SOURCES
-    ${SRC}/Diagnostics/derived/series/session_consistency.cpp
-    ${SRC}/Diagnostics/derived/series/session_curves.cpp
-    ${SRC}/Diagnostics/derived/series/session_warp.cpp
-    ${SRC}/Diagnostics/derived/series/session_traces.cpp)
+set(CONSISTENCY_MATHS_SOURCES)
 pp_add_test(session_consistency_test
     SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -106,10 +78,10 @@ set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTE
 # swings left out) and the per-club windows (ordered by readings, a club under N_MIN still graded 0), scalar and
 # trace. Synthetic swings; no env is read.
 pp_add_test(variability_clubs_test
-    SOURCES variability_clubs_test.cpp ${SRC}/Diagnostics/derived/series/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
+    SOURCES variability_clubs_test.cpp ${CONSISTENCY_MATHS_SOURCES}
             ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 
 
@@ -120,10 +92,9 @@ pp_add_test(variability_clubs_test
 # The façade's token spellings (src/Gui/variability/variability_facade.cpp) are linked, not copied.
 add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/variability_env.cpp
     ${GUI}/variability/variability_facade.cpp
-    ${SRC}/Diagnostics/derived/series/session_sequence.cpp
     ${GUI}/charts/session_sequence_words.cpp
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
 target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
 target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
-target_link_libraries(variability_calibrate PRIVATE pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(variability_calibrate PRIVATE pp_rules pp_vocabulary pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(variability_calibrate PROPERTIES AUTOMOC ON)

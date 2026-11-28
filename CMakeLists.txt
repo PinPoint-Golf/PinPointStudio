@@ -791,7 +791,7 @@ qt_add_executable(PinPointStudio
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
-    src/IMU/imu_role_map.h               src/IMU/imu_role_map.cpp
+    src/IMU/imu_role_map.h
     src/Gui/imu/imu_labels.h
     src/Gui/imu/imu_rig_link.h            src/Gui/imu/imu_rig_link.cpp   # the sensor manager's link to the Rig (C-6b.1)
     src/Gui/imu/paced_connect_queue.h        src/Gui/imu/paced_connect_queue.cpp
@@ -872,7 +872,7 @@ qt_add_executable(PinPointStudio
     src/IMU/imu_capabilities.h
     src/IMU/iorientation_filter.h
     src/IMU/orientation_filter.h
-    src/IMU/eskf_orientation_filter.h  src/IMU/eskf_orientation_filter.cpp
+    src/IMU/eskf_orientation_filter.h
     src/IMU/imu_calibration.h
     src/IMU/impact_detector.h
     src/IMU/imu_factory.h     src/IMU/imu_factory.cpp
@@ -888,7 +888,7 @@ qt_add_executable(PinPointStudio
     src/LaunchMonitor/launch_monitor_base.h      src/LaunchMonitor/launch_monitor_base.cpp
     src/LaunchMonitor/launch_monitor_factory.h   src/LaunchMonitor/launch_monitor_factory.cpp
     src/LaunchMonitor/inferred/shot_pairing.h
-    src/LaunchMonitor/inferred/standalone_gate.h           src/LaunchMonitor/inferred/standalone_gate.cpp
+    src/LaunchMonitor/inferred/standalone_gate.h
     src/LaunchMonitor/gcquad_csv_parser.h        src/LaunchMonitor/gcquad_csv_parser.cpp
     src/LaunchMonitor/gcquad_monitor.h           src/LaunchMonitor/gcquad_monitor.cpp
     src/LaunchMonitor/gspro_reading.h            src/LaunchMonitor/gspro_reading.cpp
@@ -1043,7 +1043,9 @@ set(PP_RING_DEFINITIONS
 # ggml.h and QMediaPlayer, so it cannot go in a library that links only Qt Core and the system.
 pp_require_ring(platform)
 pp_require_ring(vocabulary)   # the metric catalogue, the variability grader, the launch monitor's reading (cmake/rings/vocabulary/)
-target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary)
+set(PP_RINGS_EIGEN ${eigen_SOURCE_DIR})
+pp_require_ring(rules)        # the diagnostics engine, the wrist assessment, the body and phase maths (cmake/rings/rules/)
+target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary pp_rules)
 
 target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Common/figure_format.h
@@ -2908,15 +2910,12 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/analysis_stage.h
     src/Wrist/wrist_angles.h
     src/Wrist/metric_extractor.h
-    src/Wrist/metric_extractor.cpp
     src/IMU/imu_vision_fuser.h
     src/IMU/imu_vision_fuser.cpp
     src/Analysis/stream_trim.h
     src/IMU/hm_binding_recon.h
     src/Timeline/phase_segmenter.h
-    src/Timeline/phase_segmenter.cpp
     src/Timeline/phase_signals.h
-    src/Timeline/phase_signals.cpp
     src/Club/shaft_tracker_math.h
     src/Club/shaft_tracker_math.cpp
     src/Club/shaft_track_assembly.h
@@ -2952,36 +2951,27 @@ target_sources(PinPointStudio PRIVATE
     src/Pose/pose_smoother.h
     src/Pose/pose_smoother.cpp
     src/Body/head_track.h
-    src/Body/head_track.cpp
     src/Body/foot_metrics.h
-    src/Body/foot_metrics.cpp
-    src/Body/lower_body_metrics.cpp
     src/Vocabulary/Metrics/metric_channel.h
     src/Vocabulary/Metrics/series_reduce.h
     src/Vocabulary/Metrics/series_reduce_metric.h
     src/Vocabulary/Metrics/fitted_curve.h
     src/Body/upper_body_metrics.h
-    src/Body/upper_body_metrics.cpp
     src/Body/body_rotation.h
-    src/Body/body_rotation.cpp
     src/Kinematics/angular_rate.h
     src/Kinematics/kinematic_sequence.h
     src/Vocabulary/Analysis/kinematic_sequence_types.h
     src/Kinematics/kinematic_sequence_json.h
     src/Kinematics/segment_rates.h
-    src/Kinematics/segment_rates.cpp
     src/Kinematics/gap_bridge.h
-    src/Kinematics/gap_bridge.cpp
     src/Vocabulary/Analysis/recorded_products.h
     src/Club/club_delivery.h
     src/Club/club_delivery.cpp
     src/Ball/ball_position.h
     src/Ball/ball_position.cpp
     src/Timeline/tempo_metrics.h
-    src/Timeline/tempo_metrics.cpp
     src/Pose/hand_axis.h
     src/Wrist/pose_wrist_angle_source.h
-    src/Wrist/pose_wrist_angle_source.cpp
     src/Club/shaft_tracker.h
     src/Club/shaft_tracker.cpp
     src/Club/ball_anchor.h
@@ -2989,9 +2979,7 @@ target_sources(PinPointStudio PRIVATE
     src/Timeline/event_refine.h
     src/Timeline/event_refine.cpp
     src/Wrist/wrist_resemblance.h
-    src/Wrist/wrist_resemblance.cpp
     src/Wrist/score_uncertainty.h
-    src/Wrist/score_uncertainty.cpp
     src/Analysis/analysis_pipeline.h
     src/Analysis/analysis_pipeline.cpp
     src/Skeleton3d/ybot_rig.h
@@ -3003,7 +2991,6 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/analysis_profiling.h
     src/Analysis/analysis_profiling.cpp
     src/Kinematics/kinematic_series.h
-    src/Kinematics/kinematic_series.cpp
     src/Pose/pose_runner.h
     src/Pose/pose_runner.cpp
     src/Ball/ball_runner.h
@@ -3064,7 +3051,6 @@ target_sources(PinPointStudio PRIVATE
     src/Stores/series_store.h
     src/Stores/series_store.cpp
     src/Diagnostics/engine/session_reduction.h
-    src/Diagnostics/engine/session_reduction.cpp
     src/Diagnostics/derived/session_results.h
     # (the one worker pool, src/Core/work_pool.*, is in pp_platform)
     # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
@@ -3103,11 +3089,8 @@ target_sources(PinPointStudio PRIVATE
     src/App/outcome_summary.cpp
     src/Diagnostics/derived/shot_factor_words.h
     src/Analysis/effective_context.h
-    src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h
-    src/Analysis/reuse_gate.cpp   # the one reuse gate and the input stamp's staleness (step 1.6)
     src/Analysis/analysis_job_builder.h
-    src/Analysis/analysis_job_builder.cpp
     src/Stores/recording_header.h
     src/Stores/recording_loader.h
     src/Stores/recording_loader.cpp
@@ -3373,7 +3356,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/recording_header.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Stores/swing_paths.cpp
@@ -3385,7 +3368,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary pp_rules Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
 
@@ -3401,13 +3384,13 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/recording_header.cpp
         src/Stores/swing_paths.cpp)
     target_include_directories(pps_convert_library PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
     # The real log (pp_platform): swing_paths reports through ppWarn, and a line a conversion says on the way past
     # must reach whoever runs it.
-    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary pp_rules Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
     # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
@@ -3420,11 +3403,11 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/recording_header.cpp
         src/Stores/swing_paths.cpp)
     target_include_directories(backfill_analysis_context PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary pp_rules Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
     # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
@@ -3440,13 +3423,13 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
         src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Stores/recording_header.cpp
         src/Stores/swing_paths.cpp
         src/Stores/rig_store.cpp   # a write is refused once the Rig keeps the learned club lengths
     )
     target_include_directories(pps_migrate_step2 PRIVATE
         src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
-    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary pp_rules Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
@@ -3480,41 +3463,17 @@ if(PINPOINT_BUILD_TOOLS)
         src/Stores/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
         src/Stores/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/DomainModel/session_identity.cpp
-        src/Analysis/effective_context.cpp  # the effective club (step 1.1)
-        src/Analysis/reuse_gate.cpp         # the one reuse gate (step 1.6)
-        src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/analysis_pipeline.cpp
         src/Skeleton3d/skeleton3d_fit.cpp
         src/Analysis/analysis_profiling.cpp
-        src/Kinematics/kinematic_series.cpp
         src/IMU/imu_vision_fuser.cpp
-        src/Timeline/phase_segmenter.cpp
-        src/Timeline/phase_signals.cpp
-        src/Wrist/metric_extractor.cpp
-        src/Wrist/wrist_resemblance.cpp
-        src/Wrist/score_uncertainty.cpp
         # Tier-2 wrist assessment (offline known-groups, ShotAnalysisJob::runAssessment)
-        src/Wrist/wrist_analysis_adapter.cpp
-        src/Wrist/wrist_assessment_engine.cpp
-        src/Wrist/assessment_rules.cpp
-        src/Wrist/reference_bands.cpp
         # reference_bands.cpp hosts NormBandProvider — the corridors it used to compile in are now
         # content in src/Resources/diagnostics/norms.json, so the offline stack needs the norm
         # stack too. Omit these and swinglab_run / in-app re-analyse fail at link time.
-        src/Diagnostics/model/pack_io.cpp
-        src/Diagnostics/model/norm.cpp
-        src/Diagnostics/content/norm_pack.cpp
-        src/Diagnostics/model/context_tree.cpp
-        src/Diagnostics/content/characteristic_pack.cpp
-        src/Diagnostics/model/characteristic.cpp
-        src/Diagnostics/model/measure_facets.cpp
-        src/Diagnostics/model/anatomy_vocabulary.cpp
-        src/Diagnostics/content/resource_norm_provider.cpp
-        src/Diagnostics/content/file_norm_provider.cpp
         src/Stores/rule_data_reads.cpp
-        src/Diagnostics/content/merged_norm_provider.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the
         # offline binaries carry two reference sets no code in them can read, which looks like
@@ -3523,10 +3482,6 @@ if(PINPOINT_BUILD_TOOLS)
         # Nothing offline CALLS them yet, so the linker drops the code and the binaries do not grow.
         # What this buys is that the day a diagnosis runs in swinglab_run — where a
         # TestRecommendation has to resolve its screenRef to a protocol — the link does not fail.
-        src/Diagnostics/content/screen_pack.cpp
-        src/Diagnostics/content/drill_pack.cpp
-        src/Diagnostics/content/gate_words_pack.cpp
-        src/Diagnostics/content/reference_pack.cpp
         src/Pose/pose_runner.cpp
         src/Ball/ball_runner.cpp
         src/Analysis/frame_store.cpp
@@ -3545,17 +3500,8 @@ if(PINPOINT_BUILD_TOOLS)
         src/Club/dtl_shaft_tracker.cpp
         src/Club/clubhead_track.cpp
         src/Pose/pose_smoother.cpp
-        src/Body/head_track.cpp
-        src/Body/foot_metrics.cpp
-        src/Body/lower_body_metrics.cpp
-        src/Body/upper_body_metrics.cpp
-        src/Body/body_rotation.cpp
-        src/Kinematics/segment_rates.cpp
-        src/Kinematics/gap_bridge.cpp
         src/Club/club_delivery.cpp
         src/Ball/ball_position.cpp
-        src/Timeline/tempo_metrics.cpp
-        src/Wrist/pose_wrist_angle_source.cpp
         src/Vocabulary/Recording/frame_decode.cpp
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3614,7 +3560,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pp_platform pp_vocabulary pinpoint_buffer pinpoint_swingstore whisper
+            pp_platform pp_vocabulary pp_rules pinpoint_buffer pinpoint_swingstore whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the

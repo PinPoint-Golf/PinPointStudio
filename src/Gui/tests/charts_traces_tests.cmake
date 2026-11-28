@@ -14,42 +14,18 @@ pp_add_test(charts_traces_presenter_test
             ${GUI}/charts/charts_traces_presenter.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Diagnostics/derived/series/session_warp.cpp
-            ${SRC}/Diagnostics/derived/series/session_traces.cpp
-            ${SRC}/Diagnostics/derived/series/session_relations.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
-            ${SRC}/Diagnostics/derived/series/session_bridge.cpp
-            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Kinematics/gap_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/trust/trust_types.h      # thisShot.trust is a list of its readings (refactor 5.5c): moc'd here
             ${GUI}/review/chart_metrics.cpp
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
-            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
+            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_traces_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_MEASURE_OUT=${CMAKE_BINARY_DIR}/charts_traces_measure.txt"

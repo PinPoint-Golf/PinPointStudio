@@ -14,37 +14,16 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/charts/charts_relations_presenter.cpp
             # R8 typicality (Apart, Readings, the key figures, Replay's "now"): the session window and the façade's payload
             ${GUI}/variability/variability_facade.cpp
-            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Diagnostics/derived/series/session_warp.cpp
-            ${SRC}/Diagnostics/derived/series/session_traces.cpp
-            ${SRC}/Diagnostics/derived/series/session_relations.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
-            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
+            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_relations_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -58,42 +37,19 @@ pp_add_test(charts_consistency_presenter_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_consistency_presenter.cpp
             ${GUI}/charts/charts_consistency_types.h   # its typed values: moc (refactor 5.5b)
-            ${SRC}/Diagnostics/derived/series/consistency_grades.cpp
-            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/charts/variability_env.cpp
             ${GUI}/variability/variability_facade.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
-            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Diagnostics/derived/series/session_warp.cpp
-            ${SRC}/Diagnostics/derived/series/session_traces.cpp
-            ${SRC}/Diagnostics/derived/series/session_relations.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Wrist/reference_bands.cpp
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
-            ${SRC}/Diagnostics/content/resource_norm_provider.cpp
-            ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
-            ${SRC}/Diagnostics/content/merged_norm_provider.cpp
+            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_consistency_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

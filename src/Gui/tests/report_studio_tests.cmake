@@ -23,18 +23,9 @@ pp_add_test(report_studio_test
             ${SRC}/Stores/session_store.cpp
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
             # The one session list: the controller's activity is its rows' (refactor step 5.7b).
             ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
             ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)

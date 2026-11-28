@@ -20,20 +20,8 @@ pp_add_test(folder_series_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Diagnostics/content/characteristic_pack.cpp
-            ${SRC}/Diagnostics/content/reference_pack.cpp
-            ${SRC}/Diagnostics/model/characteristic.cpp
-            ${SRC}/Diagnostics/model/pack_io.cpp
-            ${SRC}/Diagnostics/model/measure_facets.cpp
-            ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-            ${SRC}/Diagnostics/model/norm.cpp
-            ${SRC}/Diagnostics/content/norm_pack.cpp
-            ${SRC}/Diagnostics/model/context_tree.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(folder_series_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_FIXTURE=${SRC}/../build/run-me/chart-variants/qml/fixture/session.json")

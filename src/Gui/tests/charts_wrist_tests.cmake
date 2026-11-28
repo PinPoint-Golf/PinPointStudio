@@ -10,26 +10,16 @@ pp_add_test(charts_wrist_presenter_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_wrist_presenter.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
-            ${SRC}/Diagnostics/derived/series/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
             ${GUI}/tests/folder_series.cpp
-            ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Diagnostics/derived/series/session_warp.cpp
-            ${SRC}/Diagnostics/derived/series/session_traces.cpp
-            ${SRC}/Diagnostics/derived/series/session_relations.cpp
-            ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
             # the session's consistency grades (R2b, R7): one window per club, the grader, the `variabilityResult` type
-            ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
             ${GUI}/variability/variability_facade.cpp
             ${GUI}/trust/trust_readings.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_wrist_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

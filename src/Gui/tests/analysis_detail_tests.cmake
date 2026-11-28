@@ -18,9 +18,9 @@ pp_add_test(analysis_detail_projection_test
             ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/recording_header.cpp
             ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${GUI}/shot ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Test
     AUTOMOC)

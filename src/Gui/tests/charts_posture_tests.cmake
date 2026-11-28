@@ -10,11 +10,8 @@ pp_add_test(session_posture_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_posture_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json")
@@ -28,11 +25,6 @@ set_tests_properties(session_posture_test PROPERTIES
 # The session's consistency grades (R2b, R7): the grader, one window per club (variability_clubs.cpp, which needs the
 # Consistency maths), and the `variabilityResult` value type the payload carries.
 set(POSTURE_VARIABILITY_SRC
-    ${SRC}/Diagnostics/derived/series/variability_clubs.cpp
-    ${SRC}/Diagnostics/derived/series/session_consistency.cpp
-    ${SRC}/Diagnostics/derived/series/session_curves.cpp
-    ${SRC}/Diagnostics/derived/series/session_warp.cpp
-    ${SRC}/Diagnostics/derived/series/session_traces.cpp
     ${GUI}/variability/variability_facade.cpp)
 pp_add_test(charts_posture_presenter_test
     SOURCES charts_posture_presenter_test.cpp
@@ -42,14 +34,10 @@ pp_add_test(charts_posture_presenter_test
             ${GUI}/charts/posture_picture.cpp
             ${GUI}/report/report_stills_pure.cpp
             ${GUI}/markup/markup_truth.cpp
-            ${SRC}/Body/head_track.cpp
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
-            ${SRC}/Diagnostics/content/resource_pack_provider.cpp
-            ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Diagnostics/content/merged_pack_provider.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_posture_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json;PP_POSTURE_DIAGNOSTICS=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002_diagnostics.json;PP_POSTURE_PICTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/picture_doc.json")
