@@ -228,30 +228,41 @@ int main()
     // ── The bands and their boundaries ──────────────────────────────────────────
     {
         const QHash<QString, AreaConditionInfo> info{
-            { "half",  ci("posture", "Half") },       // 2 of 4    = 0.5      habit
-            { "under", ci("posture", "Under") },      // 49 of 100 = 0.49     occasional
-            { "occ",   ci("posture", "Occ") },        // 3 of 20   = 0.15     occasional
-            { "rare",  ci("posture", "Rare") },       // 1 of 7    ≈ 0.143, Wilson upper ≈ 0.51: unclear
-            { "clean", ci("posture", "Clean") },      // 1 of 40   = 0.025, Wilson upper ≈ 0.13: clean
-            { "none",  ci("posture", "None") },       // 0 of 2: upper 0.66 — unclear, not clean
+            { "half",      ci("posture", "Half") },       // 11 of 22  = 0.5, wlb ≈ 0.307: habit
+            { "smallHalf", ci("posture", "SmallHalf") },  // 2 of 4    = 0.5, wlb ≈ 0.150: occasional (not yet proven a habit)
+            { "oneOfOne",  ci("posture", "OneOfOne") },   // 1 of 1    = 1.0, < 3 swings:  unclear
+            { "twoOfTwo",  ci("posture", "TwoOfTwo") },   // 2 of 2    = 1.0, < 3 swings:  unclear (even with wlb ≈ 0.342)
+            { "under",     ci("posture", "Under") },      // 49 of 100 = 0.49              occasional
+            { "occ",       ci("posture", "Occ") },        // 3 of 20   = 0.15              occasional
+            { "rare",      ci("posture", "Rare") },       // 1 of 7    ≈ 0.143, Wilson upper ≈ 0.51: unclear
+            { "clean",     ci("posture", "Clean") },      // 1 of 40   = 0.025, Wilson upper ≈ 0.13: clean
+            { "none",      ci("posture", "None") },       // 0 of 2:   < 3 swings:         unclear, not clean
         };
         const std::vector<AreaSummary> a = summariseAreas(
-            { session("s1", 0, { { "half", 2, 4 }, { "under", 49, 100 }, { "occ", 3, 20 }, { "rare", 1, 7 },
-                                 { "clean", 1, 40 }, { "none", 0, 2 } }) },
-            info, [] { AreaOptions o; o.maxItems = 10; return o; }());
+            { session("s1", 0, { { "half", 11, 22 }, { "smallHalf", 2, 4 }, { "oneOfOne", 1, 1 }, { "twoOfTwo", 2, 2 },
+                                 { "under", 49, 100 }, { "occ", 3, 20 }, { "rare", 1, 7 }, { "clean", 1, 40 },
+                                 { "none", 0, 2 } }) },
+            info, [] { AreaOptions o; o.maxItems = 12; return o; }());
         const AreaSummary *p = areaOf(a, "posture");
-        const AreaItem *half = itemOf(p, "half"), *under = itemOf(p, "under"), *occ = itemOf(p, "occ"),
+        const AreaItem *half = itemOf(p, "half"), *smallHalf = itemOf(p, "smallHalf"),
+                       *oneOfOne = itemOf(p, "oneOfOne"), *twoOfTwo = itemOf(p, "twoOfTwo"),
+                       *under = itemOf(p, "under"), *occ = itemOf(p, "occ"),
                        *rare = itemOf(p, "rare"), *clean = itemOf(p, "clean"), *none = itemOf(p, "none");
-        check(half && half->band == AreaBand::Habit && near(half->share, 0.5, 1e-12), "exactly 0.5 is a habit");
+        check(half && half->band == AreaBand::Habit && near(half->share, 0.5, 1e-12),
+              "exactly 0.5 with Wilson lower bound >= 0.30 is a habit");
+        check(smallHalf && smallHalf->band == AreaBand::Occasional,
+              "2 of 4 (0.5, wlb 0.15) is occasional, not yet proven a habit");
+        check(oneOfOne && oneOfOne->band == AreaBand::Unclear && twoOfTwo && twoOfTwo->band == AreaBand::Unclear,
+              "fewer than 3 assessable swings (1/1, 2/2) is always unclear, never a habit");
         check(under && under->band == AreaBand::Occasional, "0.49 is occasional");
         check(occ && occ->band == AreaBand::Occasional, "exactly 0.15 is occasional");
         check(rare && rare->band == AreaBand::Unclear && wilsonUpperBound(1, 7) >= kAreaCleanUpper,
               "just under 0.15 on seven swings is UNCLEAR, not clean: the upper bound is still high");
         check(clean && clean->band == AreaBand::Clean, "1 of 40 is clean");
         check(none && none->band == AreaBand::Unclear, "0 of 2 is unclear: never seen, on too few to say");
-        check(p && p->measured == 6 && p->habits == 1 && p->occasional == 2 && p->clean == 1 && p->unclear == 2,
+        check(p && p->measured == 9 && p->habits == 1 && p->occasional == 3 && p->clean == 1 && p->unclear == 4,
               "the area's counts are the bands' counts");
-        check(half && half->fired == 2 && half->assessable == 4 && areaBandToString(half->band) == QStringLiteral("habit")
+        check(half && half->fired == 11 && half->assessable == 22 && areaBandToString(half->band) == QStringLiteral("habit")
                   && areaBandToString(AreaBand::Unclear) == QStringLiteral("unclear"),
               "items quote unweighted swings; the band words are the tokens QML reads");
     }
@@ -346,6 +357,43 @@ int main()
         check(i && i->measurable && i->topFaultId.isEmpty() && i->items.size() == 2,
               "clean and unclear only: no top fault, though both are listed as items");
         check(f && f->topFaultId == QStringLiteral("f1"), "an occasional condition is a top fault");
+    }
+
+    // ── Small samples and Wilson-bound ranking (Biggest fault) ──────────────────
+    {
+        const QHash<QString, AreaConditionInfo> info{
+            { "one_block", ci("rotation", "Hips and chest turn as one block") }, // 1 of 1: unclear
+            { "arms_first", ci("rotation", "Arms before chest") },               // 152 of 153: habit, wlb ≈ 0.964
+            { "small_habit", ci("rotation", "Small habit") },                    // 3 of 3: habit, wlb ≈ 0.438
+            { "solid_habit", ci("rotation", "Solid habit") },                    // 9 of 10: habit, wlb ≈ 0.596
+            { "only_one", ci("arms", "Only one shot") },                         // 1 of 1 alone: unclear, no top fault
+            { "clean_posture", ci("posture", "Clean posture") },                 // 0 of 40: clean
+            { "unclear_deliv", ci("delivery", "Unclear delivery") },             // 1 of 1: unclear
+        };
+        const std::vector<AreaSummary> a = summariseAreas(
+            { session("s1", 0, { { "one_block", 1, 1 }, { "arms_first", 152, 153 },
+                                 { "small_habit", 3, 3 }, { "solid_habit", 9, 10 },
+                                 { "only_one", 1, 1 }, { "clean_posture", 0, 40 },
+                                 { "unclear_deliv", 1, 1 } }) },
+            info, [] { AreaOptions o; o.maxItems = 10; return o; }());
+
+        const AreaSummary *rot = areaOf(a, "rotation");
+        const AreaItem *one = itemOf(rot, "one_block");
+        check(rot && rot->habits == 3 && rot->unclear == 1 && rot->topFaultId == QStringLiteral("arms_first"),
+              "1/1 is unclear and never beats 152/153 for Biggest fault");
+        check(one && one->band == AreaBand::Unclear && one->fired == 1 && one->assessable == 1,
+              "…and the 1/1 item is still listed with its counts, never hidden");
+        check(itemIds(rot) == (QStringList{ "arms_first", "solid_habit", "small_habit", "one_block" }),
+              "habits rank by Wilson lower bound (152/153 > 9/10 > 3/3), not raw share");
+
+        const AreaSummary *arms = areaOf(a, "arms");
+        check(arms && arms->measurable && arms->measured == 1 && arms->habits == 0 && arms->unclear == 1
+                  && arms->topFaultId.isEmpty(),
+              "a 1/1 condition alone in an area is unclear with no Biggest fault");
+
+        const QStringList gs = groupsOf(a);
+        check(gs.indexOf(QStringLiteral("posture")) < gs.indexOf(QStringLiteral("delivery")),
+              "an unclear 1/1 does not outrank an earlier clean area in display order");
     }
 
     // ── The work-on words ───────────────────────────────────────────────────────

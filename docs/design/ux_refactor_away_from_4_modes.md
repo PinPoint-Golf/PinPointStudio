@@ -368,22 +368,28 @@ every assessed condition.** So:
 
 **The rule.** An area is rated by counting its conditions in four frequency bands. There is no
 0–100 score. Per condition, `share` = recency-weighted fired / assessable (the work-ons
-aggregate's `weightedFired / weightedAssessable`). The bands, as constants in `AreaOptions`:
+aggregate's `weightedFired / weightedAssessable`) and `score` = Wilson lower bound on those
+weighted counts (`PrioritySummary::score`). The bands, as constants in `AreaOptions`:
 
-- **habit**: share ≥ 0.5, the Coaching layer's own bar ("more than half your swings", the
-  same threshold "Right now" uses);
-- **occasional**: 0.15 ≤ share < 0.5;
-- **clean**: share < 0.15 **and** Wilson upper bound < 0.35;
-- **not yet clear**: everything else measured.
+- **habit**: assessable ≥ 3, `share` ≥ 0.5 **and** Wilson lower bound ≥ 0.30 (the Coaching layer's
+  "more than half your swings" bar paired with the ledger's Pattern floor);
+- **occasional**: assessable ≥ 3 and `share` ≥ 0.15 (including `share` ≥ 0.5 whose lower bound is
+  still under 0.30);
+- **clean**: assessable ≥ 3, `share` < 0.15 **and** Wilson upper bound < 0.35;
+- **not yet clear**: everything else measured (fewer than 3 assessable swings — even `1/1` or `2/2`
+  — or low share on too few swings to call clean).
 
-The row reads "4 habits · 12 clean" over a bar split into the four bands. Areas are ordered by
-habits, then occasional, then the worst share. Trend = habits gained or cleared against the
-same counts without the newest substantive session ("−1 habit"). Counted conditions: Movement
-and Delivery classes. For ballFlight (all Outcome), its Outcome conditions are counted. Why:
-every number traces to a named fault; one habit and four read differently (the worst-condition
-rule floored both); clean conditions cannot dilute a habit (the mean rule could); and the habit
-bar is Coaching's, so the two tabs cannot disagree. On Mark's library: Posture 4 habits,
-Sequence 4, Lateral 2, Arms & club 2, Impact 1, Finish 1, Setup 0, Release 0.
+The row reads "4 habits · 12 clean" over a bar split into the four bands. Items inside each band
+(and `topFault`, the area's **Biggest fault**) are ordered by `score` (Wilson lower bound)
+descending, ties by `share`, `sessionsListed`, then id — so a tiny sample (`1/1` or `3/3`) never
+outranks a well-evidenced habit (`152/153`). Areas are ordered by habits, then occasional, then the
+worst `score` across habit/occasional items, then address to finish. Trend = habits gained or
+cleared against the same counts without the newest substantive session ("−1 habit"). Counted
+conditions: Movement and Delivery classes. For ballFlight (all Outcome), its Outcome conditions are
+counted. Why: every number traces to a named fault; one habit and four read differently (the
+worst-condition rule floored both); clean conditions cannot dilute a habit (the mean rule could);
+and the habit bar is Coaching's, so the two tabs cannot disagree. On Mark's library: Posture 4
+habits, Sequence 4, Lateral 2, Arms & club 2, Impact 1, Finish 1, Setup 0, Release 0.
 
 **D9 decided: typical = median of ALL judged readings** for the evidence record, so a clean
 condition shows in range and the grade means something. Work-on entries keep their fired-median.

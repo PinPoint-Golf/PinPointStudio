@@ -23,14 +23,16 @@
 // (docs/design/ux_refactor_away_from_4_modes.md §5.2, D1 decided 28 Oct: habit counts, no 0–100 score).
 //
 // THE RULE. Per condition, `share` is the work-ons aggregate's recency-weighted fired / assessable —
-// swings, not sessions, each session's swings fading 0.75 per substantive session since. Four bands:
+// swings, not sessions, each session's swings fading 0.75 per substantive session since — and `score`
+// is the Wilson lower bound on those weighted counts (PrioritySummary::score). Four bands:
 //
-//   habit        share ≥ 0.5           the Coaching layer's own bar, "more than half your swings" —
-//                                      the threshold "Right now" uses, so the two tabs cannot disagree
-//   occasional   0.15 ≤ share < 0.5
-//   clean        share < 0.15 AND the Wilson upper bound on the weighted counts < 0.35 — evidently
-//                rare, not merely unseen so far
-//   unclear      everything else measured: rare so far, on too few swings to say so
+//   habit        assessable ≥ 3, share ≥ 0.5 AND Wilson lower bound ≥ 0.30 — the Coaching layer's
+//                "more than half your swings" bar paired with the session ledger's Pattern floor
+//   occasional   assessable ≥ 3 AND 0.15 ≤ share < 0.5 (or share ≥ 0.5 not yet past the lower bound)
+//   clean        assessable ≥ 3, share < 0.15 AND Wilson upper bound < 0.35 — evidently rare, not
+//                merely unseen so far
+//   unclear      everything else measured: fewer than 3 assessable swings (even 1/1 or 2/2), or rare
+//                so far on too few swings to say so
 //
 // An area reads "4 habits · 12 clean". Every number traces to a named fault; one habit and four read
 // differently (the worst-condition rule floored both); a clean condition cannot dilute a habit (a
@@ -124,14 +126,18 @@ inline bool areaConditionCounts(const QString &group, PriorityClass cls, bool ou
 
 // Every number injected, like PriorityOptions.
 inline constexpr double kAreaHabitShare      = 0.5;    // "more than half your swings" (Coaching's presentShare)
+inline constexpr double kAreaHabitLower      = kDiagPatternWilsonLb;          // habit also needs Wilson LOWER bound ≥ this
 inline constexpr double kAreaOccasionalShare = 0.15;
 inline constexpr double kAreaCleanUpper      = 0.35;   // clean also needs the Wilson UPPER bound under this
+inline constexpr int    kAreaMinAssessable   = kDiagMinAssessableForPattern;  // fewer swings than this: always Unclear
 inline constexpr int    kAreaMaxItems        = 5;      // the default; Home lists every item (WorkOnsController)
 
 struct AreaOptions {
     double habitShare      = kAreaHabitShare;
+    double habitLower      = kAreaHabitLower;      // weighted counts, z = PriorityOptions::wilsonZ (kDiagWilsonZ)
     double occasionalShare = kAreaOccasionalShare;
     double cleanUpper      = kAreaCleanUpper;      // weighted counts, z = PriorityOptions::wilsonZ (kDiagWilsonZ)
+    int    minAssessable   = kAreaMinAssessable;   // unweighted swingsAssessable floor to leave Unclear
     int    maxItems        = kAreaMaxItems;
 };
 
@@ -155,13 +161,18 @@ inline double areaShare(const PrioritySummary &w)
     return w.weightedAssessable > 0.0 ? w.weightedFired / w.weightedAssessable : 0.0;
 }
 
-// The band, its boundaries as written: exactly habitShare is a habit, exactly occasionalShare is
-// occasional, and under it the condition is clean only when the evidence says rare, not "not yet".
+// The band, its boundaries as written: below minAssessable swings a condition is always Unclear
+// (1/1 or 2/2 never becomes a habit); at habitShare it is a habit only once the Wilson lower bound
+// clears habitLower (mirroring clean's upper bound), else occasional; at occasionalShare it is
+// occasional; under it, clean only when the upper bound says rare, not "not yet".
 inline AreaBand areaBandOf(const PrioritySummary &w, const AreaOptions &opt = AreaOptions(),
                            double wilsonZ = kDiagWilsonZ)
 {
+    if (w.swingsAssessable < opt.minAssessable) return AreaBand::Unclear;
     const double share = areaShare(w);
-    if (share >= opt.habitShare)      return AreaBand::Habit;
+    if (share >= opt.habitShare
+        && wilsonLowerBound(w.weightedFired, w.weightedAssessable, wilsonZ) >= opt.habitLower)
+        return AreaBand::Habit;
     if (share >= opt.occasionalShare) return AreaBand::Occasional;
     if (wilsonUpperBound(w.weightedFired, w.weightedAssessable, wilsonZ) < opt.cleanUpper)
         return AreaBand::Clean;
@@ -176,6 +187,7 @@ struct AreaItem {
     QString  unit;
     AreaBand band  = AreaBand::Unclear;
     double   share = 0.0;        // recency-weighted fired / assessable — what the band is cut on
+    double   score = 0.0;        // Wilson lower bound on the weighted counts (PrioritySummary::score) — item rank key
     int      fired = 0, assessable = 0;   // UNWEIGHTED swingsFired / swingsAssessable: what a golfer can count
     // From latestEvidence — the newest session that assessed it — the median of ALL its assessed
     // readings and the corridor they were graded against (D9). Absent under a mixed-club session, a
@@ -216,12 +228,12 @@ struct AreaSummary {
     // ≥ 2 substantive sessions and a measurable area.
     int     habitTrend = 0;
     bool    hasTrend   = false;
-    QString topFaultId;          // highest-share Habit or Occasional condition (item order); "" when none
+    QString topFaultId;          // highest-score (Wilson lower bound) Habit or Occasional condition (item order); "" when none
     // Counted conditions on the golfer's work-ons list (workOn non-empty: active, easing or new), and
     // of those the new ones. Over the whole area, not just the items shown.
     int     workOnsActive = 0, workOnsNew = 0;
-    // Up to maxItems: habits first, then occasional, then the rest (clean and unclear, all under the
-    // occasional bar); by share descending within each, ties by sessionsListed descending, then id.
+    // Up to maxItems: habits first, then occasional, then the rest (clean and unclear); by score
+    // (Wilson lower bound) descending within each, ties by share, sessionsListed, then id.
     std::vector<AreaItem> items;
 };
 
@@ -230,7 +242,7 @@ struct AreaSummary {
 struct AreaCounts {
     bool   measurable = false;
     int    measured = 0, habits = 0, occasional = 0, clean = 0, unclear = 0;
-    double worstShare = 0.0;
+    double worstScore = 0.0;     // max Wilson lower bound across Habit/Occasional items (area tie-break)
 };
 
 // A counted condition is MEASURED when some swing assessed it. (The every-condition aggregate only
@@ -248,13 +260,15 @@ inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<PrioritySummary
         AreaCounts &c = out[it->group];
         if (it->group != kAreaBallFlight() || it->lmOnly) c.measurable = true;
         ++c.measured;
-        switch (areaBandOf(w, opt, wilsonZ)) {
+        const AreaBand b = areaBandOf(w, opt, wilsonZ);
+        switch (b) {
         case AreaBand::Habit:      ++c.habits;     break;
         case AreaBand::Occasional: ++c.occasional; break;
         case AreaBand::Clean:      ++c.clean;      break;
         case AreaBand::Unclear:    ++c.unclear;    break;
         }
-        c.worstShare = std::max(c.worstShare, areaShare(w));
+        if (b == AreaBand::Habit || b == AreaBand::Occasional)
+            c.worstScore = std::max(c.worstScore, w.score);
     }
     return out;
 }
@@ -263,9 +277,9 @@ inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<PrioritySummary
 //
 // `sessions` in any order (sorted here as the aggregate sorts them). `info` holds every condition the
 // pack authors; an id it does not hold is not in any area. Returned in display order: measurable areas
-// first — most habits, then most occasional, then the worst share, then address to finish — then the
-// unmeasurable ones in address-to-finish order. The eight body areas are always returned; ball flight
-// only when measurable; `golfer` never.
+// first — most habits, then most occasional, then the worst Wilson lower bound across habit/occasional
+// items, then address to finish — then the unmeasurable ones in address-to-finish order. The eight
+// body areas are always returned; ball flight only when measurable; `golfer` never.
 inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionPriorities> &sessions,
                                                const QHash<QString, AreaConditionInfo> &info,
                                                const AreaOptions &opt = AreaOptions(),
@@ -327,6 +341,7 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionPrioriti
             it.golfer         = ci.golfer;
             it.band           = areaBandOf(*w, opt, wopt.wilsonZ);
             it.share          = areaShare(*w);
+            it.score          = w->score;
             it.fired          = w->swingsFired;
             it.assessable     = w->swingsAssessable;
             it.sessionsListed = w->sessionsListed;
@@ -366,8 +381,9 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionPrioriti
 
         const auto rank = [](AreaBand b) { return b == AreaBand::Habit ? 0 : b == AreaBand::Occasional ? 1 : 2; };
         std::sort(items.begin(), items.end(), [&rank](const AreaItem &x, const AreaItem &y) {
-            if (rank(x.band) != rank(y.band))       return rank(x.band) < rank(y.band);
-            if (x.share != y.share)                 return x.share > y.share;
+            if (rank(x.band) != rank(y.band))         return rank(x.band) < rank(y.band);
+            if (x.score != y.score)                   return x.score > y.score;
+            if (x.share != y.share)                   return x.share > y.share;
             if (x.sessionsListed != y.sessionsListed) return x.sessionsListed > y.sessionsListed;
             return x.conditionId < y.conditionId;
         });
@@ -384,7 +400,7 @@ inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionPrioriti
         if (x.measurable) {
             if (x.habits != y.habits)         return x.habits > y.habits;
             if (x.occasional != y.occasional) return x.occasional > y.occasional;
-            const double wx = counts.value(x.group).worstShare, wy = counts.value(y.group).worstShare;
+            const double wx = counts.value(x.group).worstScore, wy = counts.value(y.group).worstScore;
             if (wx != wy)                     return wx > wy;
         }
         return order.indexOf(x.group) < order.indexOf(y.group);
