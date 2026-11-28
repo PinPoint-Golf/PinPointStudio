@@ -18,7 +18,7 @@ the x264 encode of a real clip, and QML.
 | 2 | ⚠ PPCP takes Manual's value, on purpose (`:142`) | `shot_source_map_test` |
 | 3 | ⚠ The two deadlines are ordered: the library's (7 s past impact) sits inside ours (6 s past the pause) (`:114`) | `shot_source_map_test` (the values and the order for every detector source); rig T4 (the wait ends at our deadline) |
 | 4 | ⚠ Reserve at detection, collect at the gather (`:305`, `:439`) | rig T3 (reserve called at the trigger with impact and impact + 7 s; collect after the pause) |
-| 5 | A trigger while busy, or with the buffer not capturing, is ignored with a log line (`:290`, `:295`) | rig `--xfail 281` (back-to-back: the second is ignored today, #281) |
+| 5 | A trigger while busy, or with the buffer not capturing, is ignored with a log line (`:290`, `:295`) | rig ONE1 (one shot at a time, by ruling: a swing while a shot is analysed, saved or replayed is refused, and nothing of it is taken; #281 closed as by design) |
 | 6 | The post-roll timer racing a teardown is a no-op (`:322`) | not pinned: a teardown pin is SD-8t's (#396) |
 | 7 | The pause: `pauseBuffer`, abort to idle if the buffer is not paused (`:349`) | rig R1 (the buffer is paused while the window is processed); the abort: not pinned, needs a buffer torn down mid-post-roll (SD-8t) |
 | 8 | ⚠ The window's bounds are frozen at the pause, not after the gather (`:358`, `.h:408`) | rig T2 (with a deferred source holding the gather open, the window still ends at the pause) |
@@ -64,12 +64,20 @@ the x264 encode of a real clip, and QML.
 | 43 | ⚠ `swingSaveBlocked` is a condition, not an event (`.h:274`) | rig W4 |
 | 44 | The UI-thread stall watchdog (`:215-230`) | not pinned: a diagnostic log line |
 
+## The ready rule (step 85; the owner, 28 Nov 2026)
+
+One shot at a time: the next shot is captured only once the current one is analysed and saved, and there is no queue.
+The trigger (`ShotController::armed`) then arms only once every device's buffer is active again: each device source
+that has written this session has written since the resume (rig READY1, red before it was built). After a shot the
+header's badge holds "not ready" until the trigger arms (`ShotController::notReadyAfterShot`; rig ONE1).
+
 ## The known bugs, and what the rig does not reach
 
 Each known bug is written to its right behaviour and run as its own test, expected to fail on today's code
-(`capture_rig_xfail_<issue>`): #188 (End while a shot is analysed, and in its post-roll), #281 (a swing while the
-previous one is processed is ignored), #53's capture half (a swing 0.3 s after the previous shot's resume misses about
-3.2 s of its start, because the resume clears the rings). Not reached: a late launch-monitor reading (#192), which needs
+(`capture_rig_xfail_<issue>`): #188 (End while a shot is analysed, and in its post-roll) and #53's capture half as it
+stands under the ruling: a shot whose impact lies before ready (a detector's or a phone's back-dated impact) is taken,
+and saved with no frame before its impact. (#281 is by design: rig ONE1. A swing just after ready with a short pre-roll
+is not designed for: the golfer takes longer than that to get ready to hit.) Not reached: a late launch-monitor reading (#192), which needs
 a stand-in launch monitor (under the headless switch no connector starts), and the edits of a card with no document at
 End (#235 (1)), which has no ruled right behaviour.
 

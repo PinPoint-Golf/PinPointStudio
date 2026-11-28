@@ -1,3 +1,4 @@
+# REJECTED, 28 Nov 2026, kept for the record: one shot at a time is the design (the owner; #394, step 85). Do not apply.
 # The overlapping-capture change for #281, parked on 25 Nov 2026 until #394's step 85 lands it.
 # Apply from the repository root with `git apply --3way` (it was made against main of 25 Nov 2026).
 diff --git a/docs/design/event_buffer_design.md b/docs/design/event_buffer_design.md

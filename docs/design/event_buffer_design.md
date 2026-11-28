@@ -57,7 +57,7 @@
 | 15 | **Hard bounds enforcement in release builds** — defence in depth on the producer/consumer contract |
 | 16 | **Formal `BufferState` machine** — `Idle → Capturing → Paused → Capturing → ...`; transitions are explicit, invalid transitions assert |
 | 17 | **`pause()` does not tear down DMA** — producer capture threads quiesce via atomic flag; merger drains reorder heap; rings freeze. `resume()` reverses with no kernel calls |
-| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; `swing_window_live_` atomic flag prevents deregistration while a window is live |
+| 18 | **`SwingWindow` is only valid after `pause()`** — analysis reads a frozen buffer; `swing_window_live_` atomic flag prevents deregistration while a window is live. Kept by ruling: one shot at a time, so the buffer stays paused from a shot's freeze until it is analysed and saved, and the next is captured only after; overlapping capture (a copied-out window, a queue) was rejected[^one-shot] |
 | 19 | **`WriteSlot::valid` flag** — `acquireWriteSlot()` returns `valid = false` when paused or when the source has been deregistered; capture threads check this flag and return early from callbacks; no blocking in capture path |
 | 20 | **Buffer lifetime = app lifetime** — `start()` called once at app launch with zero sources; `stop()` called on app exit via `aboutToQuit`; `pause()`/`resume()` are the capture gate driven by swing/ball detection; `startAll()`/`stopAll()` control camera pipelines only |
 | 21 | **Sparse slot array** — `sources_[MAX_SOURCES]` may contain null entries (deregistered slots); `slot_hwm_` is the iteration ceiling; `active_sources_` is the live count; null slots skipped atomically in all merger, watchdog, and diagnostics loops |
@@ -1563,3 +1563,5 @@ Revisit when the listed condition is met. Do not implement speculatively.
 | MJPEG / variable-payload validation path | First MJPEG-capable camera integrated |
 | `SwingWindow::copyPayloads()` — materialise frames to owned memory | Multi-swing comparison feature requested |
 | Thread-safe state transitions | Multiple application threads need to manage lifecycle |
+
+[^one-shot]: The owner, 28 Nov 2026 (#394, step 85): "the next shot should only be captured once the current shot has been analysed and saved"; "there is no queue". After the resume the shot trigger arms only once every device source that has written this session has written again (`ShotController::armed`, the ready rule): the resume clears the rings, so a device's first sample after it is what says its buffer is active again.

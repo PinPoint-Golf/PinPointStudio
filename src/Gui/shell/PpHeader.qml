@@ -272,11 +272,15 @@ Item {
 
     // Centre slot of the title bar (moved up from the session toolbar). Both are
     // siblings of the RowLayout so they centre on the bar itself, independent of
-    // the left/right clusters; the mid-bar region is otherwise empty. While a
-    // shot is being processed the ANALYSING badge takes the slot; otherwise the
-    // DETECT cluster (which is also the manual SHOT trigger) holds it. Gated to
-    // session screens — Replay/Analyse and non-session screens hide both.
-    readonly property bool _analysisActive: app.shotProcessor.busy && !app.shotProcessor.isReplaying
+    // the left/right clusters; the mid-bar region is otherwise empty. After a
+    // shot the ANALYSING badge takes the slot until the trigger is armed again —
+    // through the analysis and save, any in-window replay, and the wait for every
+    // device to capture again (app.shotController.notReadyAfterShot, a C++ fact:
+    // one shot at a time, the owner, 28 Nov 2026); otherwise the DETECT cluster
+    // (which is also the manual SHOT trigger) holds it, its dots listening when
+    // ready. Gated to session screens — Replay/Analyse and non-session screens
+    // hide both.
+    readonly property bool _analysisActive: app.shotController.notReadyAfterShot
 
     PpAnalysingBadge {
         anchors.centerIn: parent

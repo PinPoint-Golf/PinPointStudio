@@ -38,8 +38,9 @@
 //   T3  reserve at detection, collect at the gather; T4 the gather's own deadline, and its order against the library's;
 //   W1  the first write (R-REC-1), W2 the staged writes; W3 the Recording read once at the freeze; W4 a session folder
 //       that cannot be written (blocked, a card with no document);
+//   READY1 the trigger arms only once every device's buffer is active again; ONE1 one shot at a time (#281, by design);
 //   --xfail <issue>: the known bugs, each written to the right behaviour and expected to fail: #188 (End with a shot in
-//       flight, and in its post-roll), #281 (back-to-back), #53 (a swing soon after the previous shot).
+//       flight, and in its post-roll), #53 (a shot whose impact lies before ready is taken).
 // The stand-ins (step 81): the camera, VideoInputStandIn, registered with the device enumerator and created only in
 // this build; the deferred source, StandInDeferredSource below, handed to the processor beside the sensor manager's.
 //
@@ -131,6 +132,7 @@ public:
         using namespace std::chrono_literals;
         pinpoint::SourceDescriptor d;
         d.name                     = "rig-imu";
+        d.identifier               = "rig-imu";   // keys its session-lifetime count, as a real device's is
         d.window_duration          = 5000ms;
         d.expected_interarrival_us = std::chrono::microseconds(5000);
         pinpoint::ImuFormat f;
@@ -274,6 +276,17 @@ struct Rig {
         });
         cameraManager->setShotProcessor(processor.get());
         imuManager->setShotProcessor(processor.get());
+        // The shot trigger's wiring, as main.cpp makes it: a sensor's buffer change re-applies the capture intent; every
+        // buffer change re-evaluates the trigger; the processor's busy state disarms it; a detected shot drives the
+        // processor. (A case may still call the processor's onShotDetected itself, past the trigger's gate.)
+        QObject::connect(imuManager.get(), &ImuManager::bufferStateChanged, cameraManager.get(),
+                         &CameraManager::applyCaptureIntent);
+        QObject::connect(cameraManager.get(), &CameraManager::bufferStateChanged, shotController.get(),
+                         &ShotController::reevaluateArmed);
+        QObject::connect(shotController.get(), &ShotController::shotDetected, processor.get(),
+                         &ShotProcessor::onShotDetected);
+        QObject::connect(processor.get(), &ShotProcessor::busyChanged, shotController.get(),
+                         [this] { shotController->setProcessorBusy(processor->busy()); });
 
         QObject::connect(processor.get(), &ShotProcessor::shotProcessed, [this](int id, const QString &dir) {
             ++processed; lastShotId = id; lastSwingDir = dir;
@@ -827,6 +840,109 @@ void caseUnwritable(const pinpoint::test::IsolatedStores &iso)
     r->processor->endSessionFolder();
 }
 
+// ── The ready rule (#394, step 85; the owner, 28 Nov 2026: one shot at a time) ────────────────────────────────
+
+// The device sources (every one but the shot marker's) that have written this session, and whether each has written
+// since the buffer's last resume: "active". The buffer's per-source count is zeroed at each resume (the rings are
+// cleared); its session-lifetime count is not.
+struct DeviceActivity {
+    int devices = 0, active = 0;
+    QStringList waiting;   // the names of those not yet active
+    bool allActive() const { return devices > 0 && active == devices; }
+};
+DeviceActivity deviceActivity(pinpoint::EventBuffer &buffer)
+{
+    DeviceActivity a;
+    for (const auto &src : buffer.diagnostics().sources) {
+        if (src.identifier == "shot_controller" || src.lifetime_events_written == 0) continue;
+        ++a.devices;
+        if (src.events_written > 0) ++a.active;
+        else a.waiting << QString::fromStdString(src.name);
+    }
+    return a;
+}
+
+// READY1: after a shot, the trigger arms again only once every device's buffer is active again: each camera's and each
+// sensor's source has written since the resume. Taken through the shot trigger, as a golfer's shot is.
+void caseReady(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("READY1 the trigger arms only once every device's buffer is active again\n");
+    auto r = cameraRig(iso, QStringLiteral("ready1"));
+    if (!r) return;
+    check(waitFor([&] { return r->shotController->armed(); }, 5000), "armed after the Start, the camera connected");
+    int rearms = 0;
+    DeviceActivity atArm;
+    bool sawShot = false;
+    QObject::connect(r->shotController.get(), &ShotController::armedChanged, r->shotController.get(), [&] {
+        if (!r->shotController->armed()) { sawShot = true; return; }
+        if (!sawShot) return;
+        ++rearms;
+        atArm = deviceActivity(r->eventBuffer);
+    });
+    r->clearStates();
+    r->shotController->triggerShot(ShotController::Source::Manual);
+    check(r->processor->busy(), "the trigger's shot is taken");
+    check(waitFor([&] { return !r->processor->busy(); }, 30000), "it runs to its end");
+    check(waitFor([&] { return r->shotController->armed(); }, 5000), "and the trigger arms again");
+    std::printf("    at the re-arm: %d of %d devices active (waiting: %s)\n", atArm.active, atArm.devices,
+                qPrintable(atArm.waiting.join(QStringLiteral(", "))));
+    check(rearms == 1 && atArm.devices >= 2 && atArm.allActive(),
+          QStringLiteral("at the moment it armed, every device's buffer was active again (%1 of %2)")
+              .arg(atArm.active).arg(atArm.devices));
+    r->processor->endSessionFolder();
+}
+
+// ONE1 one shot at a time (the owner, 28 Nov 2026; #281, closed as by design). Through the shot trigger: from the
+// shot's trigger until the trigger arms again (its analysis, its save, its in-window replay, the wait for every device)
+// the trigger is disarmed and the header's "not ready" holds; a swing in that time is refused and nothing of it is
+// taken; once armed, "not ready" falls. The shot here is not reviewable on disk (its frames hold no golfer), so it gets
+// the in-window replay, which refuses the next swing too.
+void caseOneAtATime(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("ONE1 one shot at a time\n");
+    auto r = std::make_unique<Rig>(iso, QStringLiteral("one1"));
+    r->appSettings.setAutoReplayAfterCapture(true);
+    r->start();
+    check(r->connectStandInCamera(4500), "the stand-in camera is connected");
+    check(waitFor([&] { return r->shotController->armed() && !r->shotController->notReadyAfterShot(); }, 5000),
+          "armed and ready before the shot");
+    bool disarmedThroughout = true, notReadyThroughout = true, refusedDuringProcessing = false, refusedDuringReplay = false;
+    int detected = 0;   // shots the trigger let through
+    QObject::connect(r->shotController.get(), &ShotController::shotDetected, r->shotController.get(), [&] { ++detected; });
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        const QString st = r->processor->stateName();
+        if (st == QStringLiteral("idle")) return;
+        // Asked a turn later: the processor announces its state before its busy flag, which the trigger hears next.
+        QTimer::singleShot(0, r->processor.get(), [&] {
+            if (!r->processor->busy()) return;
+            disarmedThroughout = disarmedThroughout && !r->shotController->armed();
+            notReadyThroughout = notReadyThroughout && r->shotController->notReadyAfterShot();
+        });
+        if (st == QStringLiteral("processing") || st == QStringLiteral("replaying")) {
+            const bool replay = st == QStringLiteral("replaying");
+            QTimer::singleShot(0, r->processor.get(), [&, replay] {
+                const int before = detected;
+                r->shotController->triggerShot(ShotController::Source::Manual);   // a swing now
+                (replay ? refusedDuringReplay : refusedDuringProcessing) = detected == before && !r->shotController->armed();
+            });
+        }
+    });
+    r->clearStates();
+    r->shotController->triggerShot(ShotController::Source::Manual);
+    check(waitFor([&] { return !r->processor->busy(); }, 30000), "the shot runs to its end");
+    check(r->states == QStringList({ "postroll", "processing", "replaying", "idle" }),
+          "one shot, with its in-window replay: " + r->states.join(QLatin1Char(' ')));
+    check(disarmedThroughout && notReadyThroughout, "the trigger is disarmed, and \"not ready\" holds, at every step of it");
+    check(refusedDuringProcessing, "a swing while it is analysed and saved is refused");
+    check(refusedDuringReplay, "a swing during its in-window replay is refused");
+    check(waitFor([&] { return r->shotController->armed() && !r->shotController->notReadyAfterShot(); }, 5000),
+          "then the trigger arms, and \"not ready\" falls");
+    check(swingDocuments(r->library).size() == 1 && r->processor->lastSwingDir().endsWith(QStringLiteral("swing_0001")),
+          "one document: nothing of the refused swings was taken");
+    r->processor->endSessionFolder();
+    check(!r->shotController->notReadyAfterShot(), "after End, nothing is waited for");
+}
+
 // ── The known bugs: each written to the right behaviour, and expected to fail on today's code ──────────────────
 // Run one with --xfail <issue>; ctest runs each as its own test (cmake/PinPointCaptureRig.cmake), which passes only
 // while the right behaviour is NOT seen (an expected failure), fails as soon as it is (the bug is gone: make the case
@@ -894,63 +1010,42 @@ bool xfailEndInPostRoll(const pinpoint::test::IsolatedStores &iso)
     return landed == running && libraryTrashEmpty(*r);
 }
 
-// #281: a swing hit while the previous one is analysing is never detected. RIGHT: both swings are saved. The second
-// is triggered at the processor while the first is processed (the shot controller's busy gate would drop it sooner).
-bool xfailBackToBack(const pinpoint::test::IsolatedStores &iso)
+// #53, what is left of its capture half under the ruling (the owner, 28 Nov 2026: one shot at a time; ready once every
+// device captures again). A shot whose impact lies BEFORE ready is taken: a detector's, or a phone's, back-dated impact
+// can name an instant when the trigger was still disarmed and the rings were still being cleared, as on 20 Oct (that
+// swing's impact sits 264 ms before its first frame). RIGHT: a shot whose impact precedes the moment the trigger armed
+// is refused, as the swing was hit while not ready. Today it is taken, and saved with no frame before its impact.
+bool xfailImpactBeforeReady(const pinpoint::test::IsolatedStores &iso)
 {
-    std::printf("X281 back-to-back: a swing while the previous one is processed\n");
-    auto r = cameraRig(iso, QStringLiteral("x281"), /*skipAnalysis=*/true);
-    if (!r) return false;
-    bool second = false;
-    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
-        if (r->processor->stateName() == QStringLiteral("processing") && !second) {
-            second = true;
-            QTimer::singleShot(0, r->processor.get(), [&] {
-                r->processor->onShotDetected(ShotController::Source::Manual, pinpoint::EventBuffer::nowMicros(), 0);
-            });
-        }
-    });
-    r->swing();
-    waitFor([&] { return !r->processor->busy(); }, 30000);
-    waitFor([] { return false; }, 2000);   // a second shot, had it been taken, would be under way by now
-    waitFor([&] { return !r->processor->busy(); }, 30000);
-    const QStringList docs = swingDocuments(r->library);
-    std::printf("    documents: %s\n", qPrintable(docs.join(QStringLiteral(", "))));
-    r->processor->endSessionFolder();
-    check(second && !docs.isEmpty() && r->processed >= 1,
-          "X281 the first shot was saved and processed, and the second was triggered while it was processed");
-    return docs.size() == 2;
-}
-
-// #53 (its capture half): a swing soon after the previous shot is saved with its clip starting late. The previous
-// shot's resume clears the rings, so a swing hit 0.3 s after it has 0.3 s of frames before its impact, not the
-// window's 2.7 s. RIGHT: a full-length clip on every camera (the capture check's lateStart is not set).
-bool xfailSoonAfter(const pinpoint::test::IsolatedStores &iso)
-{
-    std::printf("X53 a swing soon after the previous shot\n");
+    std::printf("X53 a shot whose impact lies before ready\n");
     auto r = cameraRig(iso, QStringLiteral("x53"), /*skipAnalysis=*/true);
     if (!r) return false;
-    const bool first = r->swing(ShotController::Source::Manual, /*backMs=*/0);
-    const pinpoint::PersistedShot one = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
-    waitFor([] { return false; }, 300);
-    const bool secondIdle = r->swing(ShotController::Source::Manual, /*backMs=*/0);
-    const pinpoint::PersistedShot two = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
-    std::printf("    the first shot's capture warning: %s\n    the second's: %s\n",
-                qPrintable(QJsonDocument(QJsonObject::fromVariantMap(one.dataWarningDetail)).toJson(QJsonDocument::Compact)),
-                qPrintable(QJsonDocument(QJsonObject::fromVariantMap(two.dataWarningDetail)).toJson(QJsonDocument::Compact)));
+    r->shotController->triggerShot(ShotController::Source::Manual);
+    const bool firstTaken = r->processor->busy();
+    const bool firstDone  = waitFor([&] { return !r->processor->busy(); }, 30000);
+    const bool ready      = waitFor([&] { return r->shotController->armed(); }, 5000);
+    const qint64 readyUs  = pinpoint::EventBuffer::nowMicros();
+    const QString firstDir = r->processor->lastSwingDir();
+    // An acoustic detection committed now, its impact back-dated 400 ms, to before the trigger armed.
+    r->shotController->triggerShot(ShotController::Source::Acoustic, readyUs - 400'000);
+    const bool secondTaken = r->processor->busy();
+    waitFor([&] { return !r->processor->busy(); }, 30000);
+    if (secondTaken) {
+        const pinpoint::PersistedShot two = pinpoint::SwingDocReader::readSwingJson(r->processor->lastSwingDir());
+        std::printf("    taken; its capture warning: %s\n",
+                    qPrintable(QJsonDocument(QJsonObject::fromVariantMap(two.dataWarningDetail)).toJson(QJsonDocument::Compact)));
+    }
     r->processor->endSessionFolder();
-    check(first && one.ok && !one.dataWarningDetail.value(QStringLiteral("lateStart")).toBool(),
-          "X53 the control: the first shot, after a full pre-roll, is full length");
-    check(secondIdle && two.ok && two.hasVideo, "X53 the second shot ran to its end and was saved with its video");
-    return !two.dataWarningDetail.value(QStringLiteral("lateStart")).toBool();
+    check(firstTaken && firstDone && ready && pinpoint::SwingDocReader::readSwingJson(firstDir).ok,
+          "X53 the first shot was taken and saved, and the trigger armed again");
+    return !secondTaken;
 }
 
 struct KnownBug { const char *issue; bool (*run)(const pinpoint::test::IsolatedStores &); const char *right; };
 const KnownBug kKnownBugs[] = {
     { "188",  xfailEndInFlight,   "a shot ended while being processed lands in its own session" },
     { "188b", xfailEndInPostRoll, "a shot ended in its post-roll lands in its own session" },
-    { "281",  xfailBackToBack,    "a swing hit while the previous one is processed is saved too" },
-    { "53",   xfailSoonAfter,     "a swing soon after the previous shot has a full-length clip" },
+    { "53",   xfailImpactBeforeReady, "a shot whose impact lies before ready is refused" },
 };
 
 } // namespace
@@ -1009,6 +1104,8 @@ int main(int argc, char **argv)
     caseWrites(iso);
     caseFrozenRecording(iso);
     caseUnwritable(iso);
+    caseReady(iso);
+    caseOneAtATime(iso);
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;

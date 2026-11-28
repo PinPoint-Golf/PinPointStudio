@@ -13,7 +13,7 @@ These are working documents, not governance: where one disagrees with `governanc
 | `visits/` | The visit plan: the 26 Nov re-cut (`RECUT-26nov.md`), visit 2 folded into visit 3 (`FOLD-2-into-3.md`), and the earlier visits' procedures as the pattern for visit 3's (#397's step 96 writes `VISIT-3.md`) | #390, #395–#401 |
 | `standing-C.md` | The rules every Stage C brief carries, beyond #402 | #377–#380, #400 |
 | `pending-tools/` | Three scripts not yet in `tools/`: `ring_census.py` and `link_census.py` (step 18, #381, moves them into `tools/refactor/` with their tests), and `count_includers.py` (the includer count a scripted move's proof uses) | #381–#383, every scripted move |
-| `parked/281-overlap.patch` | The overlapping-capture change for #281, built and parked on 25 Nov 2026 | #394, step 85 |
+| `parked/281-overlap.patch` | The overlapping-capture change for #281, built and parked on 25 Nov 2026; **rejected 28 Nov 2026** (one shot at a time is the design), kept for the record | none (#394's step 85 became the ready rule) |
 | `notes/` | Earlier items' notes that later briefs read (B0.2b, B0.4, B0.5, B1.4 and its review; the #281 investigation behind the parked patch; every Stage B Part 1 item's notes and review in `stage-B1/`, for #376's count of leftovers), and the Stage B build-time baseline (`build-times-e10eddf7.txt`, `build-times-a7a6b4b2.txt`, taken on the studio PC on 24 Nov 2026) | #376, #381–#384, #394 |
 
 Earlier items' notes that these files mention by a `build/platform/…` path, and the per-item information-model excerpts, were not kept: the items they describe have landed, and their commits carry what was done. Read the information model by section instead of an excerpt.

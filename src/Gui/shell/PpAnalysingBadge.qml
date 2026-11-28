@@ -19,9 +19,10 @@
 // Post-shot ANALYSING badge — label + elapsed time on the top line, a filling
 // progress bar (sweeping sheen + leading-edge twinkles) beneath. Lifted out of
 // PpSessionToolbar so the title bar (PpHeader) can host it in the centre slot,
-// taking the DETECT cluster's place while a shot is processed (post-roll +
-// analysis + export; it hides again once the on-screen replay runs). Pure
-// presentation: the PLACEMENT
+// taking the DETECT cluster's place after a shot until the trigger arms again
+// (post-roll + analysis + export, then any in-window replay and the wait for
+// every device to capture again). Once the shot is no longer analysing it says
+// only "not ready", with no bar. Pure presentation: the PLACEMENT
 // SITE owns the visibility gate. All motion is gated on Theme.reduceMotion; the
 // plain filling bar remains. Reads the global shotProcessor context property.
 //
@@ -46,9 +47,11 @@ Rectangle {
     border.width: 1
     border.color: Theme.colorBorderMid
 
-    readonly property bool sparkling: visible && !Theme.reduceMotion
+    readonly property bool sparkling: visible && analysing && !Theme.reduceMotion
     // The next swing cannot be detected or recorded now.
     readonly property bool notReady: !app.shotController.armed
+    // Still analysing or saving the shot (not its replay, not the wait for the devices).
+    readonly property bool analysing: app.shotProcessor.busy && !app.shotProcessor.isReplaying
 
     // Elapsed wall-time since the shot started processing (post-roll included).
     // Hidden for the first second so instant analyses never flash a "0s".
@@ -88,9 +91,11 @@ Rectangle {
 
                 PpMicro {
                     id: analysingLbl
-                    text: analysingBox.notReady
-                          ? Theme.caps(qsTr("Analysing: not ready for the next swing"))
-                          : Theme.caps(qsTr("Analysing"))
+                    text: !analysingBox.analysing
+                          ? Theme.caps(qsTr("Not ready for the next swing"))
+                          : analysingBox.notReady
+                            ? Theme.caps(qsTr("Analysing: not ready for the next swing"))
+                            : Theme.caps(qsTr("Analysing"))
                 }
             }
 
@@ -114,6 +119,7 @@ Rectangle {
 
         Item {
             id: analyseBar
+            visible: analysingBox.analysing   // the analysis's own progress; none once it has finished
             width: parent.width
             height: Theme.sp(4)
 

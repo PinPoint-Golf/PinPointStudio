@@ -1,6 +1,8 @@
 # NOTES-281: a swing hit while the previous one analyses is never detected, and the next one's clip is short (#281 part A)
 
-**State: built and green on the Mac; seam-tested only; unverified at the studio PC; uncommitted.**
+**REJECTED, 28 Nov 2026, kept for the record.** The owner: "the next shot should only be captured once the current shot has been analysed and saved"; "there is no queue". One shot at a time is the design; the trigger arms once every device's buffer is active again (#394, step 85). Nothing below is to be built.
+
+**State (before the ruling): built and green on the Mac; seam-tested only; unverified at the studio PC; uncommitted.**
 - **This is not a minimal fix, and it could not be.** Re-arming the detector alone would detect a shot that has no
   frames: the paused buffer records nothing, and the resume clears the rings.
 - The brief's "detected and fully captured while an earlier shot analyses" is the "overlapping shot processing" that

@@ -77,6 +77,11 @@ class ShotController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool armed READ armed NOTIFY armedChanged)
+    // NOT READY FOR THE NEXT SWING, AFTER A SHOT (the owner, 28 Nov 2026: one shot at a time): from a shot's trigger
+    // until the trigger arms again, through its post-roll, analysis, save and any in-window replay, and the wait for
+    // every device's buffer to be active again. False once armed, and once capture has stopped with no shot in flight
+    // (nothing to wait for). The header's ANALYSING badge stays up while it holds (PpHeader.qml).
+    Q_PROPERTY(bool notReadyAfterShot READ notReadyAfterShot NOTIFY notReadyAfterShotChanged)
 
 public:
     // ⚠ THE ORDINALS ARE PERSISTED AND ONE OF THEM IS LOAD-BEARING.  `Acoustic`
@@ -106,9 +111,17 @@ public:
     // reached for the PPCP bridge here and that was the 27 Aug crash.
     ~ShotController() override;
 
-    // True while the buffer is capturing AND the shot processor is idle — the
+    // True while the buffer is capturing AND the shot processor is idle AND every device's buffer is active — the
     // only state a shot can fire in. Every source inherits the gate.
+    //
+    // ⚠ THE READY RULE (the owner, 28 Nov 2026): "the next shot should only be captured once the current shot has been
+    // analysed and saved", and ready only once "the buffer is active for all items on the rig". A resume clears the
+    // rings, so at the instant capture resumes no device has written yet: the trigger waits until every device source
+    // that has written this session (every camera's, sensor's and HackMotion unit's; the shot marker's own aside; a
+    // source that never writes, as a phone's preview-only camera, is not waited for) has written again since the resume.
+    // No fill time: the golfer takes longer than that to get ready to hit.
     bool armed() const;
+    bool notReadyAfterShot() const { return m_processorBusy || m_awaitingReady; }
 
     // Direct commit — bypasses the arbiter hold. timestampUs: precise impact
     // instant in EventBuffer::nowMicros() domain (steady_clock µs); -1 →
@@ -250,6 +263,7 @@ signals:
     // (-1 = none — unreachable through the UI, where capture implies a session).
     void shotDetected(ShotController::Source source, qint64 timestampUs, int sessionType);
     void armedChanged();
+    void notReadyAfterShotChanged();
 
     // A device's Shot that this host declined to record, and why in one line
     // fit for a person: the golfer hit a ball and nothing came of it, so
@@ -314,6 +328,15 @@ private:
     bool                   m_processorBusy = false;
     bool                   m_reviewActive  = false;
     bool                   m_lastArmed = false;
+    // The ready rule (armed()): every device source active since the last resume, worked out by devicesActive() while
+    // everything else says armed, and polled (m_readyPoll) until it holds, since a device's first sample after a resume
+    // raises no signal of its own.
+    bool                   m_devicesActive = true;
+    QTimer                 m_readyPoll;
+    bool                   m_awaitingReady = false;   // a shot was taken and the trigger has not armed since
+    bool                   m_lastNotReady  = false;
+    bool                   baseArmed() const;          // armed() but for the devices
+    bool                   devicesActive() const;
 
     pinpoint::ShotArbiter  m_arbiter;
     QTimer                 m_arbTimer;   // single-shot hold-window deadline

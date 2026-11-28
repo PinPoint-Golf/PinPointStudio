@@ -23,7 +23,7 @@
 // This cluster is ALSO the manual shot trigger — it REPLACES the old toolbar
 // SHOT button. A frame fades in on hover (armed only) and a click fires
 // shotController.triggerShot() with the same brief accent border-flash the SHOT
-// button used. `armed` tracks shotController.armed (buffer capturing + processor
+// button used. `armed` tracks shotController.armed (buffer capturing, every device capturing again, + processor
 // idle), so a disarmed click is a no-op and the hover frame / pointer cursor do
 // not appear. The placement site still owns the OUTER visibility gate (session
 // screen + Capture mode). Reads the context globals imuManager / cameraManager /

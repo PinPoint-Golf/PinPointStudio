@@ -83,7 +83,11 @@ ShotController::ShotController(pinpoint::EventBuffer *buffer,
 
     m_arbTimer.setSingleShot(true);
     connect(&m_arbTimer, &QTimer::timeout, this, &ShotController::onArbHoldExpired);
+    // The ready rule's poll: every 20 ms while all but the devices say armed (reevaluateArmed starts and stops it).
+    m_readyPoll.setInterval(20);
+    connect(&m_readyPoll, &QTimer::timeout, this, &ShotController::reevaluateArmed);
 
+    m_devicesActive = devicesActive();
     m_lastArmed = armed();
 }
 
@@ -96,9 +100,29 @@ ShotController::~ShotController()
     // it is gone, so there is no teardown obligation left to get wrong.
 }
 
-bool ShotController::armed() const
+bool ShotController::baseArmed() const
 {
     return m_buffer && m_buffer->isCapturing() && !m_processorBusy && !m_reviewActive;
+}
+
+bool ShotController::armed() const
+{
+    return baseArmed() && m_devicesActive;
+}
+
+bool ShotController::devicesActive() const
+{
+    if (!m_buffer)
+        return true;
+    // The buffer's per-source count is zeroed at each resume (the rings are cleared); its session-lifetime count is
+    // not, so a source that has written this session and not since the resume is a device not yet active again.
+    for (const auto &src : m_buffer->diagnostics().sources) {
+        if (src.id == m_sourceId || src.lifetime_events_written == 0)
+            continue;
+        if (src.events_written == 0)
+            return false;
+    }
+    return true;
 }
 
 const char *ShotController::disarmReason() const
@@ -109,6 +133,7 @@ const char *ShotController::disarmReason() const
     if (m_reviewActive)                           return "review_mode";
     if (!m_buffer || !m_buffer->isCapturing())    return "session_ended";
     if (m_processorBusy)                          return "busy";
+    if (!m_devicesActive)                         return "busy";   // not ready: a device not yet capturing again
     return nullptr;
 }
 
@@ -130,7 +155,23 @@ void ShotController::setReviewActive(bool active)
 
 void ShotController::reevaluateArmed()
 {
+    // The devices are asked only while everything else says armed: a paused buffer, a busy processor or review disarm
+    // it whatever they say, and the poll runs only while they are all that stands between the trigger and ready.
+    const bool base = baseArmed();
+    m_devicesActive = base ? devicesActive() : false;
+    if (base && !m_devicesActive) {
+        if (!m_readyPoll.isActive()) m_readyPoll.start();
+    } else {
+        m_readyPoll.stop();
+    }
     const bool now = armed();
+    // After a shot: not ready until armed again, or until capture has stopped with no shot in flight.
+    if (now || (!m_processorBusy && !(m_buffer && m_buffer->isCapturing())))
+        m_awaitingReady = false;
+    if (notReadyAfterShot() != m_lastNotReady) {
+        m_lastNotReady = notReadyAfterShot();
+        emit notReadyAfterShotChanged();
+    }
     if (now == m_lastArmed)
         return;
     m_lastArmed = now;
@@ -554,9 +595,9 @@ bool ShotController::commitShot(Source source, qint64 timestampUs, const QString
         // the processor is busy is an ordinary miss and stays quiet; this is
         // not that, so it is said out loud.
         //
-        // The real fix is overlapping shot processing — the pipeline is
-        // unavailable for 15-40 s per shot, which a golfer hitting a bucket
-        // will outrun.  Deliberately not attempted here.
+        // One shot at a time is BY DESIGN (the owner, 28 Nov 2026: "the next shot
+        // should only be captured once the current shot has been analysed and
+        // saved"; #281). Overlapping capture was built, parked and rejected.
         if (source == Source::Ppcp) {
             // ⭐ MSG 8.5 — WHICH OF armed()'s THREE CONDITIONS DROPPED IT, because
             // that is the reason the phone is given and a person may be shown:
@@ -610,7 +651,9 @@ bool ShotController::commitShot(Source source, qint64 timestampUs, const QString
 
     ppInfo() << "[ShotController] shot detected — source" << sourceName(source)
              << "impact_ts_us" << impactUs << "sessionType" << sessionType;
+    m_awaitingReady = true;   // not ready for the next swing until the trigger arms again (notReadyAfterShot)
     emit shotDetected(source, impactUs, sessionType);
+    reevaluateArmed();        // settles it if no processor took the shot
     return true;
 }
 
