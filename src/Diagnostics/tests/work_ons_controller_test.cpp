@@ -2551,6 +2551,24 @@ int main(int argc, char **argv)
     checkSummaryShape(c, themesFile(golfer), "two small sessions");
     check(praiseRuleHolds(c, "two small sessions"),
           "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
+    {
+        // Stage-organised Coaching plan (coaching_plan.h): Setup (ball_back) sits in setupChecks as a
+        // static pre-shot check, while Your focus picks the dynamic habit (reverse_spine_p4 at Backswing & top).
+        const pinpoint::coachingui::CoachingPlanView plan = c.coachingPlan();
+        check(plan.ready && plan.setupChecks.size() == 1
+                  && plan.setupChecks.first().conditionId == QStringLiteral("ball_back"),
+              "coachingPlan: static Setup habit goes to setupChecks, never hijacking Your focus");
+        check(plan.focus.present && plan.focus.focusConditionId == QStringLiteral("reverse_spine_p4")
+                  && plan.focus.stageKey == QStringLiteral("backswingTop")
+                  && plan.focus.stageLabel == QStringLiteral("Backswing & top"),
+              "coachingPlan: Your focus picks the dynamic Backswing & top habit");
+        check(plan.stages.size() == 3 && plan.stages[0].key == QStringLiteral("backswingTop")
+                  && plan.stages[0].items.size() == 1
+                  && plan.stages[0].items[0].conditionId == QStringLiteral("reverse_spine_p4")
+                  && plan.stages[0].items[0].isFocus
+                  && plan.stages[1].items.empty() && plan.stages[2].items.empty(),
+              "coachingPlan: all three dynamic stages present, Backswing & top holds focus with isFocus set");
+    }
 
     // ── The list ────────────────────────────────────────────────────────────────
     check(c.items().size() == 3 && c.clearedCount() == 0, "three work-ons, the outcome is not one of them");

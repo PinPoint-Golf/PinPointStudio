@@ -41,30 +41,66 @@ Item {
         property bool   summaryReady: true
         property bool   summaryUpdating: false
         property string summarySubtitle: "From 180 swings over 6 sessions"
-        property var focusItem: ({
-            present: true,
-            title: "Trail hip load and hold",
-            aimFor: ["your trail knee keeps its flex going back", "your hips turn in place going back"],
-            rightNow: [
-                { text: "your trail leg straightens going back", share: 0.95, frequency: "almost every swing",
-                  trend: 0, sessions: [true, true, true, true] },
-                { text: "your hips sway away from the target going back", share: 0.6,
-                  frequency: "more than half your swings", trend: 1, sessions: [false, true, true, true, true] }],
-            why: "A straight trail leg lets your hips slide instead of turn.",
-            practiseLabel: "Trail hip load and hold",
-            practise: "Take your address position, make a slow backswing turn, and stop at the top.",
-            reason: "Picked first: it comes earliest in your swing and covers two of the things on your list.",
-            reasonShort: "covers 2 things on your list · comes earliest in your swing",
-            focusConditionId: "trail_knee_straighten"
+        property var coachingPlan: ({
+            ready: true,
+            setupChecks: [
+                { conditionId: "ball_back", text: "The ball is too far back", share: 0.85, score: 0.62,
+                  frequency: "most swings", trend: 0, sessions: [true, true, true],
+                  isFocus: false, upstreamNote: "", onTheBall: "", outcomeContrast: "" }
+            ],
+            focus: {
+                present: true,
+                title: "Trail hip load and hold",
+                stageKey: "backswingTop",
+                stageLabel: "Backswing & top",
+                aimFor: ["Your trail knee keeps its flex going back", "Your hips turn in place going back"],
+                rightNow: [
+                    { conditionId: "trail_knee_straighten", text: "Your trail leg straightens going back",
+                      share: 0.95, score: 0.85, frequency: "almost every swing",
+                      trend: 0, sessions: [true, true, true, true], isFocus: true, upstreamNote: "",
+                      onTheBall: "", outcomeContrast: "" },
+                    { conditionId: "sway", text: "Your hips sway away from the target going back",
+                      share: 0.6, score: 0.45, frequency: "more than half your swings",
+                      trend: 1, sessions: [false, true, true, true, true], isFocus: true, upstreamNote: "",
+                      onTheBall: "", outcomeContrast: "" }
+                ],
+                why: "A straight trail leg lets your hips slide instead of turn.",
+                practiseLabel: "Trail hip load and hold",
+                practise: "Take your address position, make a slow backswing turn, and stop at the top.",
+                reasonShort: "Starts earliest in your swing · covers 2 habits",
+                focusConditionId: "trail_knee_straighten",
+                onTheBall: "",
+                outcomeContrast: ""
+            },
+            stages: [
+                {
+                    key: "backswingTop", label: "Backswing & top", habitCount: 2,
+                    items: [
+                        { conditionId: "trail_knee_straighten", text: "Your trail leg straightens going back",
+                          share: 0.95, score: 0.85, frequency: "almost every swing",
+                          trend: 0, sessions: [true, true, true, true], isFocus: true, upstreamNote: "",
+                          onTheBall: "", outcomeContrast: "" },
+                        { conditionId: "sway", text: "Your hips sway away from the target going back",
+                          share: 0.6, score: 0.45, frequency: "more than half your swings",
+                          trend: 1, sessions: [false, true, true, true, true], isFocus: true, upstreamNote: "",
+                          onTheBall: "", outcomeContrast: "" }
+                    ]
+                },
+                {
+                    key: "downswingImpact", label: "Downswing & impact", habitCount: 1,
+                    items: [
+                        { conditionId: "early_extension", text: "Your hips move toward the ball",
+                          share: 0.9, score: 0.78, frequency: "almost every swing",
+                          trend: 0, sessions: [true, true, true, true], isFocus: false,
+                          upstreamNote: "May follow from your hips sway away from the target going back",
+                          onTheBall: "", outcomeContrast: "" }
+                    ]
+                }
+            ]
         })
-        property var doWellItems: [
-            { text: "you keep your arms wide at the top", caption: "in the ideal range on almost every swing",
-              share: 0.9, sessions: [true, true, true, true, true] }]
-        property var nextItems: [
-            { text: "your hands come over the top coming down", share: 1.0, frequency: "almost every swing",
-              trend: 0, sessions: [true, true, true, true] },
-            { text: "your body turns in the wrong order coming down", share: 0.7, frequency: "most swings",
-              trend: -1, sessions: [true, true, true] }]
+        property var focusItem: coachingPlan.focus
+        property var doWellItems: []
+        property var nextItems: []
         property var areaItems: []
         // Matchups (HmGoesTogether, given this controller by HmHomeTabs): nothing that travels together yet
         property var    togetherItems: []
@@ -497,7 +533,8 @@ Item {
         function test_focus_rows_and_why_how_one_click_down() {
             verify(waitForPolish(one(tabs, "focusCard").parent))
             compare(one(tabs, "focusTitle").text, "Trail hip load and hold")
-            compare(one(tabs, "focusReason").text, "covers 2 things on your list · comes earliest in your swing")
+            compare(one(tabs, "focusReason").text, "Starts earliest in your swing · covers 2 habits")
+            verify(drawn(one(tabs, "focusStageChip")))
             const aims = all(tabs, "focusAim"), nows = all(tabs, "focusNow")
             compare(aims.length, 2)
             compare(nows.length, 2)
@@ -519,19 +556,14 @@ Item {
             verify(drawn(one(tabs, "focusWhy")))
         }
 
-        function test_do_well_and_next_rows() {
-            const well = all(tabs, "doWellItem"), next = all(tabs, "nextItem")
-            compare(well.length, 1)
-            compare(next.length, 2)
-            verify(well.every(drawn) && next.every(drawn))
-            compare(well[0].captionText, "in the ideal range on almost every swing")
-            // the do-well meter shows the share: 0.9 → nine segments lit
-            const meter = all(well[0], "meterSegment")
-            compare(meter.length, 10)
-            compare(meter[0].parent.filled, 9)
-            const chips = next.map((it) => drawn(one(it, "nextChip")))
-            verify(chips[0] && !chips[1], "only the first wears Next")
-            verify(!drawn(one(tabs, "doWellEmpty")))
+        function test_setup_checks_and_stage_rows() {
+            const setup = all(tabs, "setupCheckItem"), staged = all(tabs, "stageFaultItem")
+            compare(setup.length, 1)
+            compare(staged.length, 3)
+            verify(setup.every(drawn) && staged.every(drawn))
+            compare(all(tabs, "doWellItem").length, 0, "What you do well is retired from Coaching")
+            const focusChips = staged.map((it) => drawn(one(it, "stageFocusChip")))
+            verify(focusChips[0] && focusChips[1] && !focusChips[2], "focus items wear Focus in their stage")
             verify(!drawn(one(tabs, "needsWorkEmpty")))
             compare(all(tabs, "diagnosticsLink").length, 0, "the old 'Swing diagnostics →' row is gone")
         }

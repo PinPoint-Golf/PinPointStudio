@@ -16,42 +16,21 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// COACHING — the current athlete's swing as a short coaching page: the body of Home's Coaching tab
-// (HmHomeTabs), in the §2.5 visual language (docs/design/ux_refactor_away_from_4_modes/
-// 03_home_coaching.png; the golfer's rules are docs/design/home_themes_design.md's). Drawn for a
-// typical golfer, to be LOOKED at before it is read, with one thing to the fore:
+// COACHING — the golfer's swing organised by swing stage (coaching_plan.h), built from the same
+// habit pool as Home's "Your swing" tab so every recurring habit (and every area's Biggest fault
+// when it is a habit) is accounted for here in sequence:
 //
-//   Your focus         HmFocus: the one drill to practise, the ideal it aims at, the faults it
-//                      covers, and — one click down — why it matters and how to practise it
-//   What you do well   a table card: a strength dot, the phrase with what backs it beneath, the
-//                      ten-step meter of how often it holds, one pip per session
-//   Next on your list  a table card in the same grammar: a fault ring, the phrase with how often
-//                      in words beneath (and a trend tag when there is one), the meter, the pips;
-//                      the first wears a "Next" tag. A fault opens in place (HmFaultDetail): what
-//                      it costs, where it stands, the drill, the way into its session
+//   Before you swing      static Setup checks (set before motion begins — never a swing thought,
+//                         shown only when the golfer has Setup habits)
+//   Your focus            HmFocus: ONE dynamic swing thought to practise, with aim, current rate,
+//                         why it matters, how to practise, and Practice button
+//   Your swing by stage   the in-motion swing in order (Backswing & top, Downswing & impact,
+//                         Finish), ranked by Wilson lower bound inside each stage, with a Focus
+//                         tag on the active focus items and gentle upstream notes when an earlier
+//                         active habit feeds a later one
 //
-// No metrics, no P-positions, no figures except distances (always with a unit and ± SD; a modelled one says
-// what it is against), no claims about cause except "because" for a ball ← club link measured on the shot
-// (shot_outcomes_design.md §1) — a golfer reads this. Colour is never the only channel: the meter carries a count of segments, and each has words beside it.
-// The evidence line ("From N swings over M sessions") and the way into every work-on ("All
-// work-ons ▸") are the tab bar's, not this page's.
-//
-// Every string is WorkOnsController's (swingSummaryView over the pack's golfer phrases):
-//   summaryReady, summaryUpdating, updating, athleteDir
-//   focusItem      see HmFocus.qml
-//   doWellItems    [{ text, caption, share 0..1, sessions: [bool…] }]
-//   nextItems      [{ text, share 0..1, frequency, trend -1|0|1, sessions: [bool…], onTheBall, outcomeContrast }]
-//                  outcomeContrast: under one outcome (HmHomeTabs' outcome filter), how often on those shots
-//                  against the golfer's other shots; empty under All shots, and then not drawn. A fault opened
-//                  here does not repeat it (HmFaultRow's showOutcomeContrast stays false)
-//   outcomeTooFewNote  under one outcome, when too few of its shots had the swing measured: shown in place of
-//                  both cards' empty words ("Nothing stands out here yet." / "Nothing else shows up on most of
-//                  your swings."), never in place of a listed item; "" otherwise
-// This file positions and paints. Before the first summary lands it says it is reading, and with
-// no session to read it says "Nothing yet".
-//
-// The pips are the LATEST maxPips (hm_text.js) judged sessions, oldest first, so a long history keeps the row
-// its width; the "Sessions" caption heads them.
+// Every fault row opens its full detail in place (HmFaultRow -> HmFaultDetail), one at a time.
+// Golfer words only (DC-9, design_system/README.md): no P-codes, no raw metrics, no causal claims.
 
 import QtQuick
 import PinPointStudio
@@ -64,45 +43,65 @@ Column {
     // The controller. Passed in rather than reached for, so a harness can drive the component.
     property var controller: ((typeof app !== "undefined" && !!app.workOns)) ? app.workOns : null
 
-    // The focus card's Practise.
+    // The focus card's Practice.
     signal practiseRequested(string conditionId, string label)
     // An open fault's "Review the … session →", here or on the focus card.
     signal reviewSessionRequested(string sessionDir)
 
-    // The Next on your list fault open in place ("" when none): one at a time (HmFaultRow).
+    // The fault open in place across Before you swing and Your swing by stage ("" when none).
     property string openId: ""
+    // Stage keys expanded past stageLimit ("backswingTop": true, …), for this sitting only.
+    property var expandedStages: ({})
 
-    readonly property var    doWell:    controller ? controller.doWellItems    : []
-    readonly property var    needsWork: controller ? controller.nextItems      : []
-    readonly property bool   ready:     controller ? controller.summaryReady    : false
-    readonly property bool   updating:  controller ? controller.summaryUpdating : false
-    // The work-ons catch-up comes first; the summary is read off what it leaves current.
-    readonly property bool   catchingUp: controller ? controller.updating       : false
-    // Under one outcome, when too few of its shots had the swing measured: said in place of both cards' empty
-    // words, so an empty card never reads as "no faults" when it means "not measured". "" otherwise (and for a
-    // controller or mock without the property).
-    readonly property string tooFewNote: controller && controller.outcomeTooFewNote !== undefined
-                                         ? (controller.outcomeTooFewNote || "") : ""
+    readonly property int stageLimit: 3
 
-    // Two cards side by side down to this width; below it they stack.
-    readonly property bool stacked: width < Theme.sp(640)
+    readonly property var    plan:        controller && controller.coachingPlan !== undefined
+                                          ? controller.coachingPlan : null
+    readonly property bool   hasPlan:     plan !== null
+    readonly property bool   ready:       hasPlan ? !!plan.ready : (controller ? controller.summaryReady : false)
+    readonly property bool   updating:    controller ? (controller.updating || controller.summaryUpdating) : false
+    readonly property bool   catchingUp:  controller ? controller.updating : false
+    readonly property var    setupChecks: hasPlan ? (plan.setupChecks || []) : []
+    readonly property var    stages:      hasPlan ? (plan.stages || []) : []
+    readonly property bool   hasFocus:    hasPlan
+                                          ? !!(plan.focus && plan.focus.present === true)
+                                          : !!(controller && controller.focusItem && controller.focusItem.present === true)
+    readonly property bool   hasStageHabits: {
+        for (const s of root.stages) if (s && s.habitCount > 0) return true
+        return false
+    }
+    readonly property bool   hasAnyHabit: root.hasFocus || root.setupChecks.length > 0 || root.hasStageHabits
+    readonly property string tooFewNote:  controller && controller.outcomeTooFewNote !== undefined
+                                          ? (controller.outcomeTooFewNote || "") : ""
+    // Under a shot filter with too few measured shots and no habits, show the too-few notice rather
+    // than "No repeating habits" so unmeasured shots never read as clean.
+    readonly property bool   showTooFewOnly: root.tooFewNote !== "" && !root.hasAnyHabit
 
     // ── Tones ────────────────────────────────────────────────────────────────
-    // A strength in the in-range colour (Theme.bandTone's "clean"), a fault in amber.
-    readonly property color toneWell: Theme.bandTone("clean")
     readonly property color toneWork: Theme.colorAttention
 
     // ── Shared geometry ──────────────────────────────────────────────────────
     readonly property int cardGap: Theme.gap(16)
     readonly property int markW:   Theme.sp(20)
-    // Both cards' column template: mark · words · how often · sessions. A fault row on the half-width
-    // Next card draws no chevron (a column for one would squeeze the words): its wash and hand cursor
-    // say it opens.
+    // Full-width table template: mark · words · how often (meter + words + trend) · sessions · chevron.
     readonly property var columns: [
         { width: root.markW },
         { fill: true },
-        { width: Theme.sp(110) },
-        { width: Theme.sp(80), align: "right" }]
+        { width: Theme.sp(260) },
+        { width: Theme.sp(80), align: "right" },
+        { width: Theme.sp(10) }]
+
+    function stageExpanded(key) { return !!root.expandedStages[key] }
+    function toggleStage(key) {
+        const next = Object.assign({}, root.expandedStages)
+        next[key] = !next[key]
+        root.expandedStages = next
+    }
+    function visibleItemsFor(stage) {
+        const all = stage && stage.items ? stage.items : []
+        if (all.length <= root.stageLimit || root.stageExpanded(stage.key)) return all
+        return all.slice(0, root.stageLimit)
+    }
 
     width:   parent ? parent.width : 0
     spacing: 0
@@ -111,35 +110,157 @@ Column {
     // Pieces
     // ════════════════════════════════════════════════════════════════════════
 
-    // A card's own header row: its title in its tone, in the words column, and the captions of the
-    // other columns on the same line (the mockup's single header band).
     component CardHeader: PpTableRow {
         id: head
-        property string title: ""
-        property color  tone:  Theme.colorText
+        property string title:    ""
+        property string subtitle: ""
+        property color  tone:     Theme.colorText
         property bool   captions: true
         height: Theme.sp(Theme.tableHeaderH)
         hoverEnabled: false
         Item { width: 1; height: 1 }        // the mark's column
-        Text {
-            width: Math.min(implicitWidth, head.columnWidth(1))
-            elide: Text.ElideRight
-            text:  head.title
-            font.family:    Theme.fontBody
-            font.pixelSize: Theme.fontSzBody2
-            font.weight:    Font.DemiBold
-            color:          head.tone
+        Row {
+            width: head.columnWidth(1)
+            spacing: Theme.gap(10)
+            Text {
+                id: headTitle
+                anchors.verticalCenter: parent.verticalCenter
+                text:  head.title
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Font.DemiBold
+                color:          head.tone
+            }
+            PpCaption {
+                visible: head.subtitle !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, parent.width - headTitle.implicitWidth - parent.spacing)
+                text:  head.subtitle
+            }
         }
         PpCaption { visible: head.captions; text: qsTr("How often"); width: Math.min(implicitWidth, head.columnWidth(2)) }
         PpCaption { visible: head.captions; text: qsTr("Sessions");  width: Math.min(implicitWidth, head.columnWidth(3)) }
+        Item { width: 1; height: 1 }        // the chevron's column
+    }
+
+    // One fault row used by both "Before you swing" and "Your swing by stage". Opens HmFaultDetail in place.
+    component CoachingRow: HmFaultRow {
+        id: row
+        required property var modelData
+        property bool showFocusChip: false
+        // The words as drawn — what a probe reads.
+        readonly property string itemText:      HomeText.capitalised(row.modelData.text)
+        readonly property string frequencyText: row.modelData.frequency || ""
+        readonly property string plainText:     itemText + " — " + frequencyText
+        readonly property int    pipCount:      (row.modelData.sessions || []).length
+        readonly property bool   isFocus:       row.showFocusChip && !!row.modelData.isFocus
+
+        controller:  root.controller
+        conditionId: row.modelData.conditionId || ""
+        openId:      root.openId
+        onOpenRequested: (next) => root.openId = next
+        onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+        secondLine: true
+        topRule: true
+        rowHeight: Math.max(Theme.sp(Theme.rowH2),
+                            Math.max(rowWords.implicitHeight, rowFreq.implicitHeight) + Theme.gap(18))
+        accessibleName: row.itemText
+
+        PpBadge {
+            kind: "ring"
+            plain: true
+            tone: row.isFocus ? Theme.colorAccent : root.toneWork
+            size: root.markW
+        }
+        Column {
+            id: rowWords
+            width: row.columnWidth(1)
+            spacing: Theme.gap(2)
+            Item {
+                width:  parent.width
+                height: Math.max(rowHead.height, focusChip.visible ? focusChip.height : 0)
+                HmHeadline {
+                    id: rowHead
+                    width: parent.width - (focusChip.visible ? focusChip.width + Theme.gap(10) : 0)
+                    text:  row.itemText
+                }
+                PpChip {
+                    id: focusChip
+                    objectName: "stageFocusChip"
+                    visible:  row.isFocus
+                    anchors.right: parent.right
+                    y: Math.round((rowHead.lineCount > 1 ? rowHead.height / rowHead.lineCount
+                                                         : rowHead.height) / 2 - height / 2)
+                    text:     Theme.caps(qsTr("Focus"))
+                    tone:     Theme.colorAccent
+                    tracking: Theme.trackingMicro
+                }
+            }
+            // Gentle upstream note when an earlier active habit is linked in the model.
+            PpCaption {
+                objectName: "stageUpstreamNote"
+                visible:  text !== ""
+                width:    parent.width
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     row.modelData.upstreamNote || ""
+            }
+            // What it does on the ball, only when a shot has shown it.
+            PpCaption {
+                objectName: "homeOnTheBall"
+                visible:  text !== ""
+                width:    parent.width
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     row.modelData.onTheBall || ""
+            }
+            // Under one outcome: how often on those shots against the others, only then.
+            PpCaption {
+                objectName: "homeOutcomeContrast"
+                visible:  text !== ""
+                width:    parent.width
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     row.modelData.outcomeContrast || ""
+            }
+        }
+        Row {
+            id: rowFreq
+            width: row.columnWidth(2)
+            spacing: Theme.gap(10)
+            PpMeter {
+                id: rowMeter
+                anchors.verticalCenter: parent.verticalCenter
+                share: row.modelData.share !== undefined ? row.modelData.share : 0
+                tone:  row.isFocus ? Theme.colorAccent : root.toneWork
+            }
+            PpCaption {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, Math.max(0, parent.width - rowMeter.width - parent.spacing
+                                                        - (rowTrend.visible ? rowTrend.width + parent.spacing : 0)))
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     row.frequencyText
+                color:    Theme.colorText3
+            }
+            PpChip {
+                id: rowTrend
+                anchors.verticalCenter: parent.verticalCenter
+                trend: row.modelData.trend !== undefined ? row.modelData.trend : 0
+            }
+        }
+        PpPips {
+            marks:   row.modelData.sessions
+            maxPips: HomeText.maxPips
+            tone:    Theme.colorText2
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // Layout
     // ════════════════════════════════════════════════════════════════════════
 
-    // The first reading of a golfer's sessions, said once and quietly. A recompute after that
-    // leaves the summary standing and says nothing: it changes when it lands.
+    // The first reading of a golfer's sessions, said once and quietly.
     Item {
         visible: root.updating && !root.ready
         width:  root.width
@@ -152,8 +273,7 @@ Column {
         }
     }
 
-    // Nothing to read yet: no session with a swing in it. Not said before the controller has
-    // been pointed at the athlete (the first pass waits out the launch), when it is not yet known.
+    // Nothing to read yet: no session with a swing in it.
     Item {
         visible: !root.ready && !root.updating && !root.catchingUp
                  && root.controller !== null && root.controller.athleteDir !== ""
@@ -175,7 +295,35 @@ Column {
         width:   root.width
         spacing: root.cardGap
 
-        // ── Your focus ───────────────────────────────────────────────────────
+        // ── 1. Before you swing (static Setup checks — not a swing thought) ──
+        PpCard {
+            id: setupCard
+            objectName: "setupChecksCard"
+            visible: !root.showTooFewOnly
+            width:   root.width
+            height:  visible ? implicitHeight : 0
+            table:   true
+            columns: root.columns
+
+            CardHeader {
+                title:    qsTr("Before you swing")
+                subtitle: root.setupChecks.length > 0
+                          ? qsTr("Static setup checks — set these before you move")
+                          : qsTr("No repeating setup habits")
+                tone:     Theme.colorText
+                captions: root.setupChecks.length > 0
+            }
+
+            Repeater {
+                model: root.setupChecks
+                CoachingRow {
+                    objectName: "setupCheckItem"
+                    showFocusChip: false
+                }
+            }
+        }
+
+        // ── 2. Your focus (ONE dynamic swing thought) ────────────────────────
         HmFocus {
             id: focusCard
             width:      root.width
@@ -186,216 +334,118 @@ Column {
             onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
         }
 
-        // ── What you do well | next on your list ─────────────────────────────
-        Item {
-            id: row1
-            width:  root.width
-            readonly property real cardW: root.stacked ? width : (width - root.cardGap) / 2
-            // Side by side, both cards end at the taller one's height.
-            readonly property real tallest: Math.max(wellCard.implicitHeight, workCard.implicitHeight)
-            height: root.stacked ? wellCard.implicitHeight + root.cardGap + workCard.implicitHeight
-                                 : tallest
+        // ── 3. Your swing by stage (in-motion sequence, strongest first) ─────
+        PpCard {
+            id: stagesCard
+            objectName: "coachingStagesCard"
+            visible: !root.showTooFewOnly && root.stages.length > 0
+            width:   root.width
+            height:  visible ? implicitHeight : 0
+            table:   true
+            columns: root.columns
 
-            PpCard {
-                id: wellCard
-                width:   row1.cardW
-                height:  root.stacked ? implicitHeight : row1.tallest
-                table:   true
-                columns: root.columns
+            CardHeader {
+                title:    qsTr("Your swing by stage")
+                subtitle: qsTr("In sequence from backswing to finish — ranked strongest first")
+                tone:     root.toneWork
+                captions: root.hasStageHabits
+            }
 
-                CardHeader {
-                    title:    qsTr("What you do well")
-                    tone:     root.toneWell
-                    captions: root.doWell.length > 0
-                }
+            Repeater {
+                model: root.stages
+                Column {
+                    id: stageBlock
+                    required property var modelData
+                    readonly property var shownItems: root.visibleItemsFor(stageBlock.modelData)
+                    readonly property int hiddenCount: Math.max(0, (stageBlock.modelData.items ? stageBlock.modelData.items.length : 0) - root.stageLimit)
+                    readonly property bool expanded: root.stageExpanded(stageBlock.modelData.key)
+                    width: stagesCard.width
 
-                Repeater {
-                    model: root.doWell
                     PpTableRow {
-                        id: wellItem
-                        objectName: "doWellItem"
-                        required property var modelData
-                        // The words as drawn — what a probe reads.
-                        readonly property string itemText:    HomeText.capitalised(wellItem.modelData.text)
-                        readonly property string captionText: wellItem.modelData.caption
-                        readonly property string plainText:   itemText + " — " + captionText
-                        readonly property int    pipCount:    (wellItem.modelData.sessions || []).length
-                        secondLine: true
+                        objectName: "coachingStageHeader"
+                        width: stagesCard.width
+                        layout: stagesCard.columnLayout
+                        height: Theme.sp(Theme.tableHeaderH)
                         hoverEnabled: false
-                        height: Math.max(Theme.sp(Theme.rowH2), wellWords.implicitHeight + Theme.gap(18))
-
-                        PpBadge { kind: "dot"; plain: true; tone: root.toneWell; size: root.markW }
-                        Column {
-                            id: wellWords
-                            width: wellItem.columnWidth(1)
-                            spacing: Theme.gap(2)
-                            HmHeadline { width: parent.width; text: wellItem.itemText }
+                        topRule: true
+                        Item { width: 1; height: 1 }
+                        Row {
+                            width: parent ? stagesCard.columnLayout[1].width : 0
+                            spacing: Theme.gap(10)
+                            PpMicro {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Theme.caps(stageBlock.modelData.label || "")
+                            }
                             PpCaption {
-                                width:    parent.width
-                                text:     wellItem.captionText
-                                elide:    Text.ElideNone
-                                wrapMode: Text.WordWrap
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: stageBlock.modelData.habitCount > 0
+                                      ? Theme.plural(stageBlock.modelData.habitCount, qsTr("%1 habit"), qsTr("%1 habits"))
+                                      : qsTr("No repeating habits")
                             }
                         }
-                        PpMeter {
-                            share: wellItem.modelData.share !== undefined ? wellItem.modelData.share : 0
-                            tone:  root.toneWell
-                        }
-                        PpPips {
-                            marks:   wellItem.modelData.sessions
-                            maxPips: HomeText.maxPips
-                            tone:    root.toneWell
+                        Item { width: 1; height: 1 }
+                        Item { width: 1; height: 1 }
+                        Item { width: 1; height: 1 }
+                    }
+
+                    Repeater {
+                        model: stageBlock.shownItems
+                        CoachingRow {
+                            objectName: "stageFaultItem"
+                            width: stagesCard.width
+                            layout: stagesCard.columnLayout
+                            showFocusChip: true
                         }
                     }
-                }
 
-                PpTableRow {
-                    id: wellEmptyRow
-                    visible: root.doWell.length === 0
-                    hoverEnabled: false
-                    // The too-few note can wrap; the row grows with it, never below the table row.
-                    height: Math.max(Theme.sp(Theme.rowH), wellEmpty.implicitHeight + Theme.gap(18))
-                    Item { width: 1; height: 1 }
-                    PpCaption {
-                        id: wellEmpty
-                        objectName: "doWellEmpty"
-                        width:    wellCard.contentWidth - root.markW - wellCard.columnGap
-                        elide:    Text.ElideNone
-                        wrapMode: Text.WordWrap
-                        text:     root.tooFewNote !== "" ? root.tooFewNote : qsTr("Nothing stands out here yet.")
+                    PpTableRow {
+                        visible: stageBlock.hiddenCount > 0
+                        width: stagesCard.width
+                        layout: stagesCard.columnLayout
+                        height: Theme.sp(Theme.itemRowH)
+                        hoverEnabled: false
+                        topRule: true
+                        Item { width: 1; height: 1 }
+                        PpLink {
+                            objectName: "stageShowMore"
+                            text: stageBlock.expanded
+                                  ? qsTr("Show fewer")
+                                  : qsTr("Show %1 more").arg(stageBlock.hiddenCount)
+                            hoverTint: false
+                            onClicked: root.toggleStage(stageBlock.modelData.key)
+                        }
+                        Item { width: 1; height: 1 }
+                        Item { width: 1; height: 1 }
+                        Item { width: 1; height: 1 }
                     }
                 }
             }
+        }
 
-            PpCard {
-                id: workCard
-                x: root.stacked ? 0 : row1.cardW + root.cardGap
-                y: root.stacked ? wellCard.implicitHeight + root.cardGap : 0
-                width:   row1.cardW
-                height:  root.stacked ? implicitHeight : row1.tallest
-                table:   true
-                columns: root.columns
+        // ── Too-few-measured notice (under a shot filter with no habits) ─────
+        PpCard {
+            id: emptyCard
+            visible: root.showTooFewOnly
+            width:   root.width
+            height:  visible ? implicitHeight : 0
+            table:   true
+            columns: root.columns
 
-                CardHeader {
-                    title:    qsTr("Next on your list")
-                    tone:     root.toneWork
-                    captions: root.needsWork.length > 0
+            PpTableRow {
+                hoverEnabled: false
+                height: Math.max(Theme.sp(Theme.rowH), emptyWords.implicitHeight + Theme.gap(18))
+                Item { width: 1; height: 1 }
+                PpCaption {
+                    id: emptyWords
+                    objectName: "needsWorkEmpty"
+                    width:    emptyCard.contentWidth - root.markW - emptyCard.columnGap
+                    elide:    Text.ElideNone
+                    wrapMode: Text.WordWrap
+                    text:     root.tooFewNote
                 }
-
-                Repeater {
-                    model: root.needsWork
-                    HmFaultRow {
-                        id: workItem
-                        objectName: "nextItem"
-                        required property var modelData
-                        required property int index
-                        // The words as drawn — what a probe reads.
-                        readonly property string itemText:      HomeText.capitalised(workItem.modelData.text)
-                        readonly property string frequencyText: workItem.modelData.frequency
-                        readonly property string plainText:     itemText + " — " + frequencyText
-                        readonly property int    pipCount:      (workItem.modelData.sessions || []).length
-                        // Opens in place to the fault's detail (HmFaultRow), one at a time.
-                        controller:  root.controller
-                        conditionId: workItem.modelData.conditionId || ""
-                        openId:      root.openId
-                        onOpenRequested: (next) => root.openId = next
-                        onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
-                        secondLine: true
-                        rowHeight: Math.max(Theme.sp(Theme.rowH2), workWords.implicitHeight + Theme.gap(18))
-                        showChevron: false
-                        accessibleName: workItem.itemText
-
-                        PpBadge { kind: "ring"; plain: true; tone: root.toneWork; size: root.markW }
-                        Column {
-                            id: workWords
-                            width: workItem.columnWidth(1)
-                            spacing: Theme.gap(2)
-                            // The phrase; the first wears "Next" at the column's right.
-                            Item {
-                                width:  parent.width
-                                height: Math.max(workHead.height, nextChip.visible ? nextChip.height : 0)
-                                HmHeadline {
-                                    id: workHead
-                                    width: parent.width - (nextChip.visible ? nextChip.width + Theme.sp(12) : 0)
-                                    text:  workItem.itemText
-                                }
-                                PpChip {
-                                    id: nextChip
-                                    objectName: "nextChip"
-                                    visible:  workItem.index === 0
-                                    anchors.right: parent.right
-                                    y: Math.round((workHead.lineCount > 1 ? workHead.height / workHead.lineCount
-                                                                          : workHead.height) / 2 - height / 2)
-                                    text:     Theme.caps(qsTr("Next"))
-                                    tone:     Theme.colorAccent
-                                    tracking: Theme.trackingMicro
-                                }
-                            }
-                            // How often in words, and which way it is going. The words wrap, never elide
-                            // (Mark, 14 Nov 2026: nothing cut at any window size); the trend stays beside them.
-                            Row {
-                                width: parent.width
-                                spacing: Theme.gap(8)
-                                PpCaption {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: Math.min(implicitWidth, parent.width
-                                                    - (workChip.visible ? workChip.width + parent.spacing : 0))
-                                    elide:    Text.ElideNone
-                                    wrapMode: Text.WordWrap
-                                    text:  workItem.frequencyText
-                                }
-                                PpChip {
-                                    id: workChip
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    trend: workItem.modelData.trend
-                                }
-                            }
-                            // What it does on the ball, only when a shot has shown it.
-                            PpCaption {
-                                objectName: "homeOnTheBall"
-                                visible:  text !== ""
-                                width:    parent.width
-                                elide:    Text.ElideNone
-                                wrapMode: Text.WordWrap
-                                text:     workItem.modelData.onTheBall || ""
-                            }
-                            // Under one outcome: how often on those shots against the others, only then.
-                            PpCaption {
-                                objectName: "homeOutcomeContrast"
-                                visible:  text !== ""
-                                width:    parent.width
-                                elide:    Text.ElideNone
-                                wrapMode: Text.WordWrap
-                                text:     workItem.modelData.outcomeContrast || ""
-                            }
-                        }
-                        PpMeter {
-                            share: workItem.modelData.share
-                            tone:  root.toneWork
-                        }
-                        PpPips {
-                            marks:   workItem.modelData.sessions
-                            maxPips: HomeText.maxPips
-                            tone:    Theme.colorText2
-                        }
-                    }
-                }
-
-                PpTableRow {
-                    id: workEmptyRow
-                    visible: root.needsWork.length === 0
-                    hoverEnabled: false
-                    height: Math.max(Theme.sp(Theme.rowH), workEmpty.implicitHeight + Theme.gap(18))
-                    Item { width: 1; height: 1 }
-                    PpCaption {
-                        id: workEmpty
-                        objectName: "needsWorkEmpty"
-                        width:    workCard.contentWidth - root.markW - workCard.columnGap
-                        elide:    Text.ElideNone
-                        wrapMode: Text.WordWrap
-                        text:     root.tooFewNote !== "" ? root.tooFewNote : qsTr("Nothing else shows up on most of your swings.")
-                    }
-                }
+                Item { width: 1; height: 1 }
+                Item { width: 1; height: 1 }
+                Item { width: 1; height: 1 }
             }
         }
     }

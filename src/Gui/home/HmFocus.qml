@@ -59,11 +59,19 @@ Item {
     property string openId: ""
 
     // null when there is no focus: before the first summary, and when nothing needs work.
-    readonly property var focusItem: controller && controller.focusItem && controller.focusItem.present === true
-                                     ? controller.focusItem : null
+    // Prefers the stage-organised coachingPlan (which keeps Setup out of Your focus), falling back
+    // to focusItem for callers/mocks that only supply the legacy property.
+    readonly property var _planFocus: controller && controller.coachingPlan !== undefined
+                                      && controller.coachingPlan.ready
+                                      ? controller.coachingPlan.focus : null
+    readonly property var focusItem: _planFocus !== null
+                                     ? (_planFocus.present === true ? _planFocus : null)
+                                     : (controller && controller.focusItem && controller.focusItem.present === true
+                                        ? controller.focusItem : null)
     readonly property var aimFor:   focusItem ? (focusItem.aimFor   || []) : []
     readonly property var rightNow: focusItem ? (focusItem.rightNow || []) : []
     readonly property string conditionId: focusItem ? (focusItem.focusConditionId || "") : ""
+    readonly property string stageLabel:  focusItem && focusItem.stageLabel ? String(focusItem.stageLabel) : ""
     readonly property string reasonShort: focusItem ? (focusItem.reasonShort || focusItem.reason || "") : ""
     readonly property string onTheBallText: focusItem ? (focusItem.onTheBall || "") : ""
     // Empty under All shots, and then not drawn.
@@ -123,9 +131,10 @@ Item {
 
             readonly property int pad: focusTable.rowPad
             readonly property int gapS: Theme.gap(12)
-            // What the title and the reason share: the row less the mark, the label and Practise.
+            // What the title and stage chip share: the row less the mark, the label and Practice.
             readonly property real room: header.width - 2 * header.pad - mark.width - label.implicitWidth
                                          - 3 * header.gapS
+                                         - (stageChip.visible ? stageChip.implicitWidth + header.gapS : 0)
                                          - (practise.visible ? practise.width + header.gapS : 0)
 
             Item {
@@ -161,21 +170,15 @@ Item {
                     font.weight:    Font.DemiBold
                     color:          Theme.colorText
                 }
-                // Why this one, in a line: "covers 2 things on your list · comes earliest in your swing".
-                Text {
-                    id: reason
-                    objectName: "focusReason"
+                PpChip {
+                    id: stageChip
+                    objectName: "focusStageChip"
+                    visible: root.stageLabel !== ""
                     x: headline.x + headline.width + header.gapS
-                    anchors.baseline: headline.baseline
-                    readonly property real room: header.room - headline.width - header.gapS
-                    width:   Math.max(0, Math.min(implicitWidth, room))
-                    visible: text !== "" && room >= Theme.sp(60)
-                    elide:   Text.ElideRight
-                    text:    root.reasonShort
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Theme.fontBodyWeight
-                    color:          Theme.colorText3
+                    anchors.verticalCenter: headline.verticalCenter
+                    text: Theme.caps(root.stageLabel)
+                    tinted: false
+                    tracking: Theme.trackingMicro
                 }
                 PpButton {
                     id: practise
@@ -194,6 +197,17 @@ Item {
                 y: titleRow.height - Theme.gap(10)
                 width: Math.max(0, header.width - x - header.pad)
                 spacing: Theme.gap(2)
+
+                // Why this one, always readable and never elided off the right edge.
+                PpCaption {
+                    id: reason
+                    objectName: "focusReason"
+                    width:    parent.width
+                    visible:  text !== ""
+                    elide:    Text.ElideNone
+                    wrapMode: Text.WordWrap
+                    text:     root.reasonShort
+                }
 
                 PpCaption {
                     id: onTheBall

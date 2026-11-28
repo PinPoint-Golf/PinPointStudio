@@ -28,6 +28,7 @@
 #include "../../Diagnostics/derived/tendencies_pack.h"   // the tendencies over read sessions: one rule (3.6)
 #include "../../Diagnostics/derived/shot_outcomes_pack.h"
 #include "../../Diagnostics/derived/condition_in_hand.h"   // a condition worded for the golfer's hand (refactor 6.3b fix round, B-2)
+#include "../../Diagnostics/derived/coaching_plan_pack.h"
 #include "../../Diagnostics/derived/swing_areas_pack.h"
 #include "../../Diagnostics/derived/work_ons_pack.h"
 
@@ -823,6 +824,7 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
     sessions.reserve(size_t(records.size()));
     for (auto it = records.constBegin(); it != records.constEnd(); ++it) sessions.push_back(it.value());
     publishAreas(pack, sessions);
+    publishCoachingPlan(pack, sessions);
 
     emit detailsChanged();
     emit areasChanged();
@@ -858,6 +860,16 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
     const auto nameOf = [&pack, &hand](const QString &id, const QString &fallback = QString()) {
         return packLabel(pack, id, hand, fallback);
     };
+
+    // Active habits (same AreaBand::Habit rule as Your swing and Coaching), so an unlisted habit's
+    // opened detail can still show any active authored upstream habit it may follow from.
+    QSet<QString> activeHabits;
+    {
+        const AreaOptions areaOpt;
+        for (const PrioritySummary &w : every)
+            if (areaMeasured(w) && areaBandOf(w, areaOpt) == AreaBand::Habit)
+                activeHabits.insert(w.id);
+    }
 
     // One condition's summary in words: a work-on row, or the detail of any condition.
     const auto describe = [&](const PrioritySummary &w) {
@@ -960,6 +972,17 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
             const PriorityEvidence &e = w.latestEvidence;
             latestText = latestLine(w.latestEvidenceSessionId, e.fired, e.assessable, e.hasTypical, e.measureId,
                                     e.typicalValue, e.corridorLo, e.corridorHi, e.corridorShape);
+            if (activeHabits.contains(w.id)) {
+                QStringList upstream;
+                for (const Edge &edge : pack.edges)
+                    if (edge.type == EdgeType::Causes && !edge.sharedEvidence && edge.to == w.id
+                        && edge.from != w.id && activeHabits.contains(edge.from)) {
+                        const QString n = nameOf(edge.from);
+                        if (!n.isEmpty() && !upstream.contains(n)) upstream << n;
+                    }
+                if (!upstream.isEmpty())
+                    m[QStringLiteral("causedByText")] = QStringLiteral("May follow from %1").arg(upstream.join(QStringLiteral(", ")));
+            }
         }
         m[QStringLiteral("latestText")] = latestText;
 
@@ -1322,6 +1345,61 @@ void WorkOnsController::publishAreas(const CharacteristicPack &pack, const std::
             { QStringLiteral("items"),         items },
             { QStringLiteral("consistency"),   consistency },
         });
+    }
+}
+
+void WorkOnsController::publishCoachingPlan(const CharacteristicPack &pack, const std::vector<SessionPriorities> &sessions)
+{
+    m_coachingPlan = pinpoint::coachingui::CoachingPlanView{};
+    if (sessions.empty()) return;
+
+    const CoachingPlan plan = buildCoachingPlanForPack(&pack, sharedDrillSet(), sessions, golferHandedness());
+    const auto toFault = [this](const CoachingHabitItem &it) {
+        pinpoint::coachingui::CoachingFaultItem out;
+        out.conditionId     = it.conditionId;
+        out.text            = it.text;
+        out.share           = it.share;
+        out.score           = it.score;
+        out.frequency       = it.frequency;
+        out.trend           = it.trend;
+        out.sessions.reserve(qsizetype(it.sessions.size()));
+        for (bool b : it.sessions) out.sessions.append(b);
+        out.isFocus         = it.isFocus;
+        out.upstreamNote    = it.upstreamNote;
+        out.onTheBall       = onTheBallFor(it.conditionId);
+        out.outcomeContrast = outcomeContrastFor(m_shownOutcome, it.conditionId);
+        return out;
+    };
+
+    m_coachingPlan.ready = plan.ready;
+    for (const CoachingHabitItem &it : plan.setupChecks)
+        m_coachingPlan.setupChecks.append(toFault(it));
+
+    const CoachingFocus &f = plan.focus;
+    auto &fv = m_coachingPlan.focus;
+    fv.present          = f.present;
+    fv.title            = f.title;
+    fv.stageKey         = f.stageKey;
+    fv.stageLabel       = f.stageLabel;
+    fv.aimFor           = f.aimFor;
+    fv.why              = f.why;
+    fv.practiseLabel    = f.practiseLabel;
+    fv.practise         = f.practise;
+    fv.reasonShort      = f.reasonShort;
+    fv.focusConditionId = f.focusConditionId;
+    for (const CoachingHabitItem &it : f.rightNow) fv.rightNow.append(toFault(it));
+    if (!fv.focusConditionId.isEmpty()) {
+        fv.onTheBall       = onTheBallFor(fv.focusConditionId);
+        fv.outcomeContrast = outcomeContrastFor(m_shownOutcome, fv.focusConditionId);
+    }
+
+    for (const CoachingStageGroup &g : plan.stages) {
+        pinpoint::coachingui::CoachingStageView sv;
+        sv.key        = g.key;
+        sv.label      = g.label;
+        sv.habitCount = int(g.items.size());
+        for (const CoachingHabitItem &it : g.items) sv.items.append(toFault(it));
+        m_coachingPlan.stages.append(std::move(sv));
     }
 }
 
@@ -1923,3 +2001,6 @@ void WorkOnsController::clearSummary()
     m_summaryReady = false;
     publishSummary();
 }
+
+// moc for the typed coaching plan gadgets (coaching_plan_types.h has no .cpp of its own)
+#include "moc_coaching_plan_types.cpp"

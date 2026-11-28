@@ -166,6 +166,11 @@ pp_add_test(shot_factors_test SOURCES shot_factors_test.cpp LINK pp_vocabulary T
 # the work-on words. Header-only, no pack.
 pp_add_test(swing_areas_test SOURCES swing_areas_test.cpp)
 
+# Coaching plan (coaching_plan.h) — Home's stage-organised Coaching tab: shared habit pool with
+# swing_areas.h, static Setup checks separated from the one dynamic swing thought ("Your focus"),
+# Wilson-bound ranking within stages, authored upstream/downstream notes, and pips/trend. Header-only.
+pp_add_test(coaching_plan_test SOURCES coaching_plan_test.cpp)
+
 # Swing themes (swing_themes.h) — the home screen's two-layer summary: the hand-written linear
 # algebra against numpy's values (eigensolver, varimax, Hungarian, ranks, percentiles), mt19937_64
 # and the per-replicate seeds, planted two-factor data recovered with the right members and tiers

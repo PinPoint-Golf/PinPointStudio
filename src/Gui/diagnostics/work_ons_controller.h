@@ -24,6 +24,7 @@
 #include "../../Diagnostics/derived/tendencies.h"
 #include "../../Diagnostics/derived/work_ons.h"
 #include "../variability/variability_facade.h"      // VariabilityResultView: the consistency marks
+#include "coaching_plan_types.h"                    // CoachingPlanView: typed Coaching tab (lint A6)
 
 #include <QDate>
 #include <QHash>
@@ -252,6 +253,9 @@ class WorkOnsController : public QObject
     // "" when there is no typical value or no corridor to read it against. Only the condition's own
     // `tail` grades: past the other edge is its mirror's reading (bowed_at_top / cupped_at_top).
     Q_PROPERTY(QVariantList areaItems READ areaItems NOTIFY areasChanged)
+    // Stage-organised Coaching tab (coaching_plan.h), built from the same habit pool as areaItems:
+    // static Setup checks separated from the one dynamic swing thought, plus in-motion stages.
+    Q_PROPERTY(pinpoint::coachingui::CoachingPlanView coachingPlan READ coachingPlan NOTIFY areasChanged)
 
     // ── Your swing ──
     // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (Home's Matchups
@@ -378,6 +382,7 @@ public:
     bool updating() const { return m_scanning || m_deriving || !m_queue.isEmpty(); }
     QVariantMap  lastSession() const { return m_lastSession; }
     QVariantList areaItems() const { return m_areaItems; }
+    pinpoint::coachingui::CoachingPlanView coachingPlan() const { return m_coachingPlan; }
 
     QString      summarySubtitle() const { return m_summarySubtitle; }
     QVariantMap  focusItem() const { return m_focusItem; }
@@ -556,6 +561,8 @@ private:
     bool onBallInScope(const QString &tendencyKey) const;
     void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
                       const std::vector<pinpoint::analysis::SessionPriorities> &sessions);
+    void publishCoachingPlan(const pinpoint::analysis::CharacteristicPack &pack,
+                             const std::vector<pinpoint::analysis::SessionPriorities> &sessions);
 
     // ── Shot filter ──
     // One filter choice as the screens show it: what the job counted for it, and the words to say it with.
@@ -660,6 +667,7 @@ private:
     int          m_clearedCount = 0;
     QVariantMap  m_lastSession;
     QVariantList m_areaItems;          // publish()'s, stored: QML reads it many times per frame
+    pinpoint::coachingui::CoachingPlanView m_coachingPlan;   // publishScreens()'s, typed (lint A6)
 
     // THE PACK FOLLOWS ITS SAVES (refactor 5.7e; EVT-13): a view of RuleData's current pack, made again (and the
     // outcome pack marshalled from it dropped) whenever RuleData has published another since (followPackSave). Mutable so

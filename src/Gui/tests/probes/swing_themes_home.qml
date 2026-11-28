@@ -129,28 +129,34 @@ Item {
         check(app.workOns.summaryReady && !app.workOns.summaryUpdating, "the swing summary is ready")
         log("reduced from " + app.workOns.summarySwings + " swings over " + app.workOns.summarySessions + " sessions")
 
-        const focus = app.workOns.focusItem || {}
-        const well = app.workOns.doWellItems, next = app.workOns.nextItems
+        const plan = app.workOns.coachingPlan || {}
+        const focus = (plan.ready ? plan.focus : app.workOns.focusItem) || {}
+        const setupChecks = plan.ready ? (plan.setupChecks || []) : []
+        const stages = plan.ready ? (plan.stages || []) : []
         const together = app.workOns.togetherItems, note = app.workOns.togetherNote
         const pips = (a) => (a || []).map(b => b ? "●" : "○").join("")
         const fault = (f) => f.text + " — " + f.frequency + " (" + f.share.toFixed(3)
                              + (f.trend > 0 ? ", growing" : f.trend < 0 ? ", easing" : "") + ")  " + pips(f.sessions)
         log(app.workOns.summarySubtitle)
+        if (setupChecks.length > 0) {
+            log("Before you swing")
+            for (let i = 0; i < setupChecks.length; ++i) log("  ◎ " + fault(setupChecks[i]))
+        }
         if (focus.present) {
-            log("Your focus: " + focus.title)
+            log("Your focus: " + focus.title + (focus.stageLabel ? " [" + focus.stageLabel + "]" : ""))
             for (const a of focus.aimFor || []) log("  aim for   ✓ " + a)
             for (const f of focus.rightNow || []) log("  right now ◎ " + fault(f))
             if (focus.why !== "") log("  why: " + focus.why)
             if (focus.practise !== "") log("  practise (" + focus.practiseLabel + "): " + focus.practise)
-            log("  " + focus.reason)
+            if (focus.reasonShort !== "") log("  " + focus.reasonShort)
         } else {
             log("Your focus: none")
         }
-        log("What you do well")
-        for (let i = 0; i < well.length; ++i)
-            log("  ✓ " + well[i].text + " — " + well[i].caption + "  " + pips(well[i].sessions))
-        log("Next on your list")
-        for (let i = 0; i < next.length; ++i) log("  ◎ " + fault(next[i]))
+        log("Your swing by stage")
+        for (let i = 0; i < stages.length; ++i) {
+            log("  [" + stages[i].label + "]")
+            for (const f of stages[i].items || []) log("    ◎ " + fault(f) + (f.isFocus ? " [FOCUS]" : ""))
+        }
         log("What goes together")
         for (let i = 0; i < together.length; ++i) {
             const t = together[i]
@@ -193,17 +199,12 @@ Item {
         else
             check(practise === null || !drawn(practise), "the focus has no drill, and no 'how to practise' is drawn")
 
-        // ── What you do well | next on your list ──
-        const wellItems = all(summary, "doWellItem"), nextItems = all(summary, "nextItem")
-        check(well.length >= 1 && well.length <= 3, "what you do well has 1 to 3 items (" + well.length + ")")
-        check(wellItems.length === well.length && wellItems.every(drawn),
-              "every 'do well' item is drawn (" + wellItems.length + " of " + well.length + ")")
-        check(next.length <= 4 && nextItems.length === next.length && nextItems.every(drawn),
-              "every 'next on your list' item is drawn, four at most (" + nextItems.length + " of " + next.length + ")")
-        if (nextItems.length > 0) {
-            const chips = nextItems.map(it => { const c = find(it, "nextChip"); return c !== null && drawn(c) })
-            check(chips[0] && chips.slice(1).every(c => !c), "the first on the list, and only it, wears NEXT")
-        }
+        // ── Before you swing + Your swing by stage ──
+        const setupItems = all(summary, "setupCheckItem"), stageItems = all(summary, "stageFaultItem")
+        check(setupItems.length === setupChecks.length && setupItems.every(drawn),
+              "every setup check is drawn (" + setupItems.length + " of " + setupChecks.length + ")")
+        check(stageItems.length >= 1 && stageItems.every(drawn),
+              "stage-organised habits are drawn (" + stageItems.length + ")")
 
         // ── A golfer's words: the Coaching tab only (Your swing shows pack labels and figures) ──
         const names = (app.workOns.items || []).map(it => it.name || "")
