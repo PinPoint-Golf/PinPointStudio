@@ -24,9 +24,6 @@ pp_add_test(report_studio_test
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/model/norm.cpp
             ${SRC}/Diagnostics/content/norm_pack.cpp
             ${SRC}/Diagnostics/model/context_tree.cpp
@@ -40,5 +37,5 @@ pp_add_test(report_studio_test
             ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
             ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK    Qt6::Test
+    LINK pp_platform    Qt6::Test
     AUTOMOC)

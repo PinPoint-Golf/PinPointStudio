@@ -773,9 +773,9 @@ pp_define_swingstore(${CMAKE_CURRENT_SOURCE_DIR})
 # EventBuffer library — lock-free ring-buffer capture store
 add_subdirectory(src/Buffer)
 
-# pp_platform — the Platform ring's compiled files of src/Core (logging, profiling, machine queries, the folder
-# lock, the worker pool), one static library the app and src/Core/tests link (platform refactor B1.4)
-add_subdirectory(src/Core)
+# The ring libraries (cmake/PinPointRings.cmake, cmake/rings/<name>/): defined below, once the app's debug level and
+# profiler tiers are known, since the libraries' sources are compiled with them (PP_RING_DEFINITIONS).
+include(cmake/PinPointRings.cmake)
 
 qt_add_executable(PinPointStudio
     src/Gui/main.cpp
@@ -827,7 +827,7 @@ qt_add_executable(PinPointStudio
     src/Stores/rig_store.h                   src/Stores/rig_store.cpp
     src/Gui/app/rig_presenter.h              src/Gui/app/rig_presenter.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
-    # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: src/Core/CMakeLists.txt)
+    # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: cmake/rings/platform/)
     src/Diagnostics/derived/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
@@ -1032,9 +1032,16 @@ target_compile_definitions(PinPointStudio PRIVATE
     PINPOINT_PROFILE_BASELINE=$<BOOL:${PINPOINT_PROFILE_BASELINE}>
     PINPOINT_PROFILE=$<BOOL:${PINPOINT_PROFILE}>)
 
+# The ring libraries' sources are compiled with the app's own debug level and profiler tiers (pp_ring_settings).
+set(PP_RING_DEFINITIONS
+    PINPOINT_DEBUG_LEVEL=${PINPOINT_DEBUG_LEVEL}
+    PINPOINT_PROFILE_BASELINE=$<BOOL:${PINPOINT_PROFILE_BASELINE}>
+    PINPOINT_PROFILE=$<BOOL:${PINPOINT_PROFILE}>)
+
 # The Platform ring's compiled files (the log, the profiler, the OS and GPU metrics, the folder lock, the worker
-# pool) are the pp_platform library (src/Core/CMakeLists.txt). pp_debug.cpp stays here: it includes whisper.h,
+# pool) are the pp_platform library (cmake/rings/platform/). pp_debug.cpp stays here: it includes whisper.h,
 # ggml.h and QMediaPlayer, so it cannot go in a library that links only Qt Core and the system.
+pp_require_ring(platform)
 target_link_libraries(PinPointStudio PRIVATE pp_platform)
 
 target_sources(PinPointStudio PRIVATE
@@ -3182,10 +3189,6 @@ if(APPLE)
         src/Gui/report/report_mailer_mac.mm
         src/Secrets/secret_store_mac.mm
     )
-    # ARC manages the MTLDevice returned by MTLCreateSystemDefaultDevice(). The app gets this file from pp_platform
-    # (src/Core/CMakeLists.txt sets the same there); this line is for the offline targets below that still list it.
-    set_source_files_properties(src/Core/pp_gpu_metrics_mac.mm
-        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     # ARC manages the NSSharingService and the compose items handed to it.
     set_source_files_properties(src/Gui/report/report_mailer_mac.mm
         PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
@@ -3374,7 +3377,7 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3386,11 +3389,13 @@ if(PINPOINT_BUILD_LM_REPAIR)
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
         # NOT src/Core/pp_debug.cpp — it includes whisper.h and would pull ggml and FFmpeg
         # into a tool that rewrites one JSON file. lm_repair.cpp provides PpLogStream itself
-        # and routes it to stderr; see the note there.
+        # and routes it to stderr; see the note there. It links pp_platform for the folder lock
+        # only: the library's pp_log_stream.cpp defines just PpLogStream's constructor and
+        # destructor, both defined here, so that object is never pulled in beside them.
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(lm_repair PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
 
@@ -3402,7 +3407,7 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
-        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3410,14 +3415,12 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
         src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-        # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
-        # way past must reach whoever runs it. Standalone now — no whisper, no ggml.
-        src/Core/pp_log_stream.cpp
-        src/Core/PpMessageLog.cpp
     )
     target_include_directories(pps_convert_library PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(pps_convert_library PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    # The real log (pp_platform): swing_paths reports through ppWarn, and a line a conversion says on the way past
+    # must reach whoever runs it.
+    target_link_libraries(pps_convert_library PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
     # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
@@ -3426,7 +3429,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
     add_executable(backfill_analysis_context
         tools/migrate/backfill_analysis_context.cpp
-        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
         src/Vocabulary/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3434,12 +3437,10 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/recording_header.cpp src/Analysis/effective_context.cpp
         src/Stores/swing_paths.cpp
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-        src/Core/pp_log_stream.cpp
-        src/Core/PpMessageLog.cpp
     )
     target_include_directories(backfill_analysis_context PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(backfill_analysis_context PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
     # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
@@ -3451,7 +3452,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
         src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Stores/athlete_store.cpp   # AthleteRecord
         src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
-        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Stores/session_store.cpp src/DomainModel/session_identity.cpp
         src/Vocabulary/Identity/identity.h
         src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
         src/Stores/swing_doc_reader.cpp
@@ -3460,12 +3461,10 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Stores/swing_paths.cpp
         src/Stores/rig_store.cpp   # a write is refused once the Rig keeps the learned club lengths
         src/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-        src/Core/pp_log_stream.cpp
-        src/Core/PpMessageLog.cpp
     )
     target_include_directories(pps_migrate_step2 PRIVATE
         src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
-    target_link_libraries(pps_migrate_step2 PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
@@ -3499,7 +3498,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Stores/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
         src/Stores/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/DomainModel/session_identity.cpp
-        src/Core/folder_lock.cpp
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
         src/Analysis/reuse_gate.cpp         # the one reuse gate (step 1.6)
         src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
@@ -3595,13 +3593,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Pose/pose_estimator_vitpose.cpp
         # The pose estimators' one execution-provider cascade (platform refactor A7).
         src/Pose/pose_backend.cpp
-        src/Core/pp_debug.cpp
-        src/Core/pp_log_stream.cpp
-        src/Core/PpMessageLog.cpp
-        src/Core/PpStatsLog.cpp
-        src/Core/AnalysisProfileLog.cpp
-        src/Core/pp_profiler.cpp
-        src/Core/pp_os_metrics.cpp
+        src/Core/pp_debug.cpp   # the log, the profiler and the metrics are pp_platform (pinpoint_configure_offline_target)
     )
 
     # Common include/define/link wiring for an offline tool target.
@@ -3630,12 +3622,8 @@ if(PINPOINT_BUILD_TOOLS)
         # pinpoint::modelFilePath, like the pose models.
         if(EXISTS "${_seg_model_path}")
             target_compile_definitions(${tgt} PRIVATE HAVE_SEGMENTER SEGMENTER_MODEL_FILE="${_seg_model_file}")
-            # The segmenter reports its VRAM through pp_gpu_metrics (the app compiles it at ~line 927;
-            # the Metal query on macOS is the .mm with the ARC flag set beside the app's sources).
-            target_sources(${tgt} PRIVATE src/Pose/person_segmenter.cpp src/Core/pp_gpu_metrics.cpp)
-            if(APPLE)
-                target_sources(${tgt} PRIVATE src/Core/pp_gpu_metrics_mac.mm)
-            endif()
+            # The segmenter reports its VRAM through pp_gpu_metrics, which is pp_platform's.
+            target_sources(${tgt} PRIVATE src/Pose/person_segmenter.cpp)
         endif()
         # Same platform-guarded EP defines as the app target (~line 951ff);
         # without them the offline pose pass is compile-time pinned to CPU even
@@ -3649,7 +3637,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pinpoint_buffer pinpoint_swingstore whisper
+            pp_platform pinpoint_buffer pinpoint_swingstore whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the
@@ -4028,6 +4016,14 @@ if(PP_CAPTURE_RIG)
     endif()
     include(cmake/PinPointCaptureRig.cmake)
 endif()
+
+# ── The library-membership check (cmake/PinPointTargetManifest.cmake) ─────────
+# After every target (the app, the offline tools, the capture rig): no source under src/ is in two of the in-tree
+# libraries, or listed by an executable that links a library holding it. Fails the configure, naming each.
+include(cmake/PinPointTargetManifest.cmake)
+pp_target_manifest("${CMAKE_CURRENT_SOURCE_DIR}" _pp_app_manifest)
+pp_check_library_membership("${_pp_app_manifest}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+unset(_pp_app_manifest)
 
 # ── Windows installer packaging (CPack + Inno Setup) ─────────────────────────
 # Must come last: include(CPack) snapshots the CPACK_* variables and component

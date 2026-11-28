@@ -36,7 +36,6 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/model/context_tree.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Diagnostics/content/drill_pack.cpp
             ${SRC}/Diagnostics/content/gate_words_pack.cpp
@@ -53,7 +52,7 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/derived/series/session_warp.cpp
             ${SRC}/Diagnostics/derived/series/session_traces.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(report_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${_pp_report_diag}/core.json;PINPOINT_CORE_DRILLS=${_pp_report_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_report_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_report_diag}/references.json")
 
@@ -64,7 +63,7 @@ set_tests_properties(report_model_test PROPERTIES
 pp_add_test(report_lm_test
     SOURCES report_lm_test.cpp ${GUI}/report/report_lm.cpp ${PP_LM_BOARD_SOURCES}
     INCLUDE ${PP_LM_BOARD_INCLUDES} ${GUI}/report ${SRC}/Stores/tests
-    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     # Z: a real launch-monitor swing document (the fixture the diagnostics tests read).
     COMPILE_OPTIONS -DPP_LM_SWING_FIXTURE="${SRC}/Diagnostics/tests/data/live_swings/lm_7iron/swing.json")
 set_tests_properties(report_lm_test PROPERTIES

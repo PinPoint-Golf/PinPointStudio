@@ -18,10 +18,8 @@ pp_add_test(report_smtp_test
             ${GUI}/report/smtp_client.cpp
             ${SRC}/Secrets/mail_credentials.cpp ${SRC}/Secrets/secret_store.cpp
             ${GUI}/report/report_mailer.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/report ${SRC} ${SRC}/Core
-    LINK    Qt6::Network
+    LINK pp_platform    Qt6::Network
     COMPILE_OPTIONS -DPP_SMTP_TEST_DATA="${CMAKE_CURRENT_LIST_DIR}/data/smtp"
     AUTOMOC)
 set(_pp_smtp_env "QT_QPA_PLATFORM=offscreen" "PINPOINT_MAIL_CREDENTIALS=memory")

@@ -49,8 +49,7 @@ set(RULE_DATA_SOURCES
     ${SRC}/Diagnostics/model/norm.cpp ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
     ${SRC}/Diagnostics/model/pack_io.cpp ${SRC}/Diagnostics/content/characteristic_pack.cpp
     ${SRC}/Diagnostics/model/characteristic.cpp ${SRC}/Diagnostics/model/measure_facets.cpp
-    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp)
 
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
 pp_add_test(timeline_labels_test
@@ -113,10 +112,10 @@ set(_rig_gate_sources ${GUI}/trust/trust_types.h ${GUI}/trust/trust_readings.cpp
                       ${SRC}/Diagnostics/derived/series/session_curves.cpp ${GUI}/review/shot_data_door.h)
 pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
-            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
             ${_rig_gate_sources}
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK pp_platform    Qt6::Qml  AUTOMOC)
 
 # The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
 # its exact end at the playhead, gaps, the swing window, the fan's ≤ 24 frames on the tiles' ramp,
@@ -124,10 +123,10 @@ pp_add_test(swing_rig_driver_test
 pp_add_test(swing_annotation_geometry_test
     SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${GUI}/swing3d/swing_rig_driver.cpp
-            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
+            ${SRC}/Stores/swing_paths.cpp   # the rig driver's session listing (step 2.7b)
             ${_rig_gate_sources}
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK pp_platform    Qt6::Qml  AUTOMOC)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
 pp_add_test(swing_series_model_test
@@ -139,10 +138,9 @@ pp_add_test(swing_series_model_test
 # idiom: a lane per owner on the one WorkPool, results through the one WorkReceiver, so destroying a presenter (every mode
 # switch rebuilds the panels) never waits for its job (#173), and only a lane's latest ask is applied.
 pp_add_test(charts_work_test
-    SOURCES charts_work_test.cpp ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    SOURCES charts_work_test.cpp ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core
-    LINK    Qt6::Qml
+    LINK pp_platform    Qt6::Qml
     AUTOMOC)
 
 # ShotListModel — the carousel as a view of one Session (refactor step 5.2; R-QML-5), over a test double of its port
@@ -153,16 +151,14 @@ pp_add_test(charts_work_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Stores ${SRC}/Stores/tests
-    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
 # The controller's worker body (reanalyzeShot, through the shot's RecordingSource) is satisfied
@@ -172,11 +168,8 @@ pp_add_test(reanalysis_controller_test
             reanalysis_stubs.cpp
             ${GUI}/shot/reanalysis_controller.cpp
             ${SRC}/Analysis/reanalyse_and_persist.cpp   # the one write-back (step 1.4)
-            ${SRC}/Core/pp_os_metrics.cpp   # reanalysis_controller.cpp scopes its worker thread
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml Qt6::Concurrent  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent  AUTOMOC)
 
 # SessionController — the live session clock and the active session type.
 # The class states its own invariants (single active session; sessionStarted means
@@ -188,10 +181,8 @@ pp_add_test(session_clock_test
     SOURCES session_clock_test.cpp
             session_clock_stubs.cpp
             ${GUI}/session/session_controller.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${GUI}/session ${SRC} ${SRC}/Core
-    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # NavigationController — screen history (back/forward, the Home reset). There is no session lock.
 # app_screen.h is header-only and listed so AUTOMOC sees it. Qt6::Test is for QSignalSpy.
@@ -251,10 +242,8 @@ set_tests_properties(variability_data_geometry_test PROPERTIES ENVIRONMENT "QT_Q
 pp_add_test(imu_role_map_test
     SOURCES imu_role_map_test.cpp
             ${SRC}/IMU/imu_role_map.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/IMU
-    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # The camera crop is per role (cameras/camera_roi.h, flir_camera_settings.md §2.1): the
 # impact strip's own key, the recommended-mode fallback, and AppSettings' one-time
@@ -264,10 +253,8 @@ pp_add_test(camera_roi_test
     SOURCES camera_roi_test.cpp
             ${SRC}/IMU/imu_role_map.cpp
             ${GUI}/app/app_settings.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
-    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 
 # The device keys (src/Vocabulary/Rig/device_key.h; rig_design.md §4.6; IM §5.2 ID-DEVICE-KEY,
 # ID-PLACEMENT-KEY): DeviceKey and PlacementKey spell every persisted key as today's code does, byte
@@ -281,10 +268,8 @@ pp_add_test(device_key_test
             ${SRC}/Vocabulary/Rig/device_key.h
             ${SRC}/IMU/imu_role_map.cpp
             ${GUI}/app/app_settings.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/app ${SRC} ${SRC}/Core ${SRC}/IMU ${SRC}/Video
-    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent Qt6::Test  AUTOMOC)
 # Its stored-key cases prove that a sensor's name and the learned club length, stored by today's build, are still
 # found after an update.
 pp_requirement(device_key_test REQ-INST-17)
@@ -302,9 +287,8 @@ pp_add_test(camera_rig_link_test
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h ${SRC}/DomainModel/rig_commands.h
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Video
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_requirement(camera_rig_link_test REQ-DEV-1 REQ-DEV-17)   # each camera's role and set-up held and applied as today; REQ-DEV-17 supports
 
 # The sensor manager's link to the Rig (imu/imu_rig_link.*; rig_design.md §4.1, §4.3; rig_design_addendum.md decisions 1
@@ -324,9 +308,8 @@ pp_add_test(imu_rig_link_test
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/IMU/imu_role_map.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Video
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
@@ -355,10 +338,9 @@ pp_add_test(imu_instance_rig_test
             ${SRC}/IMU/imu_role_map.cpp ${GUI}/imu/imu_rig_link.cpp   # the role lookup ImuManager hands with the sink
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI}/imu ${SRC}/IMU ${SRC}/Core ${SRC}/Video
             ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
-    LINK    pinpoint_buffer wrist Qt6::Bluetooth
+    LINK pp_platform    pinpoint_buffer wrist Qt6::Bluetooth
     STD 20  AUTOMOC)
 pp_requirement(imu_instance_rig_test REQ-DEV-17)   # supports: the bay's set-up holds each worn sensor's alignment exactly as the sensor applies it, for the run only (still planned, #74)
 
@@ -412,7 +394,7 @@ pp_add_test(cloud_fallback_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -420,14 +402,11 @@ pp_add_test(shot_ledger_test
             ${SRC}/Stores/session_store.cpp            # the one swing allocator (step 2.2)
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Core/folder_lock.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Stores ${SRC}/Stores/tests
-    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
 # latest unread with nothing picked, and a session with none, each its own sentence; graphics.sessionHas
@@ -443,7 +422,7 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Diagnostics/derived/series/session_sequence.cpp
             ${GUI}/charts/session_sequence_words.cpp
             ${SRC}/Diagnostics/derived/series/session_curves.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -459,7 +438,6 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/LaunchMonitor/premier_session_parser.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Diagnostics/content/characteristic_pack.cpp
             ${SRC}/Diagnostics/content/reference_pack.cpp
@@ -473,8 +451,6 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/Diagnostics/content/resource_norm_provider.cpp
             ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
             # from the manifest: the catalogue chain chart_metrics_test links
             ${GUI}/variability/variability_facade.cpp
@@ -501,7 +477,7 @@ pp_add_test(lm_session_model_test
             ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
-    LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${SRC}/Diagnostics/tests/data/live_swings")
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -512,10 +488,8 @@ set_tests_properties(lm_session_model_test PROPERTIES
 pp_add_test(notification_center_test
     SOURCES notification_center_test.cpp
             ${GUI}/app/notification_center.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK pp_platform    Qt6::Qml  AUTOMOC)
 
 # The AI Coach's cloud engine (src/LLM, beside the LLM controller in Gui/media): its request carries the
 # Gemini API key in the x-goog-api-key header and never in the address, and follows a redirect only to the
@@ -526,10 +500,8 @@ pp_add_test(gemini_request_test
     SOURCES ${SRC}/LLM/tests/gemini_request_test.cpp
             ${SRC}/LLM/GeminiLlmEngine.h ${SRC}/LLM/GeminiLlmEngine.cpp
             ${SRC}/LLM/LlmEngine.h       ${SRC}/LLM/LlmEngine.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/LLM ${SRC}/Core
-    LINK    Qt6::Network  AUTOMOC)
+    LINK pp_platform    Qt6::Network  AUTOMOC)
 
 # The cloud speech engines' requests, text to speech (src/TTS/AzureTTSEngine) and speech to text
 # (src/STT/STTBackendAzure): each carries the Azure key in the Ocp-Apim-Subscription-Key header and
@@ -553,10 +525,8 @@ pp_add_test(missed_swing_notice_test
             ${GUI}/launchmonitor/missed_swing_notice.cpp
             ${GUI}/app/notification_center.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-    LINK    Qt6::Qml  AUTOMOC)
+    LINK pp_platform    Qt6::Qml  AUTOMOC)
 
 # markup_truth — the Markup panel's ground-truth sidecars: which camera a swing's
 # swing.json offers (face-on / down-the-line), and the two files those views write.
@@ -594,9 +564,8 @@ set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLA
 # Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
 pp_add_test(report_meta_test
     SOURCES report_meta_test.cpp
-            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
-            ${SRC}/Core/folder_lock.cpp   # the records' writes take the session's lock (session_report_io.h, step 5.6a)
-    INCLUDE ${GUI} ${SRC})
+            ${SRC}/Stores/swing_paths.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
+    INCLUDE ${GUI} ${SRC} LINK pp_platform)
 
 # The rest of the session report's C++ tests, one fragment per part of the build so the parts can be
 # registered independently: the stills, the model, the session list and mail hand-off, the studio,
@@ -769,11 +738,11 @@ endif()
 # parts list and the slow setting parsed strictly (valid, malformed), each read only under PINPOINT_HEADLESS_PROBE=1,
 # a malformed value logged and ignored, and the "[HeadlessProbe] synthetic: <part>" line the driver looks for. One
 # source built twice: with the option's macro at 1 (a Debug app) and at 0 (every other build: the switches do nothing).
-set(_pp_synth_sources quit_pins/synthetic_devices_test.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
+set(_pp_synth_sources quit_pins/synthetic_devices_test.cpp)
 pp_add_test(synthetic_devices_test
-    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=1  LINK Qt6::Test  AUTOMOC)
+    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=1  LINK pp_platform Qt6::Test  AUTOMOC)
 pp_add_test(synthetic_devices_off_test
-    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=0  LINK Qt6::Test  AUTOMOC)
+    SOURCES ${_pp_synth_sources}  INCLUDE ${SRC}/Core  DEFINES PP_SYNTHETIC_DEVICES=0  LINK pp_platform Qt6::Test  AUTOMOC)
 
 # governance/artefacts/design_system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.

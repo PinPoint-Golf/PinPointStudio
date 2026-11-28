@@ -89,7 +89,6 @@ else()
         ${PP_ROOT}/src/Stores/swing_doc_analysis.cpp
         ${PP_ROOT}/src/Stores/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
         ${PP_ROOT}/src/Stores/swing_paths.cpp
-        ${PP_ROOT}/src/Core/folder_lock.cpp   # the tuning log's append (session_diagnostics_model.cpp, step 2.3)
         # the golfer's input on each shot's review: the model's own session store (step 2.5)
         ${PP_ROOT}/src/Stores/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
@@ -103,9 +102,7 @@ else()
         ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
         ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
         # the charts' one idiom (charts_work.cpp: ChartsLane on the one WorkPool) and the ★ label's store (refactor 5.5a)
-        ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Stores/series_store.cpp
-        ${PP_ROOT}/src/Core/pp_log_stream.cpp
-        ${PP_ROOT}/src/Core/PpMessageLog.cpp)
+        ${PP_ROOT}/src/Stores/series_store.cpp)
 
     # ⚠ RESOURCE ALIASES ARE MANDATORY HERE, unlike in the app. The app declares the module from the
     # repo root, so each .qml is already a relative path and Qt derives the alias from it. These
@@ -175,7 +172,7 @@ else()
     # Quick3D: SwingHullGeometry (swing3d/) is a QQuick3DGeometry, compiled here with the module's
     # other C++ types.
     find_package(Qt6 REQUIRED COMPONENTS Network Quick3D)
-    target_link_libraries(qml_ui_test PRIVATE
+    target_link_libraries(qml_ui_test PRIVATE pp_platform
         Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickTest Qt6::Multimedia Qt6::GuiPrivate
         Qt6::Network Qt6::Quick3D gspro pinpoint_swingstore)
 
@@ -293,7 +290,6 @@ else()
             ${PP_ROOT}/src/Stores/swing_doc_analysis.cpp
             ${PP_ROOT}/src/Stores/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
             ${PP_ROOT}/src/Stores/swing_paths.cpp
-            ${PP_ROOT}/src/Core/folder_lock.cpp
             ${PP_ROOT}/src/Stores/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp   # step 2.5
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
@@ -301,9 +297,8 @@ else()
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_grader.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_typicality.cpp
             ${PP_ROOT}/src/Vocabulary/Metrics/variability/variability_trend.cpp
-            ${PP_ROOT}/src/Core/work_pool.cpp ${PP_ROOT}/src/Stores/series_store.cpp   # refactor 5.5a
-            ${PP_ROOT}/src/Core/pp_log_stream.cpp
-            ${PP_ROOT}/src/Core/PpMessageLog.cpp)
+            ${PP_ROOT}/src/Stores/series_store.cpp   # refactor 5.5a
+            )
 
         # _pp_qml_abs and the singleton/alias source properties were set above for qml_ui_test and
         # apply to these same files; PP_QML_SOURCES is already PP_ROOT-prefixed.

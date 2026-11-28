@@ -10,10 +10,8 @@
 # The Platform files these tests need (the profiler, the OS and GPU metrics, the
 # stats and analysis-run logs, the folder lock, the worker pool, and the REAL log:
 # pp_log_stream.cpp + PpMessageLog.cpp) come from one library, pp_platform
-# (src/Core/CMakeLists.txt; platform refactor B1.4), not hand-listed sources. No
-# test here uses pp_log_stub.cpp any more: it once satisfied the linker and threw
-# every line away, because ppWarn() lived in the whisper/ggml-dependent
-# pp_debug.cpp; the primitive stands on its own now, so these tests log for real.
+# (cmake/rings/platform/, defined by tests/cmake/PinPointTests.cmake for every
+# suite), not hand-listed sources, so these tests log for real.
 # The tests' own DEFINES still reach only their own files, which is all they need:
 # no library source reads PINPOINT_DEBUG_LEVEL or PINPOINT_PROFILE*, they change
 # only the callers' macros. Tests build with BOTH profiler tiers ON so the deep
@@ -29,12 +27,6 @@ endif()
 
 set(CORE    ${CMAKE_CURRENT_SOURCE_DIR}/..)        # src/Core
 set(MONITOR ${CORE}/../Gui/monitor)                # src/Gui/monitor
-
-# The Platform library, built here when this suite is configured on its own or under the tests/ umbrella (the app
-# tree builds its own copy from the root CMakeLists.txt).
-if(NOT TARGET pp_platform)
-    add_subdirectory(${CORE} ${CMAKE_BINARY_DIR}/pp_platform-lib)
-endif()
 
 # Profiler tests with BOTH tiers compiled in (deep exercised).
 pp_add_test(pp_profiler_test

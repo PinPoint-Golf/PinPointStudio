@@ -450,16 +450,17 @@ declaring a QML module from a test directory will hit the same wall.
   "Per-user stores" below).
 - **Never link `pp_debug.cpp`** — it pulls in whisper/ggml for `PinPointDebug::install()`,
   which silences whisper, ggml, OpenCV and FFmpeg at startup. **Link
-  `src/Core/pp_log_stream.cpp` + `src/Core/PpMessageLog.cpp` instead**: that is
-  `ppWarn()`/`ppInfo()` itself, and it needs Qt and nothing more.
+  `pp_platform` instead** (`LINK pp_platform`): its `pp_log_stream.cpp` +
+  `PpMessageLog.cpp` are `ppWarn()`/`ppInfo()` itself, and need Qt and nothing more.
+  A test never lists a ring library's source (library_membership_lint_test).
 
   Until 31 Aug 2026 the log primitive lived in `pp_debug.cpp`, so every suite
   linked a stub that satisfied the linker and **threw every log line away** —
   `Core/tests/pp_log_stub.cpp` (six suites), plus copies in
   `Analysis/tests/imu_test_stubs.cpp` and `Pose/tests/pose_test_stubs.cpp`. All of
   them now carry the real log, so a test can assert on a line instead of
-  discarding it. `Core/tests/pp_log_stub.cpp` is kept for anything that
-  deliberately wants silence; nothing in the tree needs it.
+  discarding it. `Core/tests/pp_log_stub.cpp`, which nothing used, was deleted with
+  the ring libraries (#424): a stub may stand in only for a symbol no linked library holds.
   (`Gui/tests/reanalysis_stubs.cpp` is a different thing: it stubs the re-analysis
   worker body, not logging.)
 - **C++20 unless you say otherwise.** Anything pulling in `event_buffer.h` →

@@ -94,8 +94,8 @@ The primitive now lives in `src/Core/pp_log_stream.cpp`, needing Qt and
 `PpMessageLog` only, so there is nothing left to consolidate: every suite links
 the REAL log. `Pose/tests/pose_test_stubs.cpp` is gone (it existed only for this),
 `imu_test_stubs.cpp` keeps its `EventBuffer::nowMicros()` fake and nothing else,
-and `Core/tests/pp_log_stub.cpp` is kept only for anything that deliberately wants
-silence — nothing does.
+and `Core/tests/pp_log_stub.cpp`, which nothing used, was deleted with the ring
+libraries (#424).
 
 ## Suggested order (each step ends green)
 

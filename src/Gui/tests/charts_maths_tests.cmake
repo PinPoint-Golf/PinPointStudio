@@ -64,12 +64,9 @@ set(CONSISTENCY_ENV_SOURCES
     ${SRC}/Diagnostics/content/reference_pack.cpp
     ${SRC}/Diagnostics/content/resource_pack_provider.cpp
     ${SRC}/Diagnostics/content/file_pack_provider.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${SRC}/Diagnostics/content/merged_pack_provider.cpp
     ${SRC}/Diagnostics/model/measure_facets.cpp
-    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp)
 set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 set(CONSISTENCY_ENV_ENV "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 pp_add_test(consistency_env_test
@@ -77,7 +74,7 @@ pp_add_test(consistency_env_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -87,7 +84,7 @@ set_tests_properties(consistency_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 pp_add_test(variability_env_test
     SOURCES variability_env_test.cpp ${GUI}/charts/variability_env.cpp ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -104,7 +101,7 @@ pp_add_test(session_consistency_test
     SOURCES session_consistency_test.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES}
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
@@ -117,7 +114,7 @@ pp_add_test(variability_clubs_test
             ${CONSISTENCY_ENV_SOURCES}
             ${SRC}/Vocabulary/Metrics/variability/variability_grader.cpp ${SRC}/Vocabulary/Metrics/variability/variability_result.cpp
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 
 
@@ -135,5 +132,5 @@ add_executable(variability_calibrate variability_calibrate.cpp ${GUI}/charts/var
     ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
 target_include_directories(variability_calibrate PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
 target_compile_definitions(variability_calibrate PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
-target_link_libraries(variability_calibrate PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(variability_calibrate PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(variability_calibrate PROPERTIES AUTOMOC ON)

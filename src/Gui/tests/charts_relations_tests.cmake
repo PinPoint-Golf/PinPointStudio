@@ -36,7 +36,6 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Diagnostics/content/characteristic_pack.cpp
             ${SRC}/Diagnostics/content/reference_pack.cpp
@@ -50,11 +49,9 @@ pp_add_test(charts_relations_presenter_test
             ${SRC}/Diagnostics/content/resource_norm_provider.cpp
             ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_relations_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -95,7 +92,6 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Wrist/reference_bands.cpp
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
             ${SRC}/Diagnostics/content/characteristic_pack.cpp
             ${SRC}/Diagnostics/content/reference_pack.cpp
@@ -109,11 +105,9 @@ pp_add_test(charts_consistency_presenter_test
             ${SRC}/Diagnostics/content/resource_norm_provider.cpp
             ${SRC}/Diagnostics/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${SRC}/Diagnostics/content/merged_norm_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_consistency_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

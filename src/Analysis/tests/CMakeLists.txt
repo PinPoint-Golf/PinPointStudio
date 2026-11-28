@@ -275,14 +275,9 @@ pp_add_test(pipeline_test
             ${SRC}/Timeline/phase_segmenter.cpp
             ${SRC}/Timeline/phase_signals.cpp
             ${SRC}/Wrist/metric_extractor.cpp
-            ${SRC}/Core/pp_profiler.cpp
-            ${SRC}/Core/pp_os_metrics.cpp
-            ${SRC}/Core/PpStatsLog.cpp
             imu_test_stubs.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Core   # pp_debug.h, and the log it now really carries
-    STD 20)
+    STD 20 LINK pp_platform)
 
 # --- Per-archetype resemblance scorer + uncertainty interval (Wrist, §B.0a/§B.7)
 pp_add_test(wrist_resemblance_test SOURCES wrist_resemblance_test.cpp
@@ -328,15 +323,9 @@ pp_add_test(analysis_dag_test SOURCES analysis_dag_test.cpp)
 pp_add_test(analysis_profiling_test
     SOURCES analysis_profiling_test.cpp
             ${ANALYSIS}/analysis_profiling.cpp
-            ${SRC}/Core/pp_profiler.cpp
-            ${SRC}/Core/pp_os_metrics.cpp
-            ${SRC}/Core/PpStatsLog.cpp
-            ${SRC}/Core/AnalysisProfileLog.cpp
             imu_test_stubs.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Core
-    STD 20)
+    STD 20 LINK pp_platform)
 
 # WB2 head tracking (head_track.{h,cpp}): conf-gated head centre/scale/tilt from the
 # COCO-WholeBody head keypoints + Address-referenced sway/lift/tilt series (isotropic
@@ -544,15 +533,14 @@ pp_add_test(shot_source_map_test
 # asserts that nothing in src/Analysis keys on it, the same shape of rule as
 # CT-I37 and for the same reason.
 pp_add_test(swing_doc_test
-    SOURCES ${SRC}/Stores/tests/swing_doc_test.cpp ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+    SOURCES ${SRC}/Stores/tests/swing_doc_test.cpp ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             # the reader lists a session's swings through SwingPaths, the one swing_* listing (step 2.7a), so
             # the real names file and its logging come with it (the sanitise() stub it replaced is gone)
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core
-    DEFINES PP_SRC_DIR="${SRC}")
+    DEFINES PP_SRC_DIR="${SRC}" LINK pp_platform)
 
 # --- The one door to a swing file: RecordingRepository (refactor step 1.4) ---
 # Every method of SwingStoreRecordingRepository on a temporary folder: create, savePose, the
@@ -561,7 +549,7 @@ pp_add_test(swing_doc_test
 # the one re-analysis write-back (reanalyse_and_persist.cpp; the analyzer stubbed in the test).
 pp_add_test(recording_repository_test
     SOURCES ${SRC}/Stores/tests/recording_repository_test.cpp
-            ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_writer.cpp
+            ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_writer.cpp
             ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Analysis/reanalyse_and_persist.cpp
@@ -570,8 +558,7 @@ pp_add_test(recording_repository_test
             # the real session repository: a legacy ShotRef resolves (step 2.4)
             ${SRC}/Stores/session_store.cpp ${SRC}/Stores/swing_paths.cpp
             ${SRC}/DomainModel/session_identity.cpp ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core)
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core LINK pp_platform)
 
 # --- One serialiser per analysis block, one time base (refactor step 1.3a) ---
 # Each block's writer and typed reader round-trip (block -> JSON -> typed -> JSON); a ring-clock
@@ -601,18 +588,16 @@ pp_add_test(swing_store_test
 pp_add_test(session_archiver_test
     SOURCES ${SRC}/Stores/tests/session_archiver_test.cpp ${SRC}/Stores/session_archiver.cpp
             ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-            ${SRC}/Core/pp_log_stream.cpp        # swing_paths reports through the real log
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 
 # --- Session / swing folder layout on disk (Export subsystem) ----------------
 # Filesystem logic, so the suite builds real trees under a QTemporaryDir
@@ -623,10 +608,8 @@ pp_add_test(session_archiver_test
 pp_add_test(swing_paths_test
     SOURCES ${SRC}/Stores/tests/swing_paths_test.cpp
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Stores ${SRC}/Stores/tests ${SRC}/Core
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 
 # --- The identity types and SessionIdentity (refactor step 2.1) ---------------
 # identity_test: AthleteId, SessionId, ShotRef (src/Vocabulary/Identity/identity.h, header-only Q_GADGETs; the
@@ -674,8 +657,7 @@ pp_add_test(rig_store_test
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_requirement(rig_store_test REQ-DEV-17)   # supports: the bay's set-up kept per machine and loaded at launch (still planned, #74)
 # rig_commands_test: the Rig's camera commands (src/DomainModel/rig.*, rig_commands.h): each versioned command makes a
 # new state, saved, then one RigChanged; Impact exclusive across three cameras; a camera put back gives its earlier
@@ -700,8 +682,7 @@ pp_add_test(rig_commands_test
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_requirement(rig_commands_test REQ-DEV-1 REQ-DEV-17)   # the camera roles, Impact exclusive, an unknown code kept; one arm instrument at a time, as today's role rule keeps it (AD-10); REQ-DEV-17 supports, the sensors' alignment records (K20-K23) among it
 # rig_import_test: the copy of the camera keys from settings into rig.json (src/Stores/rig_store.*; rig_design.md §4.4):
 # the fixture copies to the same values, a bare key kept verbatim and matched to no camera; the keys untouched byte for
@@ -719,8 +700,7 @@ pp_add_test(rig_import_test
             ${SRC}/DomainModel/rig.cpp ${SRC}/DomainModel/rig.h
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls (C-6a.2)
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_requirement(rig_import_test REQ-INST-17 REQ-DEV-17)   # an update or a step back keeps each bay's set-up; REQ-DEV-17 supports
 # session_identity_test: a legacy folder's name read under every naming pattern (against the names
 # SwingPaths composes), D3's name-based id against Python's uuid5, n-of-day by start time.
@@ -729,10 +709,8 @@ pp_add_test(session_identity_test
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/DomainModel ${SRC}/Stores ${SRC}/Core
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 
 # --- SessionRepository and the session file (refactor step 2.2) ---------------
 # session_repository_test: SessionStore over a temp library — Start writes session.json (its keys; a
@@ -747,11 +725,8 @@ pp_add_test(session_repository_test
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${SRC}/Stores ${SRC}/Stores/tests ${SRC}/DomainModel ${SRC}/Core
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 
 # --- Orientation filters (Phase 0.4): Madgwick (header-only) + ESKF (Eigen) ---
 # The ESKF .cpp pulls the vendored imu_ekf headers through the Arduino-style
@@ -800,8 +775,6 @@ find_package(Qt6 REQUIRED COMPONENTS Bluetooth)
 pp_add_test(imu_driver_frame_test
     SOURCES imu_driver_frame_test.cpp
             imu_test_stubs.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/IMU/wt9011dcl_ble.cpp
             ${SRC}/IMU/ble_imu_transport.cpp
             ${SRC}/IMU/wt9011dcl_base.cpp
@@ -809,7 +782,7 @@ pp_add_test(imu_driver_frame_test
             ${SRC}/IMU/eskf_orientation_filter.cpp
     INCLUDE ${SRC}/IMU ${SRC}/Core
             ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
-    LINK    Qt6::Bluetooth
+    LINK pp_platform    Qt6::Bluetooth
     STD 20  AUTOMOC)
 
 # --- The trunk turn check from the device's bytes (26 Oct regression) ---------
@@ -820,8 +793,6 @@ pp_add_test(imu_driver_frame_test
 pp_add_test(trunk_turn_path_test
     SOURCES trunk_turn_path_test.cpp
             imu_test_stubs.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/IMU/wt9011dcl_ble.cpp
             ${SRC}/IMU/ble_imu_transport.cpp
             ${SRC}/IMU/wt9011dcl_base.cpp
@@ -829,7 +800,7 @@ pp_add_test(trunk_turn_path_test
             ${SRC}/IMU/eskf_orientation_filter.cpp
     INCLUDE ${SRC}/IMU ${SRC}/Core
             ${PP_THIRD}/imu_ekf_compat ${PP_THIRD}/imu_ekf ${EIGEN_DIR}
-    LINK    Qt6::Bluetooth
+    LINK pp_platform    Qt6::Bluetooth
     STD 20  AUTOMOC)
 
 # --- ShaftTracker OpenCV targets ---------------------------------------------
@@ -881,12 +852,12 @@ pp_add_test(display_tone_test
 # writer and reader (swing_doc_test's line), the one job builder and the effective club.
 set(PP_RECORDING_STORE_SOURCES
     ${SRC}/Stores/recording_loader.cpp ${SRC}/Stores/recording_header.cpp
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
+    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     ${ANALYSIS}/mp4_frame_reader.cpp ${SRC}/Buffer/swing_window.cpp
     ${ANALYSIS}/analysis_job_builder.cpp ${ANALYSIS}/effective_context.cpp
     ${SRC}/Stores/swing_paths.cpp                                   # SwingDocReader's session helpers
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)     # the loader reports through the real log
+    )     # the loader reports through the real log
 
 # Step 1.1 + 1.2 + 1.5: the one job builder and the effective-club rule over src/Vocabulary/Recording's types —
 # live Recording → job equals the reloaded Recording → job, in memory (Test 1) and through the disk
@@ -898,7 +869,7 @@ pp_add_test(recording_contract_test
     SOURCES recording_contract_test.cpp ${PP_RECORDING_STORE_SOURCES}
             ${ANALYSIS}/recording_integrity.cpp   # step 1.5: the one integrity rule (Test 8)
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 
@@ -909,7 +880,7 @@ pp_add_test(recording_contract_test
 pp_add_test(reuse_gate_test
     SOURCES reuse_gate_test.cpp ${PP_RECORDING_STORE_SOURCES} ${ANALYSIS}/reuse_gate.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 
@@ -928,7 +899,7 @@ pp_add_test(club_length_prior_test
             ${SRC}/Stores/rig_store.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # listed so AUTOMOC makes RigRef's meta-object (the event's argument)
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 pp_requirement(club_length_prior_test REQ-INST-17)   # an update keeps the bay's learned club length, and the shot reads it unchanged
@@ -939,7 +910,7 @@ pp_requirement(club_length_prior_test REQ-INST-17)   # an update keeps the bay's
 pp_add_test(recording_store_test
     SOURCES ${SRC}/Stores/tests/recording_store_test.cpp ${PP_RECORDING_STORE_SOURCES}
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 
@@ -955,7 +926,7 @@ pp_add_test(session_test
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/App/app.h ${SRC}/App/app.cpp ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 
@@ -976,7 +947,7 @@ pp_add_test(ceremony_store_test
             ${SRC}/IMU/imu_role_map.cpp   # the role rule the Rig's claimRole calls
             ${SRC}/App/trunk_ceremony_hand_over.h ${SRC}/App/trunk_ceremony_hand_over.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${SRC}/IMU ${SRC}/Buffer ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 pp_requirement(ceremony_store_test REQ-REL-5)   # a calibration's evidence saved with its session, or the golfer told it was not
@@ -995,7 +966,7 @@ pp_add_test(housekeeping_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 
@@ -1015,7 +986,7 @@ pp_add_test(session_list_test
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     INCLUDE ${SRC} ${SRC}/Gui ${SRC}/Gui/report ${SRC}/Gui/review ${SRC}/Analysis ${SRC}/LaunchMonitor ${SRC}/Core
             ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     AUTOMOC)
 set_tests_properties(session_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1032,7 +1003,7 @@ pp_add_test(app_state_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS} Qt6::Qml
+    LINK pp_platform    ${OpenCV_LIBS} Qt6::Qml
     STD 20
     AUTOMOC)
 
@@ -1420,8 +1391,7 @@ set(RULE_DATA_SOURCES
     ${SRC}/Diagnostics/model/norm.cpp ${SRC}/Diagnostics/content/norm_pack.cpp ${SRC}/Diagnostics/model/context_tree.cpp
     ${SRC}/Diagnostics/model/pack_io.cpp ${SRC}/Diagnostics/content/characteristic_pack.cpp
     ${SRC}/Diagnostics/model/characteristic.cpp ${SRC}/Diagnostics/model/measure_facets.cpp
-    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Diagnostics/model/anatomy_vocabulary.cpp)
 
 # Anatomy vocabulary: role metadata, handedness resolution both ways, derived
 # midpoints, both pose layouts (17-kp live / 133-kp wholebody), and the hard
@@ -1476,7 +1446,7 @@ pp_add_test(rule_data_test
     SOURCES ${SRC}/DomainModel/tests/rule_data_test.cpp
             ${RULE_DATA_SOURCES}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}
-    LINK    Qt6::Test
+    LINK pp_platform    Qt6::Test
     AUTOMOC)
 set_tests_properties(rule_data_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
@@ -1495,12 +1465,11 @@ pp_add_test(core_pack_test
     SOURCES ${DIAG}/tests/core_pack_test.cpp ${DIAG_PACK} ${DIAG}/model/norm.cpp ${DIAG}/content/norm_pack.cpp ${DIAG}/model/context_tree.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${DIAG}/content/file_pack_provider.cpp ${DIAG}/content/gate_words_pack.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
                     -DPP_CORE_NORMS_PATH="${DIAGRES}/norms.json"
                     -DPP_CORE_REFERENCES_PATH="${DIAGRES}/references.json"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 # The gate words registry (gate_words_pack.h) is read through its own loader, so the shipped file is
 # what coreGateWordSet() returns. Gate words ONLY: PINPOINT_CORE_REFERENCES stays out for the reason
 # given above, and the test points the user layer at a QStandardPaths test location of its own.
@@ -1517,7 +1486,7 @@ pp_add_test(swing_themes_golden_test
     SOURCES swing_themes_golden_test.cpp ${DIAG_PACK} ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    LINK    Threads::Threads
+    LINK pp_platform    Threads::Threads
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
                     -DPP_SWING_THEMES_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/swing_themes"
     AUTOMOC)
@@ -1591,7 +1560,6 @@ pp_add_test(diagnostics_catalogue_integrity_test
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
             ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
@@ -1601,7 +1569,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/Gui/diagnosticmodel
-    LINK    Qt6::Qml Qt6::Concurrent
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
     AUTOMOC)
 # ModelBrowser assembles the pack through the provider, which normally reads the Qt resource — absent
@@ -1625,7 +1593,6 @@ pp_add_test(diagnostics_health_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
@@ -1634,7 +1601,7 @@ pp_add_test(diagnostics_health_test
             ${SRC}/Wrist/reference_bands.cpp
             ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(diagnostics_health_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json")
 
@@ -1648,7 +1615,7 @@ pp_add_test(reference_sets_test
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${DIAG}/content/screen_pack.cpp ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/reference_pack.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(reference_sets_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
@@ -1716,7 +1683,7 @@ pp_add_test(shared_norm_provider_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 pp_norm_env(shared_norm_provider_test)
 
 # Reading a MEASURE off a stored swing — the half of the value/norm join that nothing implemented
@@ -1736,11 +1703,11 @@ pp_add_test(measure_sample_test
 pp_add_test(shoulder_tilt_vs_bend_test
     SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
             ${DIAG}/engine/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${DIAG}/content/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
-    INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
+    INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core LINK pp_platform)
 
 # The club's climb placed in the slot (club_slot_top.h; plane stack D3, 13 Nov 2026): a known address plane,
 # P3 plane and shoulder plane give the slot and its σ; each part read as the grader reads it, through the
@@ -1750,11 +1717,11 @@ pp_add_test(shoulder_tilt_vs_bend_test
 pp_add_test(club_slot_top_test
     SOURCES club_slot_top_test.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp ${DIAG_NORM}
             ${DIAG}/engine/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-            ${SRC}/Stores/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${SRC}/Stores/swing_paths.cpp
             ${DIAG}/content/resource_norm_provider.cpp
-    INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
+    INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core LINK pp_platform)
 
 # Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8): σ through
 # the phase grid and its reducers, P(fire) on every verdict with the verdict unchanged, soft session
@@ -1790,11 +1757,10 @@ pp_add_test(live_measure_source_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${NORM_INC}
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(live_measure_source_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
 
@@ -1808,10 +1774,9 @@ pp_add_test(club_baseline_provider_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${NORM_INC}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(club_baseline_provider_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
 
@@ -1852,7 +1817,6 @@ set(SESSION_DIAG_MARKS_SOURCES
     ${SRC}/Diagnostics/derived/series/session_consistency.cpp ${SRC}/Diagnostics/derived/series/session_curves.cpp
     ${SRC}/Diagnostics/derived/series/session_warp.cpp ${SRC}/Diagnostics/derived/series/session_traces.cpp
     # The tuning log's append takes the athlete folder's advisory lock (Stores/athlete_files.h, step 2.3).
-    ${SRC}/Core/folder_lock.cpp
     # The golfer's input on each shot's review, through a session store and swing door of the model's own
     # (Stores/session_diagnostics_files.h, step 2.5).
     ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp)
@@ -1882,7 +1846,7 @@ pp_add_test(shot_commands_test
             # Re-analysis through the Shot (refactor step 3.4b-ii, C16): the controller and the one write-back; the
             # analysis itself is stubbed in the test (reanalyzeShot), as reanalysis_controller_test stubs it.
             ${SRC}/Gui/shot/reanalysis_controller.h ${SRC}/Gui/shot/reanalysis_controller.cpp
-            ${SRC}/Analysis/reanalyse_and_persist.cpp ${SRC}/Core/pp_os_metrics.cpp
+            ${SRC}/Analysis/reanalyse_and_persist.cpp
             ${SRC}/Vocabulary/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
@@ -1893,9 +1857,8 @@ pp_add_test(shot_commands_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1904,7 +1867,7 @@ pp_add_test(shot_commands_test
             ${SESSION_DIAG_MARKS_SOURCES}
             ${SESSION_DIAG_CATALOGUE_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui
-    LINK    Qt6::Qml Qt6::Concurrent Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent Qt6::Test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(shot_commands_test PROPERTIES
@@ -1923,14 +1886,13 @@ pp_add_test(migrate_step2_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/Stores/session_store.cpp ${SRC}/Stores/swing_paths.cpp
             ${SRC}/DomainModel/session_identity.cpp ${SRC}/Vocabulary/Identity/identity.h
-            ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Stores/swing_doc_writer.cpp
+            ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Stores/swing_doc_writer.cpp
             ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Stores/rig_store.cpp   # the write refuses once the Rig keeps the learned club lengths (C5-C7)
     INCLUDE ${SRC} ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 # Its C5-C7 cases prove that a write run cannot undo the club lengths a bay's Rig has learned.
 pp_requirement(migrate_step2_test REQ-INST-17)
 
@@ -1972,18 +1934,15 @@ pp_add_test(work_ons_controller_test
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts
-    LINK    Qt6::Qml
+    LINK pp_platform    Qt6::Qml
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(work_ons_controller_test PROPERTIES
@@ -2009,7 +1968,7 @@ set(REGRADE_NEW_ENGINE_SOURCES
     ${SRC}/Diagnostics/engine/session_reduction.cpp
     ${SRC}/Stores/firing_reader_store.cpp
     ${SRC}/Stores/athlete_store.cpp   # the athletes from the library's athlete.json (refactor 4-c, J-61)
-    ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    ${SRC}/Core/work_pool.h
     ${PP_RECORDING_STORE_SOURCES})
 add_executable(regrade_ledger
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
@@ -2024,19 +1983,16 @@ add_executable(regrade_ledger
     ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
     ${DIAG}/content/merged_norm_provider.cpp
     ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/content/merged_pack_provider.cpp
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
     ${SRC}/Stores/swing_paths.cpp
-    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp)
 target_include_directories(regrade_ledger PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
 pp_require_swingstore()
-target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(regrade_ledger PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
 set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 # The same file named on two lines (the swing door's sources are in both): one compile.
 get_target_property(_regrade_sources regrade_ledger SOURCES)
@@ -2064,7 +2020,7 @@ list(REMOVE_ITEM _diag_parallel_live_sources ${PP_REPO_ROOT}/tools/diagnostics/r
 pp_add_test(diag_parallel_live_test
     SOURCES ${DIAG}/tests/diag_parallel_live_test.cpp ${_diag_parallel_live_sources}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Qml ${OpenCV_LIBS}
+    LINK pp_platform    Qt6::Qml ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2080,7 +2036,7 @@ pp_add_test(diag_stage_panel_test
             ${SRC}/App/athlete_catch_up.h ${SRC}/App/athlete_catch_up.cpp   # FREEZE, CATCHUP: the catch-up service (3.7-e)
             ${SRC}/Stores/session_archiver.cpp   # ARCHIVE: the archive job, as main.cpp wires it (review B2)
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Qml ${OpenCV_LIBS}
+    LINK pp_platform    Qt6::Qml ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2094,7 +2050,7 @@ pp_add_test(diag_footer_test
     SOURCES ${DIAG}/tests/diag_footer_test.cpp ${_diag_parallel_live_sources}
             ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Qml ${OpenCV_LIBS}
+    LINK pp_platform    Qt6::Qml ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2110,7 +2066,7 @@ pp_add_test(session_focus_test
             ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp
             ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp ${SRC}/App/session_focus.h
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Qml Qt6::Test ${OpenCV_LIBS}
+    LINK pp_platform    Qt6::Qml Qt6::Test ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings" -DPP_GUI_SRC_DIR="${SRC}/Gui"
     AUTOMOC)
@@ -2136,7 +2092,7 @@ add_executable(post_shot_bench
     ${SRC}/Core/post_shot_trace.h)
 target_include_directories(post_shot_bench PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS})
 target_compile_definitions(post_shot_bench PRIVATE PP_DIAGRES="${DIAGRES}")
-target_link_libraries(post_shot_bench PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(post_shot_bench PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
 set_target_properties(post_shot_bench PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
 # THE VIEW TESTS OVER THE OWNERS (refactor 5.4a; build/refactor/step-5/DUTIES-5.4.md Q4, J-72): until 5.4a these made a
@@ -2159,7 +2115,7 @@ foreach(_owner_view_test session_diagnostics_model_test golfer_input_test shot_n
     pp_add_test(${_owner_view_test}
         SOURCES ${DIAG}/tests/${_owner_view_test}.cpp ${_owner_view_test_sources}
         INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS}
-        LINK    Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
+        LINK pp_platform    Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
         STD 20
         COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
         AUTOMOC)
@@ -2180,7 +2136,7 @@ set(_session_series_sources ${_owner_view_test_sources}
 pp_add_test(session_series_test
     SOURCES ${SRC}/Gui/tests/session_series_test.cpp ${_session_series_sources}
     INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
+    LINK pp_platform Qt6::Gui Qt6::Qml Qt6::Concurrent ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2210,7 +2166,7 @@ pp_add_test(review_views_shot_test
     SOURCES ${SRC}/Gui/tests/review_views_shot_test.cpp ${_review_views_shot_sources}
     INCLUDE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/shot ${SRC}/Gui/app
             ${SRC}/Gui/charts ${SRC}/Gui/review ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Multimedia Qt6::Concurrent Qt6::Test ${OpenCV_LIBS}
+    LINK pp_platform Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Multimedia Qt6::Concurrent Qt6::Test ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2220,7 +2176,7 @@ set_tests_properties(review_views_shot_test PROPERTIES
 # session it is given, so its owner writes into it: run it on a scratch copy of the parity set only.
 add_executable(charts_series_dump ${PP_REPO_ROOT}/tools/diagnostics/charts_series_dump.cpp ${_session_series_sources})
 target_include_directories(charts_series_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(charts_series_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(charts_series_dump PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
 target_compile_definitions(charts_series_dump PRIVATE PP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_target_properties(charts_series_dump PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
@@ -2262,17 +2218,15 @@ add_executable(athlete_dump
     ${DIAG}/content/merged_norm_provider.cpp
     ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
     ${DIAG}/content/merged_pack_provider.cpp
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
     ${SRC}/Stores/swing_paths.cpp
-    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp)
 target_include_directories(athlete_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
                                                 ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(athlete_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(athlete_dump PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
 set_target_properties(athlete_dump PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 get_target_property(_athlete_dump_sources athlete_dump SOURCES)
 list(REMOVE_DUPLICATES _athlete_dump_sources)
@@ -2314,19 +2268,16 @@ set(MEASURE_DUMP_SRC
     ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
     ${DIAG}/content/merged_norm_provider.cpp
     ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/content/merged_pack_provider.cpp
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
     ${SRC}/Stores/swing_paths.cpp
-    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp)
 add_executable(measure_dump ${PP_REPO_ROOT}/tools/diagnostics/measure_dump.cpp ${MEASURE_DUMP_SRC})
 target_include_directories(measure_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
-target_link_libraries(measure_dump PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+target_link_libraries(measure_dump PRIVATE pp_platform Qt6::Core Qt6::Gui pinpoint_swingstore)
 set_target_properties(measure_dump PROPERTIES AUTOMOC ON)   # RuleData is a QObject (step 3.2)
 pp_apply_sanitizers(measure_dump)
 # measure_dump_test is below FIRE_FINDINGS_TEST_SOURCES: it fires each shot through fireFindings too (refactor 5.3).
@@ -2353,14 +2304,12 @@ set(FIRE_FINDINGS_TEST_SOURCES
     ${DIAG}/content/merged_norm_provider.cpp
     ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
     ${DIAG}/content/merged_pack_provider.cpp
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
     ${SRC}/Stores/swing_doc_reader.cpp
     ${SRC}/Stores/swing_doc_analysis.cpp
     ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
     ${SRC}/Stores/swing_paths.cpp
-    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-    ${SRC}/Core/pp_log_stream.cpp
-    ${SRC}/Core/PpMessageLog.cpp)
+    ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp)
 # measure_dump_test (refactor 5.3): the dump's core against the SESSION OWNER's path — its firing reader's grid read and
 # fireFindings' construction — so the fire_findings line (the measure-dump line plus fire_findings.cpp) and the core.
 pp_add_test(measure_dump_test
@@ -2368,14 +2317,14 @@ pp_add_test(measure_dump_test
             ${FIRE_FINDINGS_TEST_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(measure_dump_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 pp_add_test(fire_findings_test
     SOURCES ${DIAG}/tests/fire_findings_test.cpp ${FIRE_FINDINGS_TEST_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(fire_findings_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 pp_add_test(rule_version_golden_test
@@ -2383,7 +2332,7 @@ pp_add_test(rule_version_golden_test
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
                     -DPP_RULE_VERSION_GOLDEN_DIR="${DIAG}/tests/data/rule_version_golden"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(rule_version_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
@@ -2410,9 +2359,9 @@ pp_add_test(session_diagnostics_test
             ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp   # the freeze (3.6)
             ${SRC}/Diagnostics/engine/session_reduction.cpp   # §4.4 step 7, the diagnosis (refactor 3.5-ii)
             ${SRC}/Stores/firing_reader_store.cpp
-            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${SRC}/Core/work_pool.h
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2434,7 +2383,7 @@ set(SESSION_GATES_TEST_SOURCES ${SESSION_DIAGNOSTICS_TEST_SOURCES}
     ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp
     ${SRC}/Diagnostics/engine/session_reduction.cpp
     ${SRC}/Stores/firing_reader_store.cpp
-    ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    ${SRC}/Core/work_pool.h
     ${SRC}/Stores/session_index_summary.cpp ${SRC}/Stores/session_archiver.cpp   # the entry's summary reads (5.7a-P1)
     ${SRC}/Stores/swing_paths.cpp ${DIAG}/model/measure_sample.cpp ${SRC}/Stores/phase_grid_store.cpp   # the count's reads
     ${SRC}/Gui/diagnosticmodel/gate_counts.h ${SRC}/Gui/diagnosticmodel/gate_count_reads.h
@@ -2444,7 +2393,7 @@ list(REMOVE_DUPLICATES SESSION_GATES_TEST_SOURCES)
 pp_add_test(session_gates_test
     SOURCES ${SRC}/DomainModel/tests/session_gates_test.cpp ${SESSION_GATES_TEST_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2465,11 +2414,11 @@ pp_add_test(outcome_summary_test
             ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp
             ${SRC}/Diagnostics/engine/session_reduction.cpp
             ${SRC}/Stores/firing_reader_store.cpp
-            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${SRC}/Core/work_pool.h
             ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp
             ${SRC}/App/outcome_summary.h ${SRC}/App/outcome_summary.cpp ${SRC}/Diagnostics/derived/shot_factor_words.h
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS} Qt6::Qml
+    LINK pp_platform    ${OpenCV_LIBS} Qt6::Qml
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2490,9 +2439,9 @@ pp_add_test(athlete_diagnostics_test
             ${SRC}/App/athlete_catch_up.h ${SRC}/App/athlete_catch_up.cpp
             ${SRC}/Diagnostics/engine/session_reduction.cpp
             ${SRC}/Stores/firing_reader_store.cpp
-            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${SRC}/Core/work_pool.h
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     STD 20
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
@@ -2508,7 +2457,7 @@ pp_add_test(reduction_rule_golden_test
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
                     -DPP_RULE_VERSION_GOLDEN_DIR="${DIAG}/tests/data/rule_version_golden"
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(reduction_rule_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
@@ -2524,7 +2473,7 @@ add_executable(diag_uncertainty_report
     ${_diag_parallel_live_sources}
     ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp)
 target_include_directories(diag_uncertainty_report PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(diag_uncertainty_report PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(diag_uncertainty_report PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
 set_target_properties(diag_uncertainty_report PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 # Optimised, because it MEASURES the re-rank cost (gate §A8.8) and an -O0 test build reads several
 # times slower than the studio's Release; the Mac Debug app's figure is quoted beside it in the report.
@@ -2542,7 +2491,7 @@ add_executable(diag_rank_diff
     ${_diag_parallel_live_sources}
     ${SRC}/Gui/diagnostics/session_diagnostics_adapter.h ${SRC}/Gui/diagnostics/session_diagnostics_adapter.cpp)
 target_include_directories(diag_rank_diff PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
-target_link_libraries(diag_rank_diff PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+target_link_libraries(diag_rank_diff PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
 target_compile_definitions(diag_rank_diff PRIVATE PP_DIAG_RES_DIR="${DIAGRES}")
 set_target_properties(diag_rank_diff PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 target_compile_options(diag_rank_diff PRIVATE -O2)
@@ -2605,10 +2554,9 @@ pp_add_test(seed_conversion_test
             ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(seed_conversion_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
@@ -2629,14 +2577,13 @@ pp_add_test(lm_corridor_test
             ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             # the engine's own signal evaluation (evaluateSignal), which the one direction rule is swept against
             # (refactor 6.3b)
             ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(lm_corridor_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
@@ -2646,14 +2593,13 @@ pp_add_test(manifest_migration_test
             ${DIAG_NORM} ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue.cpp
             ${SRC}/Vocabulary/Metrics/metric_resolver.cpp
             ${SRC}/Vocabulary/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
     INCLUDE ${DIAG} ${SRC}/Vocabulary/Metrics ${ANALYSIS}
-    AUTOMOC)
+    AUTOMOC LINK pp_platform)
 set_tests_properties(manifest_migration_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
@@ -2676,7 +2622,6 @@ pp_add_test(model_browser_test
             ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp ${DIAG}/content/memory_pack_provider.cpp
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp ${DIAG}/content/memory_norm_provider.cpp ${DIAG_NORM}
@@ -2686,7 +2631,7 @@ pp_add_test(model_browser_test
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
     INCLUDE ${NORM_INC} ${SRC}/Gui/diagnosticmodel
-    LINK    Qt6::Qml Qt6::Concurrent
+    LINK pp_platform    Qt6::Qml Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
     AUTOMOC)
 # The screen, drill and reference registries need their env overrides too: this panel reads all
@@ -2711,7 +2656,6 @@ pp_add_test(inspector_refresh_test
             ${SRC}/Gui/diagnosticmodel/layout/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp ${DIAG}/content/memory_pack_provider.cpp
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp ${DIAG}/content/memory_norm_provider.cpp ${DIAG_NORM}
@@ -2721,7 +2665,7 @@ pp_add_test(inspector_refresh_test
             ${SRC}/Vocabulary/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
     INCLUDE ${NORM_INC} ${SRC}/Gui/diagnosticmodel
-    LINK    Qt6::Qml Qt6::Quick Qt6::Concurrent
+    LINK pp_platform    Qt6::Qml Qt6::Quick Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
     AUTOMOC)
 set_tests_properties(inspector_refresh_test PROPERTIES
@@ -2737,7 +2681,6 @@ pp_add_test(corridor_plot_test
             ${SRC}/Gui/diagnosticmodel/layout/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/content/drill_pack.cpp ${DIAG}/content/gate_words_pack.cpp ${DIAG}/content/screen_pack.cpp ${DIAG}/content/reference_pack.cpp
             ${DIAG}/content/resource_pack_provider.cpp ${DIAG}/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/content/merged_pack_provider.cpp
             ${DIAG}/content/resource_norm_provider.cpp ${DIAG}/content/file_norm_provider.cpp ${SRC}/Stores/rule_data_reads.cpp
             ${DIAG}/content/merged_norm_provider.cpp ${DIAG_NORM}

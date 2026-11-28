@@ -178,13 +178,7 @@ pp_add_test(ppcp_bundle_import_test
 pp_add_test(ppcp_video_input_test
     SOURCES ppcp_video_input_test.cpp
             ${PP_SRC}/Video/VideoInputPpcp.cpp
-            # ⚠ THE REAL LOG, NOT `pp_log_stub.cpp`.  VideoInputPpcp names which
-            # end closed a Stream through ppWarn(), and the primitive now stands
-            # on its own (pp_log_stream.cpp) instead of arriving with whisper and
-            # ggml behind it — so a suite can carry the log rather than a stub
-            # that discards it.
-            ${PP_SRC}/Core/pp_log_stream.cpp
-            ${PP_SRC}/Core/PpMessageLog.cpp
+            # (the real log is pp_platform's: VideoInputPpcp names which end closed a Stream through ppWarn())
             ${PP_SRC}/Video/video_input_base.cpp
             ${PP_SRC}/Video/raw_video_frame.cpp
             ${PPCP}/ppcp_host_engine.cpp
@@ -194,7 +188,7 @@ pp_add_test(ppcp_video_input_test
             # sends it back), and the hex helpers live with the ledger.
             ${PPCP}/ppcp_import_ledger.cpp
     INCLUDE ${PPCP} ${PP_SRC}/Video
-    LINK    ppcp Qt6::Multimedia
+    LINK pp_platform    ppcp Qt6::Multimedia
     DEFINES PP_PPCP_SRC_DIR="${PPCP}"
     STD 20
     AUTOMOC
@@ -219,9 +213,7 @@ pp_add_test(ppcp_clip_filer_test
             ${PP_SRC}/Video/VideoInputPpcp.cpp
             ${PP_SRC}/Video/video_input_base.cpp
             ${PP_SRC}/Video/raw_video_frame.cpp
-            ${PP_SRC}/Core/pp_log_stream.cpp
-            ${PP_SRC}/Core/PpMessageLog.cpp
-            ${PP_SRC}/Stores/swing_doc_writer.cpp ${PP_SRC}/Stores/swing_store_repository.cpp ${PP_SRC}/Core/folder_lock.cpp
+            ${PP_SRC}/Stores/swing_doc_writer.cpp ${PP_SRC}/Stores/swing_store_repository.cpp
             ${PP_SRC}/Stores/swing_doc_reader.cpp
             ${PP_SRC}/Stores/swing_doc_analysis.cpp
             ${PP_SRC}/Stores/recording_header.cpp ${PP_SRC}/Analysis/effective_context.cpp
@@ -235,7 +227,7 @@ pp_add_test(ppcp_clip_filer_test
             ${PPCP}/ppcp_ingest_policy.cpp
             ${PPCP}/ppcp_source_declaration.cpp
     INCLUDE ${PPCP} ${PP_SRC} ${PP_SRC}/Video ${PP_SRC}/Core ${PP_SRC}/LaunchMonitor
-    LINK    ppcp Qt6::Multimedia Qt6::Qml
+    LINK pp_platform    ppcp Qt6::Multimedia Qt6::Qml
     STD 20
     AUTOMOC)
 
@@ -435,8 +427,6 @@ pp_add_test(ppcp_host_peer_test
             # drops — losing the optional preview channel — and a suite that
             # stubbed that out would link, run, and quietly discard the one line
             # that says the link survived.
-            ${PP_SRC}/Core/pp_log_stream.cpp
-            ${PP_SRC}/Core/PpMessageLog.cpp
             ${PPCP}/ppcp_live_session.cpp
             ${PPCP}/ppcp_shot_bridge.cpp
             ${PPCP}/ppcp_annotation_store.cpp
@@ -445,7 +435,7 @@ pp_add_test(ppcp_host_peer_test
             ${PPCP}/ppcp_source_declaration.cpp
             ${PPCP}/ppcp_transport.cpp
     INCLUDE ${PPCP}
-    LINK    ppcp Qt6::Multimedia OpenSSL::SSL OpenSSL::Crypto Threads::Threads
+    LINK pp_platform    ppcp Qt6::Multimedia OpenSSL::SSL OpenSSL::Crypto Threads::Threads
     DEFINES ${_hp_defines}
     STD 20
     GTEST)
@@ -647,10 +637,7 @@ endif()
 pp_add_test(ppcp_host_service_test
     SOURCES ppcp_host_service_test.cpp
             ppcp_host_service_stubs.cpp
-            # The real log rather than a stub inside the file above — see the note
-            # there, and pp_log_stream.cpp's header for why it is finally possible.
-            ${PP_SRC}/Core/pp_log_stream.cpp
-            ${PP_SRC}/Core/PpMessageLog.cpp
+            # (the real log, pp_platform's, rather than a stub inside the file above)
             ${PPCP}/ppcp_host_service.cpp
             ${PPCP}/ppcp_rendezvous.cpp
             ${PPCP}/ppcp_pairing_store.cpp
@@ -683,7 +670,7 @@ pp_add_test(ppcp_host_service_test
             ${PPCP}/ppcp_bundle_transport.cpp
             ${PPCP}/ppcp_qr.cpp
     INCLUDE ${PPCP} ${PP_SRC}/Video ${PP_SRC}/Core
-    LINK    ${_hs_link}
+    LINK pp_platform    ${_hs_link}
     DEFINES PP_PPCP_SRC_DIR="${PPCP}" HAVE_PPCP HAVE_PPCP_TRANSPORT
     STD 20
     AUTOMOC
@@ -823,11 +810,9 @@ if(NOT MSVC)
                 ${PPCP}/ppcp_ingest_policy.cpp
                 ${PPCP}/ppcp_source_declaration.cpp
                 # ppWarn() — every refusal in the class under test is said out loud.
-                ${PP_SRC}/Core/pp_log_stream.cpp
-                ${PP_SRC}/Core/PpMessageLog.cpp
         INCLUDE ${PPCP} ${PP_SRC}/Core ${PP_SRC}/Buffer
                 ${PP_SRC}/Gui ${PP_SRC}/Gui/shot ${PP_SRC}/Gui/session
-        LINK    pinpoint_buffer ppcp Qt6::Core Qt6::Qml Qt6::Multimedia Qt6::Test
+        LINK pp_platform    pinpoint_buffer ppcp Qt6::Core Qt6::Qml Qt6::Multimedia Qt6::Test
                 Threads::Threads
         DEFINES HAVE_PPCP
         STD 20
@@ -857,12 +842,8 @@ if(PP_PPCP_PLAINTEXT_HARNESS)
         ${PPCP}/ppcp_bundle_transport.cpp
         ${PPCP}/ppcp_import_sink.cpp
         ${PPCP}/ppcp_host_peer.cpp
-        # ⚠ THE REAL LOG — `pump()` reports preview-channel degradation through
-        # ppWarn(), so every target compiling ppcp_host_peer.cpp needs the
-        # primitive.  It stands alone now (pp_log_stream.cpp) and no longer drags
-        # whisper and ggml in behind it.
-        ${PP_SRC}/Core/pp_log_stream.cpp
-        ${PP_SRC}/Core/PpMessageLog.cpp
+        # (pump() reports preview-channel degradation through ppWarn(): every target compiling ppcp_host_peer.cpp
+        # links pp_platform, the real log)
         ${PPCP}/ppcp_live_session.cpp
         ${PPCP}/ppcp_shot_bridge.cpp
         ${PPCP}/ppcp_annotation_store.cpp
@@ -875,7 +856,7 @@ if(PP_PPCP_PLAINTEXT_HARNESS)
     set_target_properties(ppcp_conform_host PROPERTIES
         CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON AUTOMOC ON)
     target_include_directories(ppcp_conform_host PRIVATE ${PPCP} ${PP_BUFFER})
-    target_link_libraries(ppcp_conform_host PRIVATE
+    target_link_libraries(ppcp_conform_host PRIVATE pp_platform
         ppcp Qt6::Core Qt6::Multimedia OpenSSL::SSL OpenSSL::Crypto Threads::Threads)
     # THE ONLY TARGET IN THIS REPOSITORY THAT GETS THE MACRO.  See the banner
     # at the top of this file, and `Listener::setPlaintextHarness()`.

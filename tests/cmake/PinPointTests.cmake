@@ -469,3 +469,9 @@ function(pp_requirement test)
         set_property(TEST ${test} APPEND PROPERTY LABELS ${ARGN})
     endif()
 endfunction()
+
+# --- The ring libraries (cmake/PinPointRings.cmake) ------------------------------
+# Defined once for the whole tree, after everything above (Qt, Eigen, the sanitizer flags), so any suite, standalone
+# or under the umbrella, links them by name (LINK pp_platform) and lists none of their sources.
+include(${PP_REPO_ROOT}/cmake/PinPointRings.cmake)
+pp_require_ring(platform)

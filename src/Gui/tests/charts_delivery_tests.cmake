@@ -11,12 +11,9 @@ pp_add_test(session_delivery_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_delivery_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_DELIVERY_ROWS=${CMAKE_CURRENT_SOURCE_DIR}/data/delivery/club_delivery_rows.json")
@@ -44,12 +41,9 @@ pp_add_test(charts_delivery_presenter_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_delivery_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -70,12 +64,9 @@ pp_add_test(delivery_picture_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(delivery_picture_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_DELIVERY_PICTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/delivery/picture_doc.json")
@@ -98,5 +89,5 @@ add_executable(day_readings_dump
 target_include_directories(day_readings_dump PRIVATE ${PP_BUFFER} ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis
                                                      ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics)
 pp_require_swingstore()
-target_link_libraries(day_readings_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+target_link_libraries(day_readings_dump PRIVATE pp_platform Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
 set_target_properties(day_readings_dump PROPERTIES AUTOMOC ON)

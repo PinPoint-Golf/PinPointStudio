@@ -12,12 +12,9 @@ pp_add_test(session_posture_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_posture_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json")
@@ -53,12 +50,9 @@ pp_add_test(charts_posture_presenter_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/content/resource_pack_provider.cpp
             ${SRC}/Diagnostics/content/file_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/content/merged_pack_provider.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_posture_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json;PP_POSTURE_DIAGNOSTICS=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002_diagnostics.json;PP_POSTURE_PICTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/picture_doc.json")

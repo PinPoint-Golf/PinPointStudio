@@ -77,9 +77,6 @@ pp_add_test(update_controller_policy_test
             ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Vocabulary/Identity/identity.h
             ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Core/folder_lock.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             # athlete_controller.cpp includes Diagnostics/content/norm_pack.h for Cohort/cohortFor()/
             # cohortToMap(), so the definitions have to come with it. cohortFor() and cohortToMap's
             # sexFromName/ageBandFromName are defined in norm.cpp now (norm.h's out-of-line
@@ -105,5 +102,5 @@ pp_add_test(update_controller_policy_test
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
             ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK    Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Qml Qt6::Test
     GTEST_NO_MAIN  AUTOMOC)

@@ -14,8 +14,6 @@ pp_add_test(report_stills_test
             ${GUI}/report/report_stills_pure.cpp
             ${GUI}/markup/markup_truth.cpp
             ${SRC}/Analysis/mp4_frame_reader.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
-    LINK    Qt6::Concurrent ${OpenCV_LIBS}
+    LINK pp_platform    Qt6::Concurrent ${OpenCV_LIBS}
     AUTOMOC)

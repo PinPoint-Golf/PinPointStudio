@@ -82,14 +82,9 @@ pp_add_test(heatmap_decode_test
 # ball_detector.cpp carries a PP_PROFILE_SCOPE.
 pp_add_test(ball_detector_contract_test
     SOURCES ball_detector_contract_test.cpp
-            ${CORE}/pp_log_stream.cpp
-            ${CORE}/PpMessageLog.cpp
             ${POSE}/ball_detector.cpp
-            ${CORE}/pp_profiler.cpp
-            ${CORE}/pp_os_metrics.cpp
-            ${CORE}/PpStatsLog.cpp
     INCLUDE ${POSE} ${CORE} ${OpenCV_INCLUDE_DIRS}
-    LINK    ${OpenCV_LIBS}
+    LINK pp_platform    ${OpenCV_LIBS}
     DEFINES HAVE_OPENCV
     AUTOMOC)
 
@@ -100,6 +95,4 @@ pp_add_test(ball_detector_contract_test
 pp_add_test(pose_ep_cascade_test
     SOURCES pose_ep_cascade_test.cpp
             ${POSE}/pose_backend.cpp
-            ${CORE}/pp_log_stream.cpp
-            ${CORE}/PpMessageLog.cpp
-    INCLUDE ${POSE} ${CORE})
+    INCLUDE ${POSE} ${CORE} LINK pp_platform)

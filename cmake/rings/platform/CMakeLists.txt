@@ -1,10 +1,11 @@
-# pp_platform — the Platform ring's compiled files of src/Core, as one static library (platform refactor B1.4, the
-# pilot of Part 2's ring libraries; its shape is proposed, for the Solution Architect). The app links it, and so does
-# src/Core/tests; every other target still compiles the files it needs itself until Part 2.
+# pp_platform — the Platform ring's compiled files of src/Core, as one static library (platform refactor B1.4's pilot,
+# finished by #424). Defined once for both trees by pp_require_ring(platform) (cmake/PinPointRings.cmake): the app,
+# the offline tools and every test that needs a Platform file link it; none of them lists these sources.
 #
 # It links only Qt Core, threads and the system. The Platform files that are not here, and why:
 #  - pp_debug.cpp: it includes whisper.h, ggml.h and QMediaPlayer (it silences whisper/ggml and captures FFmpeg's
 #    av_log), so it stays in the app's own list. ppInfo()/ppWarn() themselves are pp_log_stream.cpp, which is here.
+#  - device_enumerator.cpp: an Adapters file in src/Core (the ring tables' R4).
 #  - the header-only ones (atomic_write.h, post_shot_trace.h, cpu_topology.h, pp_model_path.h, ort_log.h) compile
 #    nothing; they are listed where they were. ort_log.h needs ONNX Runtime's header, so it could not be here.
 # No source file here reads PINPOINT_DEBUG_LEVEL or PINPOINT_PROFILE*: those change only their callers' macros, so
@@ -18,23 +19,24 @@ if(NOT TARGET Qt6::Core)
 endif()
 find_package(Threads REQUIRED)
 
+set(_core ${PP_RINGS_SRC}/Core)
 add_library(pp_platform STATIC
-    pp_debug.h            # declares PpLogStream; its definition is pp_log_stream.cpp
-    pp_log_stream.cpp
-    PpMessageLog.h        PpMessageLog.cpp
-    PpStatsLog.h          PpStatsLog.cpp
-    AnalysisProfileLog.h  AnalysisProfileLog.cpp
-    pp_profiler.h         pp_profiler.cpp
-    pp_os_metrics.h       pp_os_metrics.cpp
-    pp_gpu_metrics.h      pp_gpu_metrics.cpp
-    folder_lock.h         folder_lock.cpp
-    work_pool.h           work_pool.cpp
+    ${_core}/pp_debug.h            # declares PpLogStream; its definition is pp_log_stream.cpp
+    ${_core}/pp_log_stream.cpp
+    ${_core}/PpMessageLog.h        ${_core}/PpMessageLog.cpp
+    ${_core}/PpStatsLog.h          ${_core}/PpStatsLog.cpp
+    ${_core}/AnalysisProfileLog.h  ${_core}/AnalysisProfileLog.cpp
+    ${_core}/pp_profiler.h         ${_core}/pp_profiler.cpp
+    ${_core}/pp_os_metrics.h       ${_core}/pp_os_metrics.cpp
+    ${_core}/pp_gpu_metrics.h      ${_core}/pp_gpu_metrics.cpp
+    ${_core}/folder_lock.h         ${_core}/folder_lock.cpp
+    ${_core}/work_pool.h           ${_core}/work_pool.cpp
 )
 
 if(APPLE)
     # The Metal backend of pp_gpu_metrics (ObjC++). ARC manages the MTLDevice from MTLCreateSystemDefaultDevice().
-    target_sources(pp_platform PRIVATE pp_gpu_metrics_mac.mm)
-    set_source_files_properties(pp_gpu_metrics_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_sources(pp_platform PRIVATE ${_core}/pp_gpu_metrics_mac.mm)
+    set_source_files_properties(${_core}/pp_gpu_metrics_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(pp_platform PUBLIC "-framework Metal" "-framework Foundation")
 elseif(WIN32)
     # dxgi: the per-process / per-adapter VRAM query (IDXGIAdapter3). pp_os_metrics' K32GetProcessMemoryInfo is a
@@ -46,17 +48,9 @@ else()
 endif()
 
 target_include_directories(pp_platform
-    PRIVATE   ${CMAKE_CURRENT_SOURCE_DIR}
-    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+    PRIVATE   ${_core}
+    INTERFACE ${_core})
 
 target_link_libraries(pp_platform PUBLIC Qt6::Core Threads::Threads)
 
-if(MSVC)
-    # The app's own MSVC definitions, so these files compile as they did inside it.
-    target_compile_definitions(pp_platform PRIVATE _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
-endif()
-
-# The test tree's sanitizer flags (tests/cmake/PinPointTests.cmake), when it is the one building the library.
-if(COMMAND pp_apply_sanitizers)
-    pp_apply_sanitizers(pp_platform)
-endif()
+pp_ring_settings(pp_platform)

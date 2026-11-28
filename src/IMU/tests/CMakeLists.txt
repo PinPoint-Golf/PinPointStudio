@@ -204,10 +204,8 @@ pp_add_test(wt901_config_retry_test
             ${IMU}/wt9011dcl_base.cpp
             ${IMU}/imu_base.cpp
             ${IMU}/eskf_orientation_filter.cpp
-            ${PP_CORE}/pp_log_stream.cpp
-            ${PP_CORE}/PpMessageLog.cpp
     INCLUDE ${IMU} ${PP_CORE} ${EIGEN_DIR}
             ${PP_THIRD}/imu_ekf_compat   # MUST precede imu_ekf (as eskf_gyro_units_test)
             ${PP_THIRD}/imu_ekf
-    LINK    pinpoint_buffer
+    LINK pp_platform    pinpoint_buffer
     STD 20  AUTOMOC)

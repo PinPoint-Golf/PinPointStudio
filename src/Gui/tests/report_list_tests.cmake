@@ -22,19 +22,17 @@ pp_add_test(report_list_test
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
             ${SRC}/Secrets/mail_credentials.cpp ${SRC}/Secrets/secret_store.cpp   # the password, through the credential store
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/session_archiver.cpp
             ${SRC}/Stores/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
-            ${SRC}/Core/folder_lock.cpp ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
+            ${SRC}/Vocabulary/Identity/identity.h   # the archiver's door (step 2.4)
             ${SRC}/Stores/swing_paths.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/report ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Analysis   # metric_descriptor.h names the bare "swing_analysis.h" (reached through session_diagnostics_files.h since a6220739)
-    LINK    Qt6::Network
+    LINK pp_platform    Qt6::Network
     AUTOMOC)
 set_tests_properties(report_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

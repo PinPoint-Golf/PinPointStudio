@@ -63,12 +63,10 @@ pp_add_test(gcquad_pairing_test
             ${LM}/launch_monitor_base.cpp
             ${LM}/gcquad_csv_parser.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${LM}/gcquad_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
-    LINK    Qt6::Test
+    LINK pp_platform    Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
 
 # --- libgspro links, and its headers match its archive ---------------------------
@@ -123,12 +121,10 @@ pp_add_test(gspro_monitor_test
             ${LM}/gspro_reading.cpp
             ${LM}/launch_monitor_base.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${LM}/gspro_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
-    LINK    gspro Qt6::Network Qt6::Test
+    LINK pp_platform    gspro Qt6::Network Qt6::Test
     GTEST_NO_MAIN AUTOMOC)
 
 # --- Foresight Premier: the session files → readings -----------------------------
@@ -156,11 +152,9 @@ pp_add_test(premier_monitor_test
             ${LM}/premier_session_parser.cpp
             ${LM}/launch_monitor_base.cpp
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
             ${LM}/premier_monitor.h
             ${LM}/launch_monitor_base.h
     INCLUDE ${LM} ${SRC}/Core
     DEFINES PP_PREMIER_FIXTURES="${PREMIER_FIXTURES}"
-    LINK    Qt6::Test
+    LINK pp_platform    Qt6::Test
     GTEST_NO_MAIN AUTOMOC)

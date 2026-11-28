@@ -13,7 +13,7 @@ find_package(Qt6 REQUIRED COMPONENTS Multimedia Qml Test)
 pp_add_test(replay_score_test
     SOURCES replay_score_test.cpp
             ${GUI}/review/swing_data_source.cpp ${GUI}/review/shot_data_door.h ${GUI}/review/swing_data_types.h
-            ${GUI}/charts/charts_work.h ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+            ${GUI}/charts/charts_work.h ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h
             ${GUI}/review/swing_series_model.cpp
             ${GUI}/review/swing_coverage_model.cpp
             ${GUI}/review/timeline_labels.cpp
@@ -24,15 +24,13 @@ pp_add_test(replay_score_test
             ${GUI}/shot/disk_replay_source.cpp
             ${GUI}/shot/replay_source.h
             ${GUI}/markup/markup_truth.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
             ${SRC}/Stores/swing_doc_reader.cpp
             ${SRC}/Stores/swing_doc_analysis.cpp
             ${SRC}/Stores/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/Vocabulary/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-            ${SRC}/Core/pp_log_stream.cpp
-            ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK    Qt6::Multimedia Qt6::Qml Qt6::Test
+    LINK pp_platform    Qt6::Multimedia Qt6::Qml Qt6::Test
     AUTOMOC)
