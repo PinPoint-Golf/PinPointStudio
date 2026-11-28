@@ -64,6 +64,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -621,6 +622,7 @@ void testShotKind()
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     testRecordingRoundTrip();
     testContextBlock();
     testOneHeader();

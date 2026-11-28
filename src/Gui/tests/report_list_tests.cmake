@@ -15,22 +15,14 @@ find_package(Qt6 REQUIRED COMPONENTS Network)
 pp_add_test(report_list_test
     SOURCES report_list_test.cpp
             ${GUI}/report/session_report_list_model.cpp
-            ${GUI}/session/session_list_presenter.cpp ${SRC}/Stores/session_list_reads.cpp   # its rows (refactor step 5.7a)
-            ${SRC}/Stores/session_index_summary.cpp   # the entries' summaries (5.7a-P1)
+            ${GUI}/session/session_list_presenter.cpp   # its rows (refactor step 5.7a)
             ${GUI}/review/device_filter_model.cpp
             ${GUI}/report/report_mailer.cpp
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
             ${SRC}/Secrets/mail_credentials.cpp ${SRC}/Secrets/secret_store.cpp   # the password, through the credential store
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-            ${SRC}/Stores/swing_doc_reader.cpp
-            ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp
-            ${SRC}/Stores/session_archiver.cpp
-            ${SRC}/Stores/session_store.cpp
-            ${SRC}/Stores/swing_paths.cpp
     INCLUDE ${GUI} ${GUI}/report ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Analysis   # metric_descriptor.h names the bare "swing_analysis.h" (reached through session_diagnostics_files.h since a6220739)
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Network
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Network
     AUTOMOC)
 set_tests_properties(report_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

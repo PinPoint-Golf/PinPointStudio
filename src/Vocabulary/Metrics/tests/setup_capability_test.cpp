@@ -36,6 +36,7 @@
 
 #include <cstdio>
 #include <vector>
+#include "../../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -323,6 +324,7 @@ void test_rotation(const char *name, const std::vector<CapabilityGroup> &groups,
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     std::printf("=== Setup capability: the closing page's data ===\n");
 
     const MetricCatalogue cat = makeMetricCatalogue();

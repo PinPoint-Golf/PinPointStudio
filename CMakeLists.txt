@@ -818,12 +818,12 @@ qt_add_executable(PinPointStudio
     # account with the password in the system's secure store (platform halves below).
     src/App/studio_profile.h                src/App/studio_profile.cpp
     src/App/studio_profile_repository.h      # its keys and its folder, as the profile reaches them (SET-20, FILE-APP-06)
-    src/Stores/studio_profile_store.h        src/Stores/studio_profile_store.cpp   # the one store behind it
+    src/Stores/studio_profile_store.h   # the one store behind it
     # The Rig (docs/design/rig_design.md §4.1, §4.4; information_model.md OBJ-RIG, FILE-APP-07): one per machine,
     # its repository and the one store behind it (rig/rig.json), and `app.rig`, its read-only presenter.
     src/DomainModel/rig_repository.h
     src/DomainModel/rig_calibration_sink.h   # the Rig's calibration sink, which the sensors' objects call (C-6b.2)
-    src/Stores/rig_store.h                   src/Stores/rig_store.cpp
+    src/Stores/rig_store.h
     src/Gui/app/rig_presenter.h              src/Gui/app/rig_presenter.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
     # (the advisory folder lock, folder_lock.*, R-PERS-6, is in pp_platform: cmake/rings/platform/)
@@ -937,14 +937,17 @@ qt_add_executable(PinPointStudio
     src/Gui/media/llm_controller.h   src/Gui/media/llm_controller.cpp
 )
 
+# The app's own folders, for its files' includes by bare name and for the QML type registrations (generated, they
+# include each registered type's header by name). The ring libraries' folders are not here: their files include
+# relatively, and what a user needs a library exports (#424 trimmed Analysis, Club, Wrist, Body, Timeline, Ball,
+# Kinematics, Skeleton3d, Gui/calibration and Gui/characteristics, which no app file reached through this list).
 target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
     src/Gui/imu src/Gui/viz src/Gui/swing3d src/Gui/session src/Gui/shot src/Gui/review
-    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup src/Gui/charts src/Gui/trust src/Gui/variability
-    src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
+    src/Gui/media src/Gui/diagnostics src/Gui/markup src/Gui/charts src/Gui/trust src/Gui/variability
+    src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
-    src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
     src/Update
     "${CMAKE_BINARY_DIR}/generated")
 
@@ -1045,7 +1048,8 @@ pp_require_ring(vocabulary)   # the metric catalogue, the variability grader, th
 set(PP_RINGS_EIGEN ${eigen_SOURCE_DIR})
 pp_require_ring(rules)        # the diagnostics engine, the wrist assessment, the body and phase maths (cmake/rings/rules/)
 pp_require_ring(domain)       # the athlete, the session and its shots, the Rig, the rule data (cmake/rings/domain/)
-target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary pp_rules pp_domain)
+pp_require_ring(stores)       # the stores and file doors (cmake/rings/stores/)
+target_link_libraries(PinPointStudio PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores)
 
 target_sources(PinPointStudio PRIVATE
     src/Vocabulary/Common/figure_format.h
@@ -2863,11 +2867,9 @@ target_sources(PinPointStudio PRIVATE
     src/Stores/video_encoder.h
     src/Stores/video_encoder.cpp
     src/Stores/swing_paths.h
-    src/Stores/swing_paths.cpp
     # The session's own files and the one swing allocator (refactor step 2.2): SessionRepository's
     # adapter and the session files' names.
     src/Stores/session_store.h
-    src/Stores/session_store.cpp
     src/Stores/session_files.h
     # The session's diagnostics files and the golfer's input, one reader and writer (refactor step 2.5).
     src/Stores/session_diagnostics_files.h
@@ -2879,7 +2881,6 @@ target_sources(PinPointStudio PRIVATE
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
     src/Stores/athlete_store.h
-    src/Stores/athlete_store.cpp
     src/Stores/athlete_files.h
     src/Vocabulary/Recording/frame_decode.h
     src/Vocabulary/Recording/frame_decode.cpp
@@ -2892,14 +2893,9 @@ target_sources(PinPointStudio PRIVATE
     src/Stores/swing_doc.h
     src/Stores/swing_doc_internal.h
     src/Stores/dtl_overlay_payload.h
-    src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-    src/Stores/swing_doc_reader.cpp
-    src/Stores/swing_doc_analysis.cpp
-    src/Stores/recording_header.cpp
     src/Stores/session_archiver.h
-    src/Stores/session_archiver.cpp
-    src/Stores/session_list_reads.h src/Stores/session_list_reads.cpp   # the one session list's kept read (5.7a; cut in 5.7a-P1)
-    src/Stores/session_index_summary.h src/Stores/session_index_summary.cpp   # the index entry's summary reads (5.7a-P1)
+    src/Stores/session_list_reads.h   # the one session list's kept read (5.7a; cut in 5.7a-P1)
+    src/Stores/session_index_summary.h   # the index entry's summary reads (5.7a-P1)
     src/DomainModel/session_roll_up.h
     src/Vocabulary/Analysis/swing_analysis.h
     src/Vocabulary/Analysis/address_marks_types.h
@@ -3036,11 +3032,9 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/firing_reader.h
     src/DomainModel/golfer_input_rules.h
     src/Stores/firing_reader_store.h
-    src/Stores/firing_reader_store.cpp
     # The session's series' read door (refactor 5.5a; Domain model interface, Adapters store).
     src/DomainModel/series_reader.h
     src/Stores/series_store.h
-    src/Stores/series_store.cpp
     src/Diagnostics/engine/session_reduction.h
     src/Diagnostics/derived/session_results.h
     # (the one worker pool, src/Core/work_pool.*, is in pp_platform)
@@ -3341,14 +3335,8 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Stores/session_store.cpp
-        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-        src/Stores/swing_doc_reader.cpp
-        src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
-        src/Stores/swing_paths.cpp
         # NOT src/Core/pp_debug.cpp — it includes whisper.h and would pull ggml and FFmpeg
         # into a tool that rewrites one JSON file. lm_repair.cpp provides PpLogStream itself
         # and routes it to stderr; see the note there. It links pp_platform for the folder lock
@@ -3357,7 +3345,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
     )
     target_include_directories(lm_repair PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary pp_rules pp_domain Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(lm_repair PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Launch monitor tools: lm_repair enabled")
 endif()
 
@@ -3368,18 +3356,12 @@ endif()
 option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
-        tools/storage/pps_convert_library.cpp
-        src/Stores/session_store.cpp
-        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-        src/Stores/swing_doc_reader.cpp
-        src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp
-        src/Stores/swing_paths.cpp)
+        tools/storage/pps_convert_library.cpp)
     target_include_directories(pps_convert_library PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
     # The real log (pp_platform): swing_paths reports through ppWarn, and a line a conversion says on the way past
     # must reach whoever runs it.
-    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary pp_rules pp_domain Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_convert_library PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
 
     # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
@@ -3387,16 +3369,10 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     # RecordingRepository::backfillAnalysisContext. A dry run unless --write (which needs a
     # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
     add_executable(backfill_analysis_context
-        tools/migrate/backfill_analysis_context.cpp
-        src/Stores/session_store.cpp
-        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-        src/Stores/swing_doc_reader.cpp
-        src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp
-        src/Stores/swing_paths.cpp)
+        tools/migrate/backfill_analysis_context.cpp)
     target_include_directories(backfill_analysis_context PRIVATE
         src/Buffer src/Stores src/LaunchMonitor src/Core)
-    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary pp_rules pp_domain Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(backfill_analysis_context PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
 
     # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
@@ -3405,19 +3381,10 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     # Its engine (migrate_step2.*) is shared with migrate_step2_test (the tests tree, Analysis suite).
     add_executable(pps_migrate_step2
         tools/migrate/pps_migrate_step2.cpp
-        tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
-        src/Stores/athlete_store.cpp   # AthleteRecord
-        src/Stores/session_store.cpp
-        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-        src/Stores/swing_doc_reader.cpp
-        src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp
-        src/Stores/swing_paths.cpp
-        src/Stores/rig_store.cpp   # a write is refused once the Rig keeps the learned club lengths
-    )
+        tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h)
     target_include_directories(pps_migrate_step2 PRIVATE
         src src/Buffer src/Stores src/LaunchMonitor src/Core src/Analysis)
-    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary pp_rules pp_domain Qt6::Core Qt6::Gui pinpoint_swingstore)
+    target_link_libraries(pps_migrate_step2 PRIVATE pp_platform pp_vocabulary pp_rules pp_domain pp_stores Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
@@ -3449,7 +3416,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Stores/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
         src/Stores/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
-        src/Stores/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/analysis_pipeline.cpp
@@ -3460,7 +3426,6 @@ if(PINPOINT_BUILD_TOOLS)
         # reference_bands.cpp hosts NormBandProvider — the corridors it used to compile in are now
         # content in src/Resources/diagnostics/norms.json, so the offline stack needs the norm
         # stack too. Omit these and swinglab_run / in-app re-analyse fail at link time.
-        src/Stores/rule_data_reads.cpp
         # screens.json and drills.json are embedded into every offline target by
         # pinpoint_add_diagnostics_resources below, so their loaders belong here too — otherwise the
         # offline binaries carry two reference sets no code in them can read, which looks like
@@ -3490,11 +3455,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Club/club_delivery.cpp
         src/Ball/ball_position.cpp
         src/Vocabulary/Recording/frame_decode.cpp
-        src/Stores/swing_doc_writer.cpp src/Stores/swing_store_repository.cpp
-        src/Stores/swing_doc_reader.cpp
-        src/Stores/swing_doc_analysis.cpp
-        src/Stores/recording_header.cpp
-        src/Stores/swing_paths.cpp
         # swing_doc_writer.cpp writes the launchMonitor block by walking lm::fieldDefs(),
         # so the offline tools need the table itself, not just its header. The
         # PARSER and the monitor stay out: an offline tool replays a recorded
@@ -3547,7 +3507,7 @@ if(PINPOINT_BUILD_TOOLS)
         endif()
         target_link_libraries(${tgt} PRIVATE
             Qt6::Core Qt6::Gui Qt6::Multimedia
-            pp_platform pp_vocabulary pp_rules pp_domain pinpoint_buffer pinpoint_swingstore whisper
+            pp_platform pp_vocabulary pp_rules pp_domain pp_stores pinpoint_buffer pinpoint_swingstore whisper
             # wrist_record is the .wrwire wire container and the reconciliation
             # that reads a capture back — what an offline target needs to replay a
             # recorded HackMotion session. Nothing offline CALLS it yet, so the

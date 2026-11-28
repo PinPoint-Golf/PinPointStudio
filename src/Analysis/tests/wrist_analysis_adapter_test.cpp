@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -65,6 +66,7 @@ static PpRag rag(const PpWristAssessmentResult &r, PpJointDof d, PpSwingPosition
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("=== Wrist analysisDetail adapter ===\n");
 

@@ -39,6 +39,7 @@
 #include <QTemporaryDir>
 #include <cstdio>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 // The door the filer reaches a shot's late part through (step 5.1: the filer writes nothing itself; N1 is gone).
 static pinpoint::testdoc::FolderDoor &clipDoor()
@@ -97,6 +98,7 @@ static QJsonObject streamElement(const QString &swingDir, const QString &alias)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("=== PpcpClipFiler — ordering, identity and absence ===\n\n");
 

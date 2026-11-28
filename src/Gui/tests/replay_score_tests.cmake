@@ -22,12 +22,7 @@ pp_add_test(replay_score_test
             ${GUI}/shot/disk_replay_source.cpp
             ${GUI}/shot/replay_source.h
             ${GUI}/markup/markup_truth.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-            ${SRC}/Stores/swing_doc_reader.cpp
-            ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp
-            ${SRC}/Stores/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${GUI}/shot ${GUI}/review ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Qml Qt6::Test
+    LINK pp_stores pp_rules pp_vocabulary pp_platform    Qt6::Multimedia Qt6::Qml Qt6::Test
     AUTOMOC)

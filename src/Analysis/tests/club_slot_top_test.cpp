@@ -52,6 +52,7 @@
 #include <cmath>
 #include <cstdio>
 #include <vector>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -173,6 +174,7 @@ int count(const std::vector<GateRecord> &v, const char *id)
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     std::printf("club_slot_top_test\n");
     namespace cs = club_slot;
     const QString K = cs::readingKey();

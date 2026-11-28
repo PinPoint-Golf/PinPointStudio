@@ -19,6 +19,7 @@
 #include <algorithm>   // std::find — the "is this key claimed" sweep
 #include <map>
 #include <cstdio>
+#include "../../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -55,6 +56,7 @@ static ShotContext wristShot(std::vector<SegmentRole> roles, bool faceOn = false
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     std::printf("=== metric catalogue ===\n");
     const MetricCatalogue cat = makeMetricCatalogue();
 

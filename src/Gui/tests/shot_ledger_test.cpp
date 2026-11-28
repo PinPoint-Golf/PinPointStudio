@@ -55,6 +55,7 @@
 #include <cmath>
 #include <cstdio>
 #include <utility>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::test;
@@ -923,6 +924,7 @@ static void testTrashOpenSwing()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("shot_ledger_test — carousel ordinals, reload and write-through\n");
     testOrdinals();

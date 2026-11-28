@@ -748,15 +748,12 @@ set(PP_QML_SOURCES
     src/Diagnostics/content/gate_words_pack.h
     src/Diagnostics/model/measure_sample.h
     src/Stores/phase_grid_store.h      # the phase grid's file door (FILE-SHOT-07; platform refactor P-3)
-    src/Stores/phase_grid_store.cpp
     src/Diagnostics/engine/live_measure_source.h
-    src/Stores/rule_data_reads.cpp
     src/Diagnostics/content/layered_set.h
     # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository
     # interface, and the store that is the one door to their files.
     src/DomainModel/rule_data_repository.h
     src/Stores/rule_data_store.h
-    src/Stores/rule_data_store.cpp
     src/Stores/rule_data_install.h
     src/Gui/diagnostics/session_diagnostics_model.h
     src/Diagnostics/derived/session_spread.h

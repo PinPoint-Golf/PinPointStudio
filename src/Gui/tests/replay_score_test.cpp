@@ -37,6 +37,7 @@
 #include "../../Stores/swing_store.h"
 #include "../review/swing_data_source.h"
 #include "../shot/disk_replay_source.h"
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 namespace {
 
@@ -107,6 +108,7 @@ void installFixtureDoor()
 class ReplayScoreTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
 private slots:
     void storedScoreReadsTheSameEverywhere_data()

@@ -62,6 +62,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 static int g_fail = 0;
 
@@ -271,6 +272,7 @@ static MeanExtremes meanExtremesOver(const QVariantList &t, const QVariantList &
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     ChartMetrics cm;
 
     // ── Time ticks: ms from impact, and the live buffer clock past 24.86 days ─────

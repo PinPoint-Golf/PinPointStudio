@@ -50,6 +50,7 @@
 
 #include <QQuaternion>
 #include <QVector3D>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 namespace sk = pinpoint::skeleton3d;
 
@@ -242,6 +243,7 @@ static void sessionView(QTemporaryDir &tmp)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("=== swing_rig_driver ===\n");
     QTemporaryDir tmp;

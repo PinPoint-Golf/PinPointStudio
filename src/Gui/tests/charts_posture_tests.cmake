@@ -11,7 +11,7 @@ pp_add_test(session_posture_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_domain pp_rules pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(session_posture_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json")
@@ -37,7 +37,7 @@ pp_add_test(charts_posture_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_posture_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_POSTURE_FIXTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002.json;PP_POSTURE_DIAGNOSTICS=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/nick_2026-10-20_03_swing_0002_diagnostics.json;PP_POSTURE_PICTURE=${CMAKE_CURRENT_SOURCE_DIR}/data/posture/picture_doc.json")

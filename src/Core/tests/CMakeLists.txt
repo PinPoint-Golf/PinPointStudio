@@ -63,10 +63,8 @@ pp_add_test(atomic_write_test
 # the standard locations are not the real ones. It reads the app's own path helpers, so a renamed seam fails here.
 # Hand-rolled main; the real log (studio_profile.cpp logs).
 pp_add_test(isolated_stores_test
-    SOURCES isolated_stores_test.cpp ${PP_SRC}/App/studio_profile.cpp ${PP_SRC}/Stores/studio_profile_store.cpp
-            ${PP_SRC}/Stores/rig_store.cpp
-            ${PP_SRC}/Stores/swing_paths.cpp   # the stores' system-trash seam (SwingPaths::systemTrashAllowed)
-    INCLUDE ${CORE}  LINK pp_rules pp_platform
+    SOURCES isolated_stores_test.cpp ${PP_SRC}/App/studio_profile.cpp
+    INCLUDE ${CORE}  LINK pp_stores pp_rules pp_platform
     AUTOMOC)
 # The advisory folder lock (folder_lock.*, R-PERS-6): two lock objects on one folder — the second is
 # Locked until the first lets go; a lock from another machine freed only by age; a missing folder is

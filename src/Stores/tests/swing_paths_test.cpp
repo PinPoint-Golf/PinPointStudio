@@ -39,6 +39,7 @@
 #include <QStringList>
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::test;
@@ -345,6 +346,7 @@ static void testLibraryWalk()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);   // QStandardPaths / QTemporaryDir
     std::printf("swing_paths_test — session and swing folder layout\n");
     testSanitise();

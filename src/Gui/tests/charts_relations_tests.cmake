@@ -20,10 +20,9 @@ pp_add_test(charts_relations_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_relations_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -46,10 +45,9 @@ pp_add_test(charts_consistency_presenter_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(charts_consistency_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

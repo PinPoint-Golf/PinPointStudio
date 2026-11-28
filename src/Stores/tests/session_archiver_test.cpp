@@ -47,6 +47,7 @@
 #include <filesystem>
 #include <system_error>
 #include <thread>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 
@@ -169,6 +170,7 @@ static QStringList filesUnder(const QString &root)
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     QTemporaryDir tmp;
     const QString library = tmp.filePath("library");

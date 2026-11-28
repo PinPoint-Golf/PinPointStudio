@@ -69,9 +69,6 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Gui/athlete/athlete_controller.cpp
             # The athlete's record through its one door (refactor step 2.3): the Athlete, AthleteStore and
             # the session repository its index reads through.
-            ${SRC}/Stores/athlete_store.cpp
-            ${SRC}/Stores/session_store.cpp
-            ${SRC}/Stores/swing_paths.cpp
             # athlete_controller.cpp includes Diagnostics/content/norm_pack.h for Cohort/cohortFor()/
             # cohortToMap(), so the definitions have to come with it. cohortFor() and cohortToMap's
             # sexFromName/ageBandFromName are defined in norm.cpp now (norm.h's out-of-line
@@ -83,10 +80,10 @@ pp_add_test(update_controller_policy_test
             # a peer tier rests on a book, so reference_pack.cpp comes with it on every link line.
             # The one session list: athlete_controller.cpp's activity is its rows' (refactor step 5.7b).
             ${SRC}/Gui/session/session_list_presenter.h ${SRC}/Gui/session/session_list_presenter.cpp
-            ${SRC}/Gui/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
+            ${SRC}/Gui/session/session_list_follow.cpp
     # Diagnostics -> Metrics -> Analysis, all three: metric_reducer.h includes swing_analysis.h
     # non-relatively. Same reason as NORM_INC in src/Analysis/tests/CMakeLists.txt.
     INCLUDE ${UPDATE} ${SRC}/Core ${SRC}/Gui/app ${SRC}/Gui/session ${SRC}/Gui/athlete
             ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test
     GTEST_NO_MAIN  AUTOMOC)

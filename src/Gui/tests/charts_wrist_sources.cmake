@@ -12,15 +12,12 @@ set(CHARTS_WRIST_SRC
     # The Posture section's core (session_posture.{h,cpp}, posture_chart_design.md stage 2a) rides with
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
     ${GUI}/charts/session_posture.cpp
-    ${SRC}/Stores/phase_grid_store.cpp   # the sampler's folder-keyed reads go through the file door (P-3)
-    ${SRC}/Stores/rule_data_reads.cpp
     # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
     # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
-    ${SRC}/Stores/session_store.cpp ${SRC}/Stores/swing_paths.cpp
     # The charts' one threading idiom and the series' pure half (refactor 5.5a): every presenter's lane is a ChartsLane on
     # the one WorkPool (charts_work.h; SeriesSource there too), every snapshot shot is extractShot's, and the ★ label is
     # the series store's (seriesSwingLabelOf).
     ${GUI}/charts/charts_work.cpp ${SRC}/Core/work_pool.h
-    ${GUI}/charts/session_series_extract.cpp ${SRC}/Stores/series_store.cpp)
+    ${GUI}/charts/session_series_extract.cpp)
 set(CHARTS_NORM_ENV
     "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

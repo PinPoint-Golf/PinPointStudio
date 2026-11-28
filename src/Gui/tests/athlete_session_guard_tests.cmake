@@ -17,24 +17,18 @@
 set(ATHLETE_TEST_SOURCES
     ${GUI}/athlete/athlete_controller.cpp
     ${SRC}/App/app_state.h ${SRC}/App/app_state.cpp   # the switch rule (R-APP-1; step 4-a)
-    ${SRC}/Stores/athlete_store.cpp
-    ${SRC}/Stores/session_store.cpp
-    ${SRC}/Stores/swing_paths.cpp
     # The one session list: the controller's activity is its rows' (refactor step 5.7b).
     ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
-    ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
+    ${GUI}/session/session_list_follow.cpp
     # The Shots' recordings door: the Wrist reference ★ goes through the Session's Shot (step 5.7b). report_list_test's set.
-    ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-    ${SRC}/Stores/swing_doc_reader.cpp ${SRC}/Stores/swing_doc_analysis.cpp
-    ${SRC}/Stores/recording_header.cpp
-    ${SRC}/Stores/session_archiver.cpp)
+    )
 pp_add_test(athlete_session_guard_test
     SOURCES athlete_session_guard_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)
 pp_add_test(athlete_repository_test
     SOURCES athlete_repository_test.cpp athlete_test_library.h ${ATHLETE_TEST_SOURCES}
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/LaunchMonitor
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)

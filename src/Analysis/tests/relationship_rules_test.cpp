@@ -8,6 +8,7 @@
 #include "../../Stores/rule_data_store.h"   // the norm slot's assembly with no RuleData (refactor step 7.1)
 
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -31,6 +32,7 @@ static std::vector<PpWristFinding> assess(const IWristAngleSource &s)
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     pinpoint::analysis::installNormFileFactory();   // the norm slot reads the shipped and user norms (no RuleData)
     std::printf("=== Tier-2 relationship rules ===\n");
 

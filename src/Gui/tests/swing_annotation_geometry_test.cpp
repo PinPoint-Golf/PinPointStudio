@@ -35,6 +35,7 @@
 #include <cstdio>
 
 #include "swing_annotation_mesh.h"
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace swing3d;
 using AP = SwingAnnotTrack;
@@ -70,6 +71,7 @@ static float dist(const QVector3D &a, const QVector3D &b) { return (a - b).lengt
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("=== swing_annotation_geometry ===\n");
     SwingAnnotTrack T = synthetic(120);

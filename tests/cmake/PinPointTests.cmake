@@ -479,3 +479,5 @@ pp_require_ring(vocabulary)
 pp_find_eigen(PP_RINGS_EIGEN)   # pp_rules' own files (the orientation filter, the 3-D series maths)
 pp_require_ring(rules)
 pp_require_ring(domain)
+pp_require_swingstore()   # pp_stores links the swing-document store
+pp_require_ring(stores)

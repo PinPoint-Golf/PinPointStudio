@@ -21,7 +21,7 @@ pp_add_test(folder_series_test
             ${GUI}/tests/folder_series.cpp
             ${CHARTS_WRIST_SRC}
     INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics
-    LINK pp_domain pp_rules pp_platform    Qt6::Qml Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_platform    Qt6::Qml Qt6::Test
     AUTOMOC)
 set_tests_properties(folder_series_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV};PP_CHARTS_FIXTURE=${SRC}/../build/run-me/chart-variants/qml/fixture/session.json")

@@ -55,6 +55,7 @@
 #include "../../Vocabulary/Analysis/swing_analysis.h"
 #include "../../Stores/tests/analysis_fixture.h"
 #include "../shot/disk_replay_source.h"
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -272,6 +273,7 @@ QString corpusSwing()
 class AnalysisDetailProjectionTest : public QObject
 {
     Q_OBJECT
+    pinpoint::test::IsolatedStores m_stores;   // #187: the first member, so every store is scratch before any other
 
 private slots:
     // 1. Live == reload == replay on the synthetic swing, in window time.

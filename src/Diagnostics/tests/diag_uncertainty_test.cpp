@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstdio>
 #include <map>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -124,6 +125,7 @@ static CharacteristicPack pack()
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     // ── D1 ───────────────────────────────────────────────────────────────────────────────────
     std::printf("=== D1: σ through the phase grid ===\n");
     {

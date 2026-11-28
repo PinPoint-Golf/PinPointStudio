@@ -29,6 +29,8 @@
 //      ring libraries exist so that no test or tool hand-lists their files. An executable that must compile one of
 //      them itself (other flags, no Qt) is a named exception here, with its reason, never an allowlist file; an
 //      exception that no longer holds fails as stale.
+// The ring sources no ring library takes (kLeftInExecutables: OpenCV, the Buffer, special flags) are named with their
+// reason; each must exist and stay out of the ring libraries, or its line is stale.
 // The other in-tree libraries (pinpoint_buffer, pinpoint_swingstore, the device protocol libraries) are under rules 1
 // and 2 only: tests still compile some Buffer files themselves, which is not this check's concern.
 // The app tree runs rules 1 and 2 at configure (pp_check_library_membership), since it has no lint suite.
@@ -94,6 +96,41 @@ struct Exception
 const QList<Exception> &kExceptions()
 {
     static const QList<Exception> list{};
+    return list;
+}
+
+// The ring sources left in the executables on purpose (#424): no ring library holds them, so the tests, tools and the
+// app that use one list it. Each is checked to exist and to be in no ring library; one that a library takes is stale.
+struct LeftOut
+{
+    QString source;   // path under src/
+    QString reason;
+};
+
+const QList<LeftOut> &kLeftInExecutables()
+{
+    static const QString cv = QStringLiteral("needs OpenCV, which a ring library would force on every user");
+    static const QString storesCv = QStringLiteral(
+        "a store that needs OpenCV or the Buffer: in pp_stores it would make every user of the stores link OpenCV "
+        "for five files (the owner, 28 Nov 2026)");
+    static const QList<LeftOut> list{
+        { QStringLiteral("Stores/recording_loader.cpp"), storesCv },
+        { QStringLiteral("Analysis/mp4_frame_reader.cpp"), storesCv + QStringLiteral(" (the MP4 reader the loader builds)") },
+        { QStringLiteral("Stores/recording_phase_grid.cpp"), storesCv + QStringLiteral(" (it calls the loader)") },
+        { QStringLiteral("Stores/swing_exporter.cpp"), storesCv },
+        { QStringLiteral("Stores/export_tone.cpp"), storesCv },
+        { QStringLiteral("Vocabulary/Recording/frame_decode.cpp"), cv },
+        { QStringLiteral("Timeline/event_refine.cpp"), cv + QStringLiteral(" (through Club/ball_anchor.h)") },
+        { QStringLiteral("Analysis/frame_store.cpp"), cv },
+        { QStringLiteral("Analysis/recording_integrity.cpp"),
+          QStringLiteral("calls the Buffer's SwingWindow; pp_rules links no Buffer") },
+        { QStringLiteral("IMU/imu_vision_fuser.cpp"), QStringLiteral("calls the Buffer's SwingWindow; pp_rules links no Buffer") },
+        { QStringLiteral("Skeleton3d/skeleton3d_fit.cpp"),
+          QStringLiteral("compiled optimised and assert-free by the root CMakeLists.txt's source property, and Qt-free "
+                         "with its own flags in skeleton3d_test") },
+        { QStringLiteral("Stores/swing_folder_reanalysis.cpp"),
+          QStringLiteral("the offline tools' only, and it calls the re-analysis pipeline (Application)") },
+    };
     return list;
 }
 
@@ -337,6 +374,16 @@ int main()
     for (const Exception &e : kExceptions())
         std::printf("  exception: %s compiles %s itself — %s\n", qPrintable(e.target), qPrintable(e.source), qPrintable(e.reason));
     for (const Finding &fd : r.findings) check(false, QStringLiteral("rule %1: %2").arg(fd.rule).arg(fd.text));
+    QSet<QString> ringHeld;
+    for (auto it = m.cbegin(); it != m.cend(); ++it)
+        if (kRingLibraries().contains(it.key()))
+            for (const QString &s : it->sources) ringHeld.insert(QDir::cleanPath(s));
+    for (const LeftOut &l : kLeftInExecutables()) {
+        const QString abs = QDir::cleanPath(QStringLiteral(PP_SRC_ROOT) + QLatin1Char('/') + l.source);
+        std::printf("  left in the executables: %s — %s\n", qPrintable(l.source), qPrintable(l.reason));
+        check(QFileInfo::exists(abs) && !ringHeld.contains(abs),
+              QStringLiteral("%1 exists and no ring library holds it (else its kLeftInExecutables line is stale)").arg(l.source));
+    }
     if (r.findings.isEmpty())
         check(true, "no source in two libraries, none listed beside a library holding it, no ring library's source hand-listed");
     int total = 0;

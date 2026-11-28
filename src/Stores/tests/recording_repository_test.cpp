@@ -89,6 +89,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 // THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeShot, which needs the
 // whole pipeline. This test is about the write half, so the analysis it gets is the one set here.
@@ -1270,6 +1271,7 @@ void testLegacyOwnerIsTheFoldersAthlete()
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     std::printf("=== RecordingRepository (step 1.4; by ShotRef since 2.4) ===\n");
     SwingStoreRecordingRepository repo(testdoc::shots());   // a test folder is a shot (swing_doc_test_writes.h)
     testCreate(repo);

@@ -12,16 +12,12 @@
 pp_add_test(report_studio_test
     SOURCES report_studio_test.cpp
             ${SRC}/App/studio_profile.cpp
-            ${SRC}/Stores/studio_profile_store.cpp   # its repository: the keys and the folder (SET-20, FILE-APP-06)
             ${GUI}/athlete/athlete_controller.cpp
             # The athlete's record through its one door (refactor step 2.3): the Athlete, AthleteStore and
             # the session repository its index reads through.
-            ${SRC}/Stores/athlete_store.cpp
-            ${SRC}/Stores/session_store.cpp
-            ${SRC}/Stores/swing_paths.cpp
             # The one session list: the controller's activity is its rows' (refactor step 5.7b).
             ${GUI}/session/session_list_presenter.h ${GUI}/session/session_list_presenter.cpp
-            ${GUI}/session/session_list_follow.cpp ${SRC}/Stores/session_list_reads.cpp
+            ${GUI}/session/session_list_follow.cpp
     INCLUDE ${GUI} ${GUI}/athlete ${SRC} ${SRC}/Core ${SRC}/Diagnostics ${SRC}/Vocabulary/Metrics ${SRC}/Analysis
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Test
     AUTOMOC)

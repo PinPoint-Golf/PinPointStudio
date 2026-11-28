@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdio>
 #include <map>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint::analysis;
 
@@ -93,6 +94,7 @@ private:
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     auto norms = std::make_shared<FakeNorms>();
     norms->add("m_ballPosition", "full_swing", 50.0, 10.0);   // ideal 40..60
     norms->add("m_ballPosition", "driver",     10.0, 5.0);    // ideal  5..15

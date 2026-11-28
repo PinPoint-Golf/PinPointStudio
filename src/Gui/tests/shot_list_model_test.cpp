@@ -48,6 +48,7 @@
 #include <QVariantMap>
 #include <QUrl>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using pinpoint::ShotRef;
 using pinpoint::ShotSummary;
@@ -112,6 +113,7 @@ struct Rig {
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("=== ShotListModel: a view of one Session ===\n\n");
 

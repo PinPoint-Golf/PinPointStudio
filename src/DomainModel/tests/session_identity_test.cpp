@@ -42,6 +42,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 
@@ -349,6 +350,7 @@ static void testLabel()
 
 int main(int argc, char **argv)
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     QCoreApplication app(argc, argv);
     std::printf("session_identity_test — SessionIdentity: legacy names, D3 ids, n-of-day\n");
     testLegacyId();

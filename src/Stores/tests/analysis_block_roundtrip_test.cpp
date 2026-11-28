@@ -55,6 +55,7 @@
 #include <QJsonObject>
 #include <algorithm>
 #include <cstdio>
+#include "../../Core/tests/isolated_stores.h"   // #187: the suite links pp_stores, whose stores read the settings
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
@@ -123,6 +124,7 @@ static QJsonObject writeBlock(const SwingAnalysis &a, int64_t t0);
 
 int main()
 {
+    pinpoint::test::IsolatedStores stores;   // #187: every per-user store points at a scratch folder, first
     const SwingAnalysis win = makeAnalysis(0);     // window time
     const SwingAnalysis clk = makeAnalysis(kT0);   // the ring clock, as the stages produce it live
 

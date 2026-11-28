@@ -38,9 +38,7 @@ set(SRC ${GUI}/..)                         # src
 # target that reads the packs, the norms or the content sets through RuleData's snapshot, or builds a
 # provider from a file by path, links these. With what they read: the registries, the pack and norm
 # providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
-set(RULE_DATA_SOURCES
-    ${SRC}/Stores/rule_data_store.cpp
-    ${SRC}/Stores/rule_data_reads.cpp)
+set(RULE_DATA_SOURCES)
 
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
 pp_add_test(timeline_labels_test
@@ -67,9 +65,8 @@ pp_add_test(chart_metrics_test
             # segments()/nearestPhase() ask TimelineLabels which phases are P-positions, so
             # the chips can never be labelled "→P2" from an untagged endpoint.
             ${GUI}/review/timeline_labels.cpp
-            ${SRC}/Stores/rule_data_reads.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Vocabulary/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
-    LINK pp_rules pp_vocabulary    Qt6::Qml  AUTOMOC)
+    LINK pp_stores pp_rules pp_vocabulary    Qt6::Qml  AUTOMOC)
 
 # The Charts panel's session half (src/Gui/charts/): the session series model and the session maths.
 include(${CMAKE_CURRENT_LIST_DIR}/folder_series_tests.cmake OPTIONAL)
@@ -90,10 +87,9 @@ set(_rig_gate_sources ${GUI}/trust/trust_types.h ${GUI}/trust/trust_readings.cpp
                       ${GUI}/review/shot_data_door.h)
 pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
-            ${SRC}/Stores/swing_paths.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
             ${_rig_gate_sources}
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK pp_rules pp_platform    Qt6::Qml  AUTOMOC)
+    LINK pp_stores pp_rules pp_platform    Qt6::Qml  AUTOMOC)
 
 # The 3-D swing panel's motion annotations as meshes (swing_annotation_mesh.h) — trace growth and
 # its exact end at the playhead, gaps, the swing window, the fan's ≤ 24 frames on the tiles' ramp,
@@ -101,10 +97,9 @@ pp_add_test(swing_rig_driver_test
 pp_add_test(swing_annotation_geometry_test
     SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${GUI}/swing3d/swing_rig_driver.cpp
-            ${SRC}/Stores/swing_paths.cpp   # the rig driver's session listing (step 2.7b)
             ${_rig_gate_sources}
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Stores ${SRC}/Analysis ${SRC}/Vocabulary/Metrics
-    LINK pp_rules pp_platform    Qt6::Qml  AUTOMOC)
+    LINK pp_stores pp_rules pp_platform    Qt6::Qml  AUTOMOC)
 
 # SwingSeriesModel — playhead→row mapping (rowForTimeUs) for the table cross-highlight.
 pp_add_test(swing_series_model_test
@@ -129,13 +124,8 @@ pp_add_test(charts_work_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-            ${SRC}/Stores/swing_doc_reader.cpp
-            ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp
-            ${SRC}/Stores/swing_paths.cpp
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Stores ${SRC}/Stores/tests
-    LINK pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_stores pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
 # The controller's worker body (reanalyzeShot, through the shot's RecordingSource) is satisfied
@@ -274,9 +264,8 @@ pp_add_test(imu_rig_link_test
             ${GUI}/imu/imu_rig_link.cpp ${GUI}/imu/imu_rig_link.h
             ${GUI}/app/rig_presenter.cpp ${GUI}/app/rig_presenter.h
             ${SRC}/DomainModel/rig_commands.h
-            ${SRC}/Stores/rig_store.cpp
     INCLUDE ${SRC}/Video
-    AUTOMOC LINK pp_domain pp_rules pp_vocabulary pp_platform)
+    AUTOMOC LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform)
 pp_requirement(imu_rig_link_test REQ-INST-17 REQ-DEV-17)   # an update keeps each sensor's role, name and enabled flag; one arm instrument at a time, as today's rule keeps it (AD-10); REQ-DEV-17 supports
 
 # The sensors' live objects keep the Rig's alignment records true (platform refactor C-6b.2; rig_design.md §4.2, §4.8
@@ -359,16 +348,10 @@ pp_add_test(cloud_fallback_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-            ${SRC}/Stores/swing_doc_reader.cpp
-            ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp
-            ${SRC}/Stores/swing_paths.cpp
-            ${SRC}/Stores/session_store.cpp            # the one swing allocator (step 2.2)
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${GUI} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
             ${SRC}/Stores ${SRC}/Stores/tests
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Test  AUTOMOC)
 
 # LmSessionModel — the launch monitor board's empty lines (#57): the picked shot with no reading, the
 # latest unread with nothing picked, and a session with none, each its own sentence; graphics.sessionHas
@@ -382,11 +365,6 @@ set(PP_LM_BOARD_SOURCES
             ${GUI}/shot/shot_list_model.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/charts/session_sequence_words.cpp
-            ${SRC}/Stores/swing_doc_writer.cpp ${SRC}/Stores/swing_store_repository.cpp
-            ${SRC}/Stores/swing_doc_reader.cpp
-            ${SRC}/Stores/swing_doc_analysis.cpp
-            ${SRC}/Stores/recording_header.cpp
-            ${SRC}/Stores/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp
             ${SRC}/LaunchMonitor/launch_monitor_factory.cpp
             ${SRC}/LaunchMonitor/gcquad_monitor.cpp
@@ -395,7 +373,6 @@ set(PP_LM_BOARD_SOURCES
             ${SRC}/LaunchMonitor/gspro_reading.cpp
             ${SRC}/LaunchMonitor/premier_monitor.cpp
             ${SRC}/LaunchMonitor/premier_session_parser.cpp
-            ${SRC}/Stores/rule_data_reads.cpp
             # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
             # from the manifest: the catalogue chain chart_metrics_test links
             ${GUI}/variability/variability_facade.cpp
@@ -407,11 +384,9 @@ set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts $
 pp_add_test(lm_session_model_test
     SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-            ${SRC}/Stores/athlete_store.cpp
-            ${SRC}/Stores/session_store.cpp
             ${SRC}/App/shot_source.h ${SRC}/App/session_shot_source.h ${SRC}/App/session_shot_source.cpp
     INCLUDE ${PP_LM_BOARD_INCLUDES}
-    LINK pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
+    LINK pp_stores pp_domain pp_rules pp_vocabulary pp_platform    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${SRC}/Diagnostics/tests/data/live_swings")
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
@@ -497,8 +472,7 @@ set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLA
 # Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
 pp_add_test(report_meta_test
     SOURCES report_meta_test.cpp
-            ${SRC}/Stores/swing_paths.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
-    INCLUDE ${GUI} ${SRC} LINK pp_platform)
+    INCLUDE ${GUI} ${SRC} LINK pp_stores pp_platform)
 
 # The rest of the session report's C++ tests, one fragment per part of the build so the parts can be
 # registered independently: the stills, the model, the session list and mail hand-off, the studio,
