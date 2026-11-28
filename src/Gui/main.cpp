@@ -685,6 +685,11 @@ int main(int argc, char *argv[])
     // Registers the shot-marker EventBuffer source; registering a first source
     // auto-resumes the buffer, so restore the user capture intent right after.
     ShotController            shotController(&eventBuffer, &sessionController);
+    // The ready rule waits only for the devices still connected and delivering, so one lost mid-session never holds the
+    // trigger disarmed (#394, step 85).
+    shotController.setDeviceSources([&cameraManager, &imuManager] {
+        return cameraManager.deliveringSources() + imuManager.deliveringSources();
+    });
     cameraManager.applyCaptureIntent();
     // THE CAROUSEL IS A VIEW (refactor step 5.2; R-QML-5): each instance shows one Session through its port, made here.
     const pinpoint::ShotSourceFor shotSourceFor = [&appObject](const QString &folder) {

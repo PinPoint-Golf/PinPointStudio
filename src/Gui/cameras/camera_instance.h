@@ -264,6 +264,9 @@ public:
     bool    isReplaying()         const;
     QString lastPreviewError()    const { return m_lastPreviewError; }
     pinpoint::SourceId sourceId() const;
+    // Whether its back-end last reported itself Active (VideoInputBase::stateChanged): false before it starts, and once
+    // it reports an error or stops, as a camera unplugged does. The shot trigger waits only for a camera that is.
+    bool    inputActive()         const { return m_inputActive; }
 
 #ifdef HAVE_PPCP_TRANSPORT
     // Set by CameraManager right after construction, forwarded from its own
@@ -452,6 +455,7 @@ private:
     QVideoFrame            m_lastDeliveredFrame;
     bool                   m_recording        = false;
     bool                   m_connecting       = false;
+    bool                   m_inputActive      = false;   // inputActive()
     bool                   m_previewing       = false;
     QString                m_lastPreviewError;
 

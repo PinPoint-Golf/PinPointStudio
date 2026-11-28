@@ -23,7 +23,12 @@
 #include <QTimer>
 #include <QVideoFrame>
 
+#include <atomic>
 #include <cstdlib>
+
+namespace { std::atomic_bool g_unplugged{false}; }
+
+void VideoInputStandIn::setUnplugged(bool unplugged) { g_unplugged.store(unplugged); }
 
 VideoInputStandIn::VideoInputStandIn(QObject *parent) : VideoInputBase(parent) {}
 
@@ -100,6 +105,13 @@ CameraCapabilities VideoInputStandIn::queryCapabilities() const { return capabil
 
 void VideoInputStandIn::drawFrame()
 {
+    if (g_unplugged.load()) {
+        if (m_timer) m_timer->stop();
+        m_state = State::Error;
+        emit errorOccurred(QStringLiteral("The stand-in camera was unplugged"));
+        emit stateChanged(m_state);
+        return;
+    }
     QVideoFrame frame(frameFormat());
     if (!frame.map(QVideoFrame::WriteOnly))
         return;

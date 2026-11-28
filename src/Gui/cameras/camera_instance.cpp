@@ -500,6 +500,7 @@ void CameraInstance::setupPipeline()
     // and re-evaluate needsDebayer (only meaningful after Active).
     connect(m_videoInput, &VideoInputBase::stateChanged,
             this, [this](VideoInputBase::State s) {
+                m_inputActive = (s == VideoInputBase::State::Active);
                 if (s == VideoInputBase::State::Active) {
                     setConnecting(false);   // device live — connect window over
                     if (!m_lastPreviewError.isEmpty()) {

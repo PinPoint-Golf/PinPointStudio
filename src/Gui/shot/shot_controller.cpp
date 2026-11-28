@@ -116,9 +116,12 @@ bool ShotController::devicesActive() const
         return true;
     // The buffer's per-source count is zeroed at each resume (the rings are cleared); its session-lifetime count is
     // not, so a source that has written this session and not since the resume is a device not yet active again.
+    const QVector<pinpoint::SourceId> delivering = m_deviceSources ? m_deviceSources() : QVector<pinpoint::SourceId>{};
     for (const auto &src : m_buffer->diagnostics().sources) {
         if (src.id == m_sourceId || src.lifetime_events_written == 0)
             continue;
+        if (m_deviceSources && !delivering.contains(src.id))
+            continue;   // a device no longer connected or delivering: its own warning says so; it does not hold ready
         if (src.events_written == 0)
             return false;
     }

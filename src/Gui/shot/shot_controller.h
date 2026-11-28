@@ -19,6 +19,7 @@
 #pragma once
 
 #include <QObject>
+#include <functional>
 #include <QPointer>
 #include <QSet>
 #include <QStringList>
@@ -117,10 +118,17 @@ public:
     // ⚠ THE READY RULE (the owner, 28 Nov 2026): "the next shot should only be captured once the current shot has been
     // analysed and saved", and ready only once "the buffer is active for all items on the rig". A resume clears the
     // rings, so at the instant capture resumes no device has written yet: the trigger waits until every device source
-    // that has written this session (every camera's, sensor's and HackMotion unit's; the shot marker's own aside; a
+    // still connected and delivering (setDeviceSources) that has written this session (every camera's, sensor's and
+    // HackMotion unit's; the shot marker's own aside; a
     // source that never writes, as a phone's preview-only camera, is not waited for) has written again since the resume.
     // No fill time: the golfer takes longer than that to get ready to hit.
     bool armed() const;
+    // THE DEVICES THE READY RULE WAITS FOR: the sources of the devices still connected and delivering (the camera
+    // manager's and the sensor manager's deliveringSources), handed in by the composition root and asked afresh at each
+    // check. A device lost mid-session (unplugged, its link dropped, its battery dead) drops out of it, so it never holds
+    // the trigger disarmed; its own warning says it is lost. Without one, every source but the shot marker's is waited for.
+    using DeviceSources = std::function<QVector<pinpoint::SourceId>()>;
+    void setDeviceSources(DeviceSources sources) { m_deviceSources = std::move(sources); reevaluateArmed(); }
     bool notReadyAfterShot() const { return m_processorBusy || m_awaitingReady; }
 
     // Direct commit — bypasses the arbiter hold. timestampUs: precise impact
@@ -334,6 +342,7 @@ private:
     bool                   m_devicesActive = true;
     QTimer                 m_readyPoll;
     bool                   m_awaitingReady = false;   // a shot was taken and the trigger has not armed since
+    DeviceSources          m_deviceSources;           // setDeviceSources
     bool                   m_lastNotReady  = false;
     bool                   baseArmed() const;          // armed() but for the devices
     bool                   devicesActive() const;

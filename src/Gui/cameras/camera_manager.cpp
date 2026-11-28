@@ -1013,6 +1013,16 @@ CameraInstance *CameraManager::createController(const Device &device)
     return ctrl;
 }
 
+QVector<pinpoint::SourceId> CameraManager::deliveringSources() const
+{
+    QVector<pinpoint::SourceId> out;
+    for (const auto &cam : m_cameras)
+        if (cam.selected && cam.controller && cam.controller->inputActive()
+            && cam.controller->sourceId() != pinpoint::kInvalidSourceId)
+            out.push_back(cam.controller->sourceId());
+    return out;
+}
+
 std::vector<CameraInstance *> CameraManager::liveCameraInstances() const
 {
     std::vector<CameraInstance *> out;

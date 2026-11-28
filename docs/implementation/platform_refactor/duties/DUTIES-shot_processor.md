@@ -68,7 +68,9 @@ the x264 encode of a real clip, and QML.
 
 One shot at a time: the next shot is captured only once the current one is analysed and saved, and there is no queue.
 The trigger (`ShotController::armed`) then arms only once every device's buffer is active again: each device source
-that has written this session has written since the resume (rig READY1, red before it was built). After a shot the
+that has written this session has written since the resume (rig READY1, red before it was built). Only the devices
+still connected and delivering are waited for: a camera unplugged, or a sensor whose link drops, never holds it (rig
+DROP1, red before the fix: the trigger stayed disarmed with the camera gone). After a shot the
 header's badge holds "not ready" until the trigger arms (`ShotController::notReadyAfterShot`; rig ONE1).
 
 ## The known bugs, and what the rig does not reach

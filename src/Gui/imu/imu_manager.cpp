@@ -410,6 +410,22 @@ QVariantList ImuManager::instances() const
     return list;
 }
 
+QVector<pinpoint::SourceId> ImuManager::deliveringSources() const
+{
+    QVector<pinpoint::SourceId> out;
+    for (const auto &entry : m_selected) {
+        if (!entry.selected || !entry.instance || !entry.instance->imuConnected())
+            continue;
+        if (auto *hm = qobject_cast<HmInstance *>(entry.instance)) {
+            for (int lane = 0; lane < 2; ++lane)
+                if (hm->deferredLane(lane) != pinpoint::kInvalidSourceId) out.push_back(hm->deferredLane(lane));
+        } else if (auto *imu = qobject_cast<ImuInstance *>(entry.instance)) {
+            if (imu->sourceId() != pinpoint::kInvalidSourceId) out.push_back(imu->sourceId());
+        }
+    }
+    return out;
+}
+
 QVector<pinpoint::DeferredSource *> ImuManager::deferredSources() const
 {
     QVector<pinpoint::DeferredSource *> out;

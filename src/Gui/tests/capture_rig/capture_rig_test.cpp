@@ -39,6 +39,7 @@
 //   W1  the first write (R-REC-1), W2 the staged writes; W3 the Recording read once at the freeze; W4 a session folder
 //       that cannot be written (blocked, a card with no document);
 //   READY1 the trigger arms only once every device's buffer is active again; ONE1 one shot at a time (#281, by design);
+//   DROP1 a device lost mid-session (a camera unplugged) does not hold "not ready";
 //   --xfail <issue>: the known bugs, each written to the right behaviour and expected to fail: #188 (End with a shot in
 //       flight, and in its post-roll), #53 (a shot whose impact lies before ready is taken).
 // The stand-ins (step 81): the camera, VideoInputStandIn, registered with the device enumerator and created only in
@@ -260,6 +261,9 @@ struct Rig {
         sessionController = std::make_unique<SessionController>(&athleteController);
         // The shot marker's source, as main.cpp registers it; then the capture intent, as main.cpp applies it.
         shotController = std::make_unique<ShotController>(&eventBuffer, sessionController.get());
+        shotController->setDeviceSources([this] {   // as main.cpp hands them
+            return cameraManager->deliveringSources() + imuManager->deliveringSources();
+        });
         lane           = std::make_unique<SyntheticImuLane>(eventBuffer);
         cameraManager->applyCaptureIntent();
 
@@ -850,11 +854,13 @@ struct DeviceActivity {
     QStringList waiting;   // the names of those not yet active
     bool allActive() const { return devices > 0 && active == devices; }
 };
-DeviceActivity deviceActivity(pinpoint::EventBuffer &buffer)
+// `only`: the sources to count (the devices still connected and delivering); empty, every one.
+DeviceActivity deviceActivity(pinpoint::EventBuffer &buffer, const QVector<pinpoint::SourceId> &only = {})
 {
     DeviceActivity a;
     for (const auto &src : buffer.diagnostics().sources) {
         if (src.identifier == "shot_controller" || src.lifetime_events_written == 0) continue;
+        if (!only.isEmpty() && !only.contains(src.id)) continue;
         ++a.devices;
         if (src.events_written > 0) ++a.active;
         else a.waiting << QString::fromStdString(src.name);
@@ -862,8 +868,8 @@ DeviceActivity deviceActivity(pinpoint::EventBuffer &buffer)
     return a;
 }
 
-// READY1: after a shot, the trigger arms again only once every device's buffer is active again: each camera's and each
-// sensor's source has written since the resume. Taken through the shot trigger, as a golfer's shot is.
+// READY1: after a shot, the trigger arms again only once every device's buffer is active again: each connected
+// camera's and sensor's source has written since the resume. Taken through the shot trigger, as a golfer's shot is.
 void caseReady(const pinpoint::test::IsolatedStores &iso)
 {
     std::printf("READY1 the trigger arms only once every device's buffer is active again\n");
@@ -877,7 +883,8 @@ void caseReady(const pinpoint::test::IsolatedStores &iso)
         if (!r->shotController->armed()) { sawShot = true; return; }
         if (!sawShot) return;
         ++rearms;
-        atArm = deviceActivity(r->eventBuffer);
+        // The devices the rule waits for: the stand-in camera (the synthetic lane is no managed device).
+        atArm = deviceActivity(r->eventBuffer, r->cameraManager->deliveringSources() + r->imuManager->deliveringSources());
     });
     r->clearStates();
     r->shotController->triggerShot(ShotController::Source::Manual);
@@ -886,7 +893,7 @@ void caseReady(const pinpoint::test::IsolatedStores &iso)
     check(waitFor([&] { return r->shotController->armed(); }, 5000), "and the trigger arms again");
     std::printf("    at the re-arm: %d of %d devices active (waiting: %s)\n", atArm.active, atArm.devices,
                 qPrintable(atArm.waiting.join(QStringLiteral(", "))));
-    check(rearms == 1 && atArm.devices >= 2 && atArm.allActive(),
+    check(rearms == 1 && atArm.devices >= 1 && atArm.allActive(),
           QStringLiteral("at the moment it armed, every device's buffer was active again (%1 of %2)")
               .arg(atArm.active).arg(atArm.devices));
     r->processor->endSessionFolder();
@@ -941,6 +948,35 @@ void caseOneAtATime(const pinpoint::test::IsolatedStores &iso)
           "one document: nothing of the refused swings was taken");
     r->processor->endSessionFolder();
     check(!r->shotController->notReadyAfterShot(), "after End, nothing is waited for");
+}
+
+// DROP1: a device lost mid-session does not hold "not ready" for the rest of it. The stand-in camera is unplugged while
+// a shot is processed (it reports an error and the Error state, as a real back-end does); once the shot is done the
+// trigger arms again without it, and the camera's own error is still shown.
+void caseDeviceLost(const pinpoint::test::IsolatedStores &iso)
+{
+    std::printf("DROP1 a camera unplugged during a shot does not block ready\n");
+    auto r = cameraRig(iso, QStringLiteral("drop1"), /*skipAnalysis=*/true);
+    if (!r) return;
+    check(waitFor([&] { return r->shotController->armed(); }, 5000), "armed before the shot");
+    bool pulled = false;
+    QObject::connect(r->processor.get(), &ShotProcessor::stateChanged, r->processor.get(), [&] {
+        if (r->processor->stateName() == QStringLiteral("processing") && !pulled) {
+            pulled = true;
+            VideoInputStandIn::setUnplugged(true);
+        }
+    });
+    r->shotController->triggerShot(ShotController::Source::Manual);
+    check(waitFor([&] { return !r->processor->busy(); }, 30000) && pulled, "the shot runs to its end, the camera pulled in it");
+    const bool armed = waitFor([&] { return r->shotController->armed(); }, 3000);
+    const DeviceActivity act = deviceActivity(r->eventBuffer);
+    std::printf("    devices: %d of %d active (waiting: %s)\n", act.active, act.devices, qPrintable(act.waiting.join(QStringLiteral(", "))));
+    const std::vector<CameraInstance *> live = r->cameraManager->liveCameraInstances();
+    check(armed && !r->shotController->notReadyAfterShot(), "the trigger arms again without the lost camera");
+    check(live.size() == 1 && !live.front()->lastPreviewError().isEmpty(),
+          "the camera's own error is still shown: \"" + (live.empty() ? QString() : live.front()->lastPreviewError()) + "\"");
+    VideoInputStandIn::setUnplugged(false);
+    r->processor->endSessionFolder();
 }
 
 // ── The known bugs: each written to the right behaviour, and expected to fail on today's code ──────────────────
@@ -1106,6 +1142,7 @@ int main(int argc, char **argv)
     caseUnwritable(iso);
     caseReady(iso);
     caseOneAtATime(iso);
+    caseDeviceLost(iso);
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "PASSED", g_fail);
     return g_fail ? 1 : 0;

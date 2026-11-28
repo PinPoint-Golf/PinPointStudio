@@ -62,6 +62,11 @@ public:
     // Frames drawn since start(): read by the rig.
     quint64 framesDrawn() const { return m_frames; }
 
+    // THE CABLE PULLED (the rig's hook, for every stand-in at once): at its next frame each stand-in stops drawing and
+    // reports what a real back-end does when its camera goes, an error and the Error state. Cleared, a new start()
+    // draws again.
+    static void setUnplugged(bool unplugged);
+
 private:
     void drawFrame();
 

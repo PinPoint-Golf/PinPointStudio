@@ -155,6 +155,10 @@ public:
     // The selected sensors whose best data arrives after the swing (a HackMotion), for the shot processor's gather
     // (ShotProcessor::setDeferredSources; #394 step 81). In the order instances() lists them.
     QVector<pinpoint::DeferredSource *> deferredSources() const;
+    // The buffer sources of the selected sensors that are connected (imuConnected): a Witmotion's one, a HackMotion's
+    // two. The shot trigger waits for these after a resume (ShotController::setDeviceSources); a sensor whose link has
+    // dropped, or whose battery has died, is not among them.
+    QVector<pinpoint::SourceId> deliveringSources() const;
     bool         anySelected()        const;
     int          imuEnumeratedCount() const;
     bool         imuConnected()       const;

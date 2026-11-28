@@ -135,6 +135,10 @@ public:
     // Selected cameras with a live controller — the shot processor builds its
     // replay tracks and export job from these.
     std::vector<CameraInstance *> liveCameraInstances() const;
+    // The buffer sources of the live cameras whose back-end is active (CameraInstance::inputActive): the cameras the
+    // shot trigger waits for after a resume (ShotController::setDeviceSources). A camera that has reported an error or
+    // stopped, as one unplugged does, is not among them.
+    QVector<pinpoint::SourceId> deliveringSources() const;
 
     Q_INVOKABLE void setSelected(int index, bool selected);
     Q_INVOKABLE void startAll();
